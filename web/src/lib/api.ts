@@ -1,3 +1,4 @@
+import { tr } from "@/i18n";
 import type {
   MeResponse,
   User,
@@ -196,7 +197,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     // so we surface a single friendly Chinese message and tag it with
     // status 0 so callers can render a dedicated offline state
     // (retry button, etc) instead of showing the raw engine error.
-    throw new ApiError("无法连接到服务器，请检查网络或稍后重试", 0);
+    throw new ApiError(tr("error.network"), 0);
   }
   if (res.status === 204) return undefined as T;
   if (!res.ok) {

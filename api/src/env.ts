@@ -72,6 +72,9 @@ const schema = z.object({
   CODEX_MODEL: optional(z.string().trim().regex(MODEL_ID_PATTERN, "CODEX_MODEL 只能包含字母、数字和 . _ - : / [ ]，且以字母或数字开头")),
   // 火山 TTS 的 X-Api-Resource-Id；留空用默认 volc.service_type.10029(旧版控制台)，新版控制台按开通的服务填写。
   VOLC_TTS_RESOURCE_ID: optional(z.string()),
+  // 部署语言(zh / en)：飞书卡片与群推送、定时任务、周报、角色 Skill、会议纪要等共享内容，
+  // 以及没带 X-Lang 的请求(飞书机器人、脚本)都按它输出。个人界面与问答跟随各自的界面语言。
+  APP_LANGUAGE: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.enum(["zh", "en"]).default("zh")),
   // 助手的显示名，用于界面、提示词、飞书卡片；留空回退默认值。
   ASSISTANT_NAME: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string().trim().default("AI")),
   // 会议唤醒词，逗号分隔；转写文本里出现任意一个就直接触发助手回答。留空回退默认值。

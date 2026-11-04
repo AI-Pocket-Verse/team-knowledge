@@ -38,6 +38,13 @@ export interface ChangelogEntry {
    *  的全部改动,不必凭记忆。新增版本时把这里填成当时的 HEAD。 */
   commit?: string;
   items: string[];
+  /** items 的英文版，逐条对应(英文界面与 APP_LANGUAGE=en 的版本播报使用)；缺省时回落中文。 */
+  itemsEn?: string[];
+}
+
+/** 按语言取某个版本的条目。 */
+export function changelogItems(entry: ChangelogEntry, lang: "zh" | "en"): string[] {
+  return lang === "en" && entry.itemsEn?.length ? entry.itemsEn : entry.items;
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
@@ -49,6 +56,11 @@ export const CHANGELOG: ChangelogEntry[] = [
       "删除目录时，如果目录里有其他成员的文档，需要由管理员删除，避免误删他人文档。",
       "添加协作者时不再显示对方的邮箱。",
       "加强 AI 助手的安全防护，AI 回答问题时无法读取服务器上的文件。",
+    ],
+    itemsEn: [
+      "Deleting a folder that holds other members' documents now requires an admin, so nobody deletes others' work by accident.",
+      "Adding a co-editor no longer shows their email address.",
+      "Hardened the AI assistant: it can no longer read files on the server while answering.",
     ],
   },
   {
@@ -64,6 +76,16 @@ export const CHANGELOG: ChangelogEntry[] = [
       "自动化：设定定时任务，到时间自动整理内容并推送。",
       "数据看板、站内通知、个人主页与动态。",
       "可选接入飞书：飞书登录、导入飞书文档、飞书机器人问答与群聊答疑、飞书群通知。",
+    ],
+    itemsEn: [
+      "Knowledge base: roles, folders and documents, always editable with autosave; version history, a recycle bin and full-text search.",
+      "AI Q&A: answers grounded in the knowledge base with cited sources, multi-turn conversations, questions about images and image generation.",
+      "Meeting assistant: live transcription; the AI joins the discussion with answers from the knowledge base, reads them aloud and writes the minutes afterwards.",
+      "Document audits: the AI regularly reads the knowledge base to find contradictions, mistakes and things to improve.",
+      "Role skills: each role's documents are summarized into a skill.md you can use with Claude and Codex.",
+      "Automations: scheduled tasks that collect and post content for you.",
+      "Dashboard, in-app notifications, profile pages and activity.",
+      "Optional Feishu (Lark) integration: Feishu login, importing Feishu docs, bot Q&A in chats and groups, and group notifications.",
     ],
   },
 ];

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth as useSsoUser } from "@team-knowledge/auth-client-web";
 import { useAuth } from "@/stores/auth";
 import { useAdminAccess, firstAdminPath } from "@/lib/adminAccess";
+import { useI18n, type LangPref } from "@/i18n";
 
 /**
  * Top-right identity menu — a team-knowledge-local Feishu-style dropdown (no longer
@@ -36,6 +37,7 @@ export function UserMenu() {
   // 真实飞书头像:本地 user 优先,回退 SSO 头像;都没有则 Avatar 回退渐变首字母。
   const avatarUrl = localUser?.avatarUrl || ssoUser?.avatar_url || null;
 
+  const { pref, setPref, t } = useI18n();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -104,6 +106,25 @@ export function UserMenu() {
                 onClick={() => { setOpen(false); it.onClick(); }}
               />
             ))}
+          </div>
+
+          {/* 界面语言：跟随系统 / 中文 / English，选择记在本机。 */}
+          <div className="flex items-center gap-3 border-t border-line px-4 py-2 text-sm text-fg/85">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center"><GlobeIcon /></span>
+            <div className="flex gap-1" role="group" aria-label={t("menu.language", { name: t(`menu.language.${pref}`) })}>
+              {(["system", "zh", "en"] as LangPref[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={pref === p}
+                  onClick={() => { setOpen(false); setPref(p); }}
+                  className={`rounded-md px-2 py-0.5 text-xs transition ${pref === p ? "bg-accent-soft text-primary" : "text-muted hover:bg-surface hover:text-primary"}`}
+                >
+                  {t(`menu.language.${p}`)}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* 本地单用户模式没有账号可退出 */}
@@ -298,6 +319,15 @@ function LogoutIcon() {
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
       <polyline points="16 17 21 12 16 7" />
       <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  );
+}
+
+function GlobeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
     </svg>
   );
 }
