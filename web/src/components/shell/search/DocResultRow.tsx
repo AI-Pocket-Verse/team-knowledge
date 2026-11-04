@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { FileText } from "lucide-react";
 import { resolveRoleColor } from "@/lib/roleColors";
 import { fmtRelativeTime } from "@/lib/relativeTime";
+import { useT } from "@/i18n";
 
 // 搜索结果 / 最近浏览共用的「富行」:文档图标(按角色色)+ 标题 + 一行副标题
 // 「知识库:角色›目录 ·(你在 X 打开过 ·){修改人} 在 X 修改过」。其中「你在 X 打开过」
@@ -38,6 +39,7 @@ export function DocResultRow({
   onMouseEnter?: () => void;
 }) {
   const ref = useRef<HTMLAnchorElement>(null);
+  const t = useT();
   const { from, to } = resolveRoleColor(doc.roleColor);
 
   // 键盘选中时把该行滚进可视区(block:nearest 不抢占整页滚动)。可选链调用:
@@ -47,10 +49,10 @@ export function DocResultRow({
   }, [active]);
 
   const sub: string[] = [];
-  sub.push(`知识库：${doc.folderName ? `${doc.roleName}›${doc.folderName}` : doc.roleName}`);
-  if (doc.lastViewedAt) sub.push(`你在 ${fmtRelativeTime(doc.lastViewedAt)}打开过`);
-  if (doc.editorName && doc.updatedAt) sub.push(`${doc.editorName} 在 ${fmtRelativeTime(doc.updatedAt)}修改过`);
-  else if (doc.updatedAt) sub.push(`${fmtRelativeTime(doc.updatedAt)}更新`);
+  sub.push(t("shell.search.row.folder", { path: doc.folderName ? `${doc.roleName}›${doc.folderName}` : doc.roleName }));
+  if (doc.lastViewedAt) sub.push(t("shell.search.row.viewed", { time: fmtRelativeTime(doc.lastViewedAt) }));
+  if (doc.editorName && doc.updatedAt) sub.push(t("shell.search.row.editedBy", { name: doc.editorName, time: fmtRelativeTime(doc.updatedAt) }));
+  else if (doc.updatedAt) sub.push(t("shell.search.row.updated", { time: fmtRelativeTime(doc.updatedAt) }));
 
   return (
     <Link

@@ -2,6 +2,7 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/cn";
+import { tr } from "@/i18n";
 
 export const Dialog = DialogPrimitive.Root;
 export const DialogTrigger = DialogPrimitive.Trigger;
@@ -45,7 +46,7 @@ export const DialogContent = React.forwardRef<
           Radix's dev "Missing `Description`" warning. Opt out via
           withDefaultDescription={false} when the dialog supplies its own. */}
       {withDefaultDescription && (
-        <DialogPrimitive.Description className="sr-only">对话框</DialogPrimitive.Description>
+        <DialogPrimitive.Description className="sr-only">{tr("shell.dialog.defaultDescription")}</DialogPrimitive.Description>
       )}
     </DialogPrimitive.Content>
   </DialogPortal>

@@ -1,5 +1,6 @@
 import { useAuth } from "@/stores/auth";
 import { ProfileFeedTabs } from "@/components/profile/ProfileFeedTabs";
+import { useT } from "@/i18n";
 
 /**
  * Personal page (admins + regular users). Identity — avatar, display name,
@@ -8,11 +9,12 @@ import { ProfileFeedTabs } from "@/components/profile/ProfileFeedTabs";
  * card sits the personal feed (动态 / 文档 / 收藏 / 点赞).
  */
 function Avatar({ url, name, size = 64 }: { url: string | null; name: string; size?: number }) {
+  const t = useT();
   if (url) {
     return (
       <img
         src={url}
-        alt={`${name} 头像`}
+        alt={t("profile.avatarAlt", { name })}
         className="shrink-0 rounded-full object-cover"
         style={{ width: size, height: size }}
       />
@@ -25,7 +27,7 @@ function Avatar({ url, name, size = 64 }: { url: string | null; name: string; si
     <div
       className="shrink-0 flex items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-cyan-400 text-white shadow-glass"
       style={{ width: size, height: size, fontSize: size * 0.4, fontWeight: 600 }}
-      aria-label={`${name} 头像`}
+      aria-label={t("profile.avatarAlt", { name })}
     >
       {initial}
     </div>
@@ -33,8 +35,9 @@ function Avatar({ url, name, size = 64 }: { url: string | null; name: string; si
 }
 
 export function ProfilePage() {
+  const t = useT();
   const user = useAuth((s) => s.user);
-  if (!user) return <div className="text-muted">未登录</div>;
+  if (!user) return <div className="text-muted">{t("profile.signedOut")}</div>;
 
   return (
     <div className="flex flex-col gap-6">
@@ -47,12 +50,12 @@ export function ProfilePage() {
             <div className="flex items-center gap-2">
               <p className="truncate text-lg font-semibold text-fg">{user.displayName}</p>
               <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs text-primary">
-                {user.isAdmin ? "管理员" : "用户"}
+                {user.isAdmin ? t("profile.admin") : t("profile.user")}
               </span>
             </div>
             {user.email ? (
               <p className="mt-1 text-xs text-muted">
-                邮箱 <span className="font-mono">{user.email}</span>
+                {t("profile.email")} <span className="font-mono">{user.email}</span>
               </p>
             ) : null}
           </div>

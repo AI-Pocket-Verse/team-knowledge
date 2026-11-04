@@ -5,6 +5,7 @@ import { api, ApiError } from "@/lib/api";
 import { WorkspaceFolderProvider } from "@/lib/workspaceFolderContext";
 import { DelayedLoader } from "@/components/DelayedLoader";
 import { usePageChrome } from "@/stores/pageChrome";
+import { tr } from "@/i18n";
 
 export function WorkspacePage() {
   // Folder landing at /f/:folderId.
@@ -22,7 +23,7 @@ export function WorkspacePage() {
       setFolder(res.folder);
     } catch (err) {
       if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
-        setError("该目录不可见或已被删除。");
+        setError(tr("workspace.folderGone"));
       } else {
         setError((err as Error).message);
       }

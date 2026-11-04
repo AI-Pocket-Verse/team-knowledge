@@ -4,6 +4,7 @@ import type { ChatMessageRow, CitationRef, MentionRef } from "@team-knowledge/sh
 import type { ExpertCitation, ExpertTraceEvent, EscalationDetail, ExpertChatResult, ConversationListItem } from "@/lib/api";
 import { api } from "@/lib/api";
 import { getAssistantName } from "@/lib/assistantName";
+import { tr } from "@/i18n";
 
 // 统一聊天的消息行 = 持久化行 + 仅前端的专家附加态(均可选,气泡旧链路留空)。
 // 判别「专家轮次」靠 trace !== undefined(beginAssistantExpert 播种 [])。
@@ -337,7 +338,7 @@ export const useChatStore = create<ChatStore>()(
           if (seq !== switchSeq) return; // 已被更晚切换/新对话取代 → 忽略这次失败
           // 切到另一条会话失败 → 显式 loadError + 可重试;同会话后台刷新失败 → 静默保留原内容。
           set(differentConv
-            ? { switching: false, messages: [], status: "idle", error: null, isThinking: false, loadError: (e as Error).message || "加载失败" }
+            ? { switching: false, messages: [], status: "idle", error: null, isThinking: false, loadError: (e as Error).message || tr("error.loadFailed") }
             : { switching: false });
           return;
         }
@@ -637,7 +638,7 @@ export const useChatStore = create<ChatStore>()(
           const idx = targetAssistantIndex(s.messages, messageId);
           if (idx < 0) return s; // 草稿不在视图 → no-op
           const next = [...s.messages];
-          next[idx] = { ...next[idx], content: next[idx].content || `出错了:${message}` };
+          next[idx] = { ...next[idx], content: next[idx].content || tr("shell.chat.error", { message }) };
           return { messages: next, status: "idle", error: null, isThinking: false };
         });
       },

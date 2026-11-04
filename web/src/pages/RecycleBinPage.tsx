@@ -6,6 +6,7 @@ import { DelayedLoader } from "@/components/DelayedLoader";
 import { toast } from "@/components/Toaster";
 import { dialog } from "@/components/Dialog";
 import { useWorkspaceTree } from "@/stores/workspaceTree";
+import { tr, useT } from "@/i18n";
 
 // 回收站 — the caller's OWN soft-deleted articles / folders / meetings.
 // Private per-user (the server only returns items the caller deleted).
@@ -19,23 +20,24 @@ function itemKey(it: RecycleBinItem): string {
 // Display glyph + a human label for the item's kind.
 function kindMeta(it: RecycleBinItem): { icon: string; primary: string; secondary: string } {
   if (it.type === "meeting") {
-    return { icon: "🎙", primary: it.title || "（无标题会议）", secondary: "会议" };
+    return { icon: "🎙", primary: it.title || tr("profile.recycle.noTitleMeeting"), secondary: tr("profile.recycle.meeting") };
   }
   if (it.type === "folder") {
     return {
       icon: "📁",
-      primary: it.name || "（未命名目录）",
-      secondary: `目录 ${it.roleName}，含 ${it.docCount} 篇文档`,
+      primary: it.name || tr("profile.recycle.noNameFolder"),
+      secondary: tr("profile.recycle.folderMeta", { role: it.roleName, n: it.docCount }),
     };
   }
   return {
     icon: "📄",
-    primary: it.title || "（未命名文档）",
-    secondary: `文档 ${it.roleName}${it.folderName ? ` / ${it.folderName}` : ""}`,
+    primary: it.title || tr("profile.recycle.noTitleDoc"),
+    secondary: tr("profile.recycle.docMeta", { path: `${it.roleName}${it.folderName ? ` / ${it.folderName}` : ""}` }),
   };
 }
 
 export function RecycleBinPage() {
+  const t = useT();
   const [items, setItems] = useState<RecycleBinItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +68,7 @@ export function RecycleBinPage() {
     setBusyKey(itemKey(it));
     try {
       await api.recycleBin.restore(it.type as RecycleBinKind, it.id);
-      toast.success("已还原");
+      toast.success(t("profile.recycle.restored"));
       refreshRoleFor(it);
       await refetch();
     } catch (err) {
@@ -78,14 +80,14 @@ export function RecycleBinPage() {
 
   async function clearAll() {
     const ok = await dialog.confirm(
-      `回收站中的 ${items.length} 项内容（含目录内的文档）将被全部永久删除，无法恢复。`,
-      { title: "清空回收站？", confirmText: "全部永久删除", danger: true },
+      t("profile.recycle.clearConfirm", { n: items.length }),
+      { title: t("profile.recycle.clearTitle"), confirmText: t("profile.recycle.clearOk"), danger: true },
     );
     if (!ok) return;
     setBusyKey("__all__");
     try {
       await api.recycleBin.clear();
-      toast.success("回收站已清空");
+      toast.success(t("profile.recycle.cleared"));
       await refetch();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : (err as Error).message);
@@ -97,14 +99,14 @@ export function RecycleBinPage() {
   async function purge(it: RecycleBinItem) {
     const meta = kindMeta(it);
     const extra = it.type === "folder" && it.docCount > 0
-      ? `「${meta.primary}」及其中 ${it.docCount} 篇文档将被永久删除，无法恢复。`
-      : `「${meta.primary}」将被永久删除，无法恢复。`;
-    const ok = await dialog.confirm(extra, { title: "永久删除？", confirmText: "永久删除", danger: true });
+      ? t("profile.recycle.purgeFolder", { name: meta.primary, n: it.docCount })
+      : t("profile.recycle.purgeOne", { name: meta.primary });
+    const ok = await dialog.confirm(extra, { title: t("profile.recycle.purgeTitle"), confirmText: t("profile.recycle.purge"), danger: true });
     if (!ok) return;
     setBusyKey(itemKey(it));
     try {
       await api.recycleBin.remove(it.type as RecycleBinKind, it.id);
-      toast.success("已永久删除");
+      toast.success(t("profile.recycle.purged"));
       await refetch();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : (err as Error).message);
@@ -120,9 +122,9 @@ export function RecycleBinPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold text-fg">回收站 ({items.length})</h1>
+          <h1 className="text-lg font-semibold text-fg">{t("profile.recycle.title", { n: items.length })}</h1>
           <p className="mt-1 text-xs text-muted">
-            这里只有你自己删除的内容，其他人看不到。可以还原，或永久删除以彻底清除。
+            {t("profile.recycle.hint")}
           </p>
         </div>
         {items.length > 0 && (
@@ -132,14 +134,14 @@ export function RecycleBinPage() {
             onClick={() => void clearAll()}
             className="shrink-0 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs text-rose-700 transition enabled:hover:bg-rose-50 disabled:opacity-60"
           >
-            {busyKey === "__all__" ? "清空中…" : "清空回收站"}
+            {busyKey === "__all__" ? t("profile.recycle.clearing") : t("profile.recycle.clear")}
           </button>
         )}
       </div>
 
       {items.length === 0 ? (
         <div className="rounded-xl border border-line bg-white px-8 py-10 text-center text-sm text-muted shadow-glass">
-          回收站是空的。删除文档、目录或会议后，会先放到这里。
+          {t("profile.recycle.empty")}
         </div>
       ) : (
         <ul className="rounded-xl border border-line bg-white shadow-glass divide-y divide-line">
@@ -155,7 +157,7 @@ export function RecycleBinPage() {
                   <div className="truncate text-xs text-muted">{meta.secondary}</div>
                 </div>
                 <span className="shrink-0 text-xs text-muted">
-                  删除于 {fmtDate(it.deletedAt)}
+                  {t("profile.recycle.deletedAt", { date: fmtDate(it.deletedAt) })}
                 </span>
                 <button
                   type="button"
@@ -163,7 +165,7 @@ export function RecycleBinPage() {
                   onClick={() => void restore(it)}
                   className="shrink-0 rounded-lg border border-line bg-white px-3 py-1 text-xs text-fg transition enabled:hover:bg-surface disabled:opacity-60"
                 >
-                  还原
+                  {t("profile.recycle.restore")}
                 </button>
                 <button
                   type="button"
@@ -171,7 +173,7 @@ export function RecycleBinPage() {
                   onClick={() => void purge(it)}
                   className="shrink-0 rounded-lg border border-rose-300 bg-white px-3 py-1 text-xs text-rose-700 transition enabled:hover:bg-rose-50 disabled:opacity-60"
                 >
-                  永久删除
+                  {t("profile.recycle.purge")}
                 </button>
               </li>
             );

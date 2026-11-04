@@ -208,14 +208,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       // landing with a return_to so the user lands back where they were.
       try { (await import("../stores/auth")).useAuth.getState().setUser(null); } catch { /* circular import safety */ }
       redirectToSsoLogin();
-      throw new ApiError(body?.message ?? "请先登录", 401);
+      throw new ApiError(body?.message ?? tr("shell.api.loginRequired"), 401);
     }
     // 后端错误响应体多为 { error }(少数 { message });两者都读,否则回退通用文案。
     const detail =
       body && typeof body === "object"
         ? (typeof body.message === "string" ? body.message : typeof body.error === "string" ? body.error : null)
         : null;
-    const message = detail ?? `请求失败 (${res.status})`;
+    const message = detail ?? tr("shell.api.requestFailed", { status: res.status });
     throw new ApiError(message, res.status);
   }
   return res.json() as Promise<T>;
@@ -525,11 +525,11 @@ export const api = {
         if (body?.error === "duplicate_title" && body?.existing?.id) {
           return { conflict: { existingId: body.existing.id, title: body.existing.title } };
         }
-        throw new ApiError(body?.message ?? "导入失败 (409)", 409);
+        throw new ApiError(body?.message ?? tr("shell.api.importFailed", { status: 409 }), 409);
       }
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new ApiError(body?.message ?? `导入失败 (${res.status})`, res.status);
+        throw new ApiError(body?.message ?? tr("shell.api.importFailed", { status: res.status }), res.status);
       }
       const data = (await res.json()) as { article: { id: string }; overwritten?: boolean };
       return { article: data.article, overwritten: data.overwritten };
@@ -552,7 +552,7 @@ export const api = {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
-        throw new ApiError(body?.message ?? `导入失败 (${res.status})`, res.status);
+        throw new ApiError(body?.message ?? tr("shell.api.importFailed", { status: res.status }), res.status);
       }
       return res.json() as Promise<{
         article: { id: string };
@@ -588,13 +588,13 @@ export const api = {
           | { message?: string; lock?: { userId: string; userName: string | null; mine: boolean } }
           | null;
         throw new EditLockConflictError(
-          body?.message ?? "文档正在被他人编辑",
+          body?.message ?? tr("shell.api.editedByOther"),
           body?.lock ?? { userId: "", userName: null, mine: false },
         );
       }
       if (!res.ok) {
         const body = await res.json().catch(() => null) as { message?: string } | null;
-        throw new ApiError(body?.message ?? `获取编辑锁失败 (${res.status})`, res.status);
+        throw new ApiError(body?.message ?? tr("shell.api.lockFailed", { status: res.status }), res.status);
       }
       return res.json() as Promise<{ lock: EditLock }>;
     },
@@ -712,7 +712,7 @@ export const api = {
       const res = await fetch(`${API_BASE}/uploads/image`, { method: "POST", body: fd, credentials: "include" });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new ApiError(body?.message ?? `上传失败 (${res.status})`, res.status);
+        throw new ApiError(body?.message ?? tr("shell.api.uploadFailed", { status: res.status }), res.status);
       }
       return res.json() as Promise<ImageUploadResponse>;
     },
@@ -722,7 +722,7 @@ export const api = {
       const res = await fetch(`${API_BASE}/uploads/file`, { method: "POST", body: fd, credentials: "include" });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new ApiError(body?.message ?? `上传失败 (${res.status})`, res.status);
+        throw new ApiError(body?.message ?? tr("shell.api.uploadFailed", { status: res.status }), res.status);
       }
       return res.json() as Promise<FileUploadResponse>;
     },
@@ -888,9 +888,9 @@ export const api = {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      }).catch(() => { throw new ApiError("无法连接到服务器，请检查网络或稍后重试", 0); });
+      }).catch(() => { throw new ApiError(tr("error.network"), 0); });
       if (!res.ok) {
-        let msg = "生成图片失败";
+        let msg = tr("shell.api.imageFailed");
         try { const b = await res.json() as { message?: string }; if (b?.message) msg = b.message; } catch { /* non-JSON error */ }
         throw new ApiError(msg, res.status);
       }

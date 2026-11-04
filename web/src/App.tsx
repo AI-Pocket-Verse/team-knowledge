@@ -17,6 +17,7 @@ import { DialogHost } from "@/components/Dialog";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { DelayedLoader } from "@/components/DelayedLoader";
 import { getAssistantName } from "@/lib/assistantName";
+import { tr } from "@/i18n";
 
 // Code-splitting: the editor stack (Milkdown / crepe / highlight.js)
 // and the meeting realtime libs were the bulk of a single ~2.2MB entry
@@ -111,23 +112,23 @@ const AdminWeeklyReportDetailPage = lazy(() =>
 // the user WHICH surface is loading (the editor bundle is the heavy one) instead
 // of a vague "加载中…". The chunk = that page's real component, so this names it.
 function routeLabel(path: string): string {
-  if (path === "/d/new") return "新建文档";
-  if (path.startsWith("/d/")) return "文档";
-  if (path.startsWith("/dashboard")) return "数据看板";
-  if (path.startsWith("/admin/weekly-report")) return "周报";
-  if (path.startsWith("/admin/feishu-tasks")) return "飞书群任务";
-  if (path.startsWith("/admin/group-qa")) return "群答疑记录";
-  if (path.startsWith("/admin/assistant-filter")) return `${getAssistantName()} 内容过滤`;
-  if (path.startsWith("/admin/ai-provider")) return "AI 引擎";
-  if (path.startsWith("/admin/voice")) return "语音引擎";
-  if (path.startsWith("/admin/github")) return "GitHub 仓库";
-  if (path.startsWith("/admin")) return "管理后台";
-  if (path.startsWith("/meeting")) return "会议";
-  if (path.startsWith("/u/") || path.startsWith("/me/profile")) return "个人主页";
-  if (path.startsWith("/recycle-bin")) return "回收站";
-  if (path.startsWith("/about")) return "关于";
-  if (path.startsWith("/bookmarks")) return "收藏";
-  return "知识库";
+  if (path === "/d/new") return tr("shell.page.newDoc");
+  if (path.startsWith("/d/")) return tr("shell.page.doc");
+  if (path.startsWith("/dashboard")) return tr("shell.page.dashboard");
+  if (path.startsWith("/admin/weekly-report")) return tr("shell.page.weeklyReport");
+  if (path.startsWith("/admin/feishu-tasks")) return tr("shell.page.feishuTasks");
+  if (path.startsWith("/admin/group-qa")) return tr("shell.page.groupQa");
+  if (path.startsWith("/admin/assistant-filter")) return tr("shell.page.assistantFilter", { name: getAssistantName() });
+  if (path.startsWith("/admin/ai-provider")) return tr("shell.page.aiProvider");
+  if (path.startsWith("/admin/voice")) return tr("shell.page.voice");
+  if (path.startsWith("/admin/github")) return tr("shell.page.github");
+  if (path.startsWith("/admin")) return tr("shell.page.admin");
+  if (path.startsWith("/meeting")) return tr("shell.page.meeting");
+  if (path.startsWith("/u/") || path.startsWith("/me/profile")) return tr("shell.page.profile");
+  if (path.startsWith("/recycle-bin")) return tr("shell.page.recycleBin");
+  if (path.startsWith("/about")) return tr("shell.page.about");
+  if (path.startsWith("/bookmarks")) return tr("shell.page.bookmarks");
+  return tr("shell.page.kb");
 }
 
 // Loader shown while a lazy route chunk downloads — the same centered
@@ -135,7 +136,7 @@ function routeLabel(path: string): string {
 // unified loading affordance, now captioned with which surface is loading.
 function RouteFallback() {
   const { pathname } = useLocation();
-  return <DelayedLoader label={`正在加载${routeLabel(pathname)}…`} />;
+  return <DelayedLoader label={tr("shell.app.loadingRoute", { route: routeLabel(pathname) })} />;
 }
 
 // Local-auth gate. SSO owns login; an unauthenticated visitor (no local
@@ -147,7 +148,7 @@ function RequireWorkspace({ children }: { children: React.ReactNode }) {
   if (status !== "ready") return <DelayedLoader />;
   if (!user) {
     redirectToSsoLogin();
-    return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted">跳转登录中…</div>;
+    return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted">{tr("shell.app.redirectingLogin")}</div>;
   }
   return <>{children}</>;
 }
@@ -181,7 +182,7 @@ function RequireManagement() {
   if (status !== "ready") return <DelayedLoader />;
   if (!user) {
     redirectToSsoLogin();
-    return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted">跳转登录中…</div>;
+    return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted">{tr("shell.app.redirectingLogin")}</div>;
   }
   // 能否进入管理后台:管理员,或有任一页面已放开给所有成员(见 admin-access)。
   // 具体每个页面的可见性由各子路由的 RequireAdminPage 守卫,后端再 403 兜底。
@@ -275,8 +276,8 @@ function AppRoutes() {
             <div className="flex h-screen items-center justify-center text-center">
               <div>
                 <h1 className="text-3xl font-semibold">404</h1>
-                <p className="mt-2 text-muted">页面未找到</p>
-                <Link to="/" className="mt-4 inline-block text-accent underline">返回首页</Link>
+                <p className="mt-2 text-muted">{tr("shell.app.notFound")}</p>
+                <Link to="/" className="mt-4 inline-block text-accent underline">{tr("shell.app.backHome")}</Link>
               </div>
             </div>
           } />

@@ -6,17 +6,18 @@ import { useNotifyBadge } from "@/stores/notifyBadge";
 import { formatTimestamp } from "@/lib/format";
 import { notifySupported, notifyPermission, requestNotifyPermission } from "@/lib/webNotify";
 import { toast } from "@/components/Toaster";
+import { tr, useT } from "@/i18n";
 
 // Header bell: polls the unread count, and on open lazily loads the list.
 // Clicking an item jumps to the doc (with a #comment anchor when relevant) and
 // marks it read. Mirrors UserMenu's outside-click / Esc dismissal.
 const VERB: Record<string, string> = {
-  article_like: "赞了你的文档",
-  article_favorite: "收藏了你的文档",
-  article_comment: "评论了文档",
-  comment_reply: "回复了你的评论",
-  comment_mention: "在评论中提到了你",
-  article_review_issue: "发现文档待优化",
+  get article_like() { return tr("shell.bell.verb.article_like"); },
+  get article_favorite() { return tr("shell.bell.verb.article_favorite"); },
+  get article_comment() { return tr("shell.bell.verb.article_comment"); },
+  get comment_reply() { return tr("shell.bell.verb.comment_reply"); },
+  get comment_mention() { return tr("shell.bell.verb.comment_mention"); },
+  get article_review_issue() { return tr("shell.bell.verb.article_review_issue"); },
 };
 
 // Web(事件完成)通知类:自带 title/body/link,渲染成「图标 + 标题 + 正文」而非
@@ -31,6 +32,7 @@ function isWebNotif(n: NotificationItem): boolean {
 }
 
 export function NotificationBell() {
+  const t = useT();
   const nav = useNavigate();
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
@@ -133,8 +135,8 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={toggle}
-        aria-label="通知"
-        title="通知"
+        aria-label={t("shell.bell.title")}
+        title={t("shell.bell.title")}
         className="relative flex h-8 w-8 items-center justify-center rounded-lg text-muted transition hover:bg-surface hover:text-primary"
       >
         <Bell className="h-[18px] w-[18px]" />
@@ -148,18 +150,18 @@ export function NotificationBell() {
       {open && (
         <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-line bg-white py-2 shadow-glassLg">
           <div className="flex items-center justify-between px-4 pb-2 pt-1">
-            <span className="text-sm font-semibold text-fg">{showPrefs ? "通知设置" : "通知"}</span>
+            <span className="text-sm font-semibold text-fg">{showPrefs ? t("shell.bell.settings") : t("shell.bell.title")}</span>
             <div className="flex items-center gap-2">
               {!showPrefs && unread > 0 && (
                 <button type="button" onClick={markAll} className="text-xs text-muted transition hover:text-primary">
-                  全部已读
+                  {t("shell.bell.markAll")}
                 </button>
               )}
               <button
                 type="button"
                 onClick={togglePrefs}
-                aria-label="通知设置"
-                title="通知设置"
+                aria-label={t("shell.bell.settings")}
+                title={t("shell.bell.settings")}
                 className={`flex h-6 w-6 items-center justify-center rounded-lg text-muted transition hover:bg-surface hover:text-primary ${showPrefs ? "bg-accent-soft text-primary" : ""}`}
               >
                 <Settings className="h-[14px] w-[14px]" />
@@ -171,9 +173,9 @@ export function NotificationBell() {
           ) : (
           <div className="max-h-[60vh] overflow-auto">
             {loading ? (
-              <div className="px-4 py-6 text-center text-sm text-muted">加载中…</div>
+              <div className="px-4 py-6 text-center text-sm text-muted">{t("common.loading")}</div>
             ) : items.length === 0 ? (
-              <div className="px-4 py-6 text-center text-sm text-muted">暂无通知</div>
+              <div className="px-4 py-6 text-center text-sm text-muted">{t("shell.bell.empty")}</div>
             ) : (
               items.map((n) => (
                 <button
@@ -186,16 +188,16 @@ export function NotificationBell() {
                   <span className="min-w-0 flex-1">
                     {isWebNotif(n) ? (
                       <>
-                        <span className="block text-sm font-medium text-fg">{n.title ?? "有新动态"}</span>
+                        <span className="block text-sm font-medium text-fg">{n.title ?? t("shell.bell.newActivity")}</span>
                         {n.body && <span className="block truncate text-xs text-muted">{n.body}</span>}
                       </>
                     ) : (
                       <>
                         <span className="block text-sm text-fg">
-                          <span className="font-medium">{n.actorName}</span> {VERB[n.type] ?? "有新动态"}
+                          <span className="font-medium">{n.actorName}</span> {VERB[n.type] ?? t("shell.bell.newActivity")}
                         </span>
                         <span className="block truncate text-xs text-muted">
-                          《{n.articleTitle}》{n.excerpt ? ` ${n.excerpt}` : ""}
+                          {t("shell.bell.docRef", { title: n.articleTitle })}{n.excerpt ? ` ${n.excerpt}` : ""}
                         </span>
                       </>
                     )}
@@ -220,19 +222,20 @@ function PrefsPanel({
   prefs: NotificationPrefs | null;
   onChange: (patch: Partial<NotificationPrefs>) => void;
 }) {
-  if (!prefs) return <div className="px-4 py-6 text-center text-sm text-muted">加载中…</div>;
+  const t = useT();
+  if (!prefs) return <div className="px-4 py-6 text-center text-sm text-muted">{t("common.loading")}</div>;
   // mute* store the INVERSE of "receive" — present each as a "接收" switch.
   const rows: Array<{ label: string; checked: boolean; toggle: (on: boolean) => Partial<NotificationPrefs> }> = [
-    { label: "评论与回复", checked: !prefs.muteComments, toggle: (on) => ({ muteComments: !on }) },
-    { label: "点赞", checked: !prefs.muteLikes, toggle: (on) => ({ muteLikes: !on }) },
-    { label: "收藏", checked: !prefs.muteFavorites, toggle: (on) => ({ muteFavorites: !on }) },
-    { label: "飞书推送", checked: prefs.feishuEnabled, toggle: (on) => ({ feishuEnabled: on }) },
+    { label: t("shell.bell.pref.comments"), checked: !prefs.muteComments, toggle: (on) => ({ muteComments: !on }) },
+    { label: t("shell.bell.pref.likes"), checked: !prefs.muteLikes, toggle: (on) => ({ muteLikes: !on }) },
+    { label: t("shell.bell.pref.favorites"), checked: !prefs.muteFavorites, toggle: (on) => ({ muteFavorites: !on }) },
+    { label: t("shell.bell.pref.feishu"), checked: prefs.feishuEnabled, toggle: (on) => ({ feishuEnabled: on }) },
   ];
   // 事件完成类(Web 通知):自动化 / 会议纪要 / 生图。同样以「接收」开关呈现(存的是 mute 反值)。
   const webRows: Array<{ label: string; checked: boolean; toggle: (on: boolean) => Partial<NotificationPrefs> }> = [
-    { label: "自动化完成", checked: !prefs.muteAutomation, toggle: (on) => ({ muteAutomation: !on }) },
-    { label: "会议纪要生成", checked: !prefs.muteMeeting, toggle: (on) => ({ muteMeeting: !on }) },
-    { label: "生图完成", checked: !prefs.muteImage, toggle: (on) => ({ muteImage: !on }) },
+    { label: t("shell.bell.pref.automation"), checked: !prefs.muteAutomation, toggle: (on) => ({ muteAutomation: !on }) },
+    { label: t("shell.bell.pref.meeting"), checked: !prefs.muteMeeting, toggle: (on) => ({ muteMeeting: !on }) },
+    { label: t("shell.bell.pref.image"), checked: !prefs.muteImage, toggle: (on) => ({ muteImage: !on }) },
   ];
 
   // 打开「浏览器桌面通知」总开关时主动申请授权;被系统拒绝则给出指引。
@@ -240,7 +243,7 @@ function PrefsPanel({
     onChange({ webEnabled: on });
     if (on && notifySupported()) {
       const perm = await requestNotifyPermission();
-      if (perm === "denied") toast.error("浏览器已拦截通知,请在地址栏左侧站点设置里允许本站通知");
+      if (perm === "denied") toast.error(t("shell.bell.blocked"));
     }
   }
   const perm = notifyPermission();
@@ -262,7 +265,7 @@ function PrefsPanel({
       {/* 浏览器桌面通知 */}
       <div className="mt-1 border-t border-line pt-1">
         <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2 py-2 text-sm hover:bg-surface">
-          <span className="text-fg">浏览器桌面通知</span>
+          <span className="text-fg">{t("shell.bell.pref.desktop")}</span>
           <input
             type="checkbox"
             checked={prefs.webEnabled}
@@ -284,16 +287,16 @@ function PrefsPanel({
         {prefs.webEnabled && notifySupported() && perm !== "granted" && (
           <button
             type="button"
-            onClick={() => void requestNotifyPermission().then((p) => { if (p === "denied") toast.error("浏览器已拦截通知,请在地址栏左侧站点设置里允许本站通知"); })}
+            onClick={() => void requestNotifyPermission().then((p) => { if (p === "denied") toast.error(t("shell.bell.blocked")); })}
             className="mx-2 mt-1 block text-[11px] text-primary underline"
           >
-            {perm === "denied" ? "浏览器已拦截通知 · 如何开启" : "点此允许浏览器通知"}
+            {perm === "denied" ? t("shell.bell.deniedHow") : t("shell.bell.allow")}
           </button>
         )}
       </div>
 
       <p className="px-2 pb-1 pt-1.5 text-[11px] text-muted">
-        关闭某类 = 不再收到该类通知;关闭「飞书推送」= 仅保留站内通知;关闭「浏览器桌面通知」= 仅保留站内铃铛。
+        {t("shell.bell.prefsHelp")}
       </p>
     </div>
   );

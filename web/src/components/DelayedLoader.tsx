@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
+import { tr } from "@/i18n";
 
 interface Props {
   /** Wait this long before rendering anything. Below 1s users perceive
@@ -41,7 +42,7 @@ export function DelayedLoader({ delay = 1000, variant = "page", className, label
         className,
       )}
       role="status"
-      aria-label={label ?? "加载中"}
+      aria-label={label ?? tr("shell.loader.loading")}
     >
       <div className="flex flex-col items-center gap-3">
         <svg

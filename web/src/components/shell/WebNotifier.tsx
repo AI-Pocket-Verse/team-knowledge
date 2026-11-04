@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/stores/auth";
 import { requestNotifyPermission, showDesktopNotification, notifyPermission, decideDesktopNotifications } from "@/lib/webNotify";
+import { tr } from "@/i18n";
 
 // 全局「事件完成」桌面通知器。挂在路由树里常驻(不随页面切换卸载),周期性拉取通知列表,
 // 发现新的 Web 通知类(automation_run / meeting_minutes / image_gen)就弹一条浏览器桌面通知。
@@ -61,7 +62,7 @@ export function WebNotifier() {
         // 桌面弹窗:开启 + 已授权 + 标签页不在前台。铃铛记录不受这些影响(后端已落行)。
         if (fire.length && webEnabledRef.current && notifyPermission() === "granted" && document.visibilityState === "hidden") {
           for (const n of fire) {
-            showDesktopNotification(n.title ?? "新通知", {
+            showDesktopNotification(n.title ?? tr("shell.notifier.default"), {
               body: n.body ?? undefined,
               tag: n.id,
               onClick: () => { if (n.link) navRef.current(n.link); },

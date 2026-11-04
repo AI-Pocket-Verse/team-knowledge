@@ -11,6 +11,7 @@ import {
   removeSearchHistory,
   clearSearchHistory,
 } from "@/lib/searchHistory";
+import { useT } from "@/i18n";
 
 /**
  * 顶栏「搜索文档」:右上角搜索 icon(通知铃铛左边),点击弹出**居中弹窗**(命令面板式,
@@ -24,6 +25,7 @@ import {
  * 输入防抖 250ms;单调 reqId 丢弃过期响应;Esc/点暗背景/选中结果关闭。打开时自动聚焦。
  */
 export function HeaderSearch() {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<ArticleSearchHit[]>([]);
@@ -102,8 +104,8 @@ export function HeaderSearch() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="搜索文档"
-        title="搜索文档"
+        aria-label={t("shell.search.title")}
+        title={t("shell.search.title")}
         className={`flex h-8 w-8 items-center justify-center rounded-lg text-muted transition hover:bg-blue-50 hover:text-primary ${open ? "bg-blue-50 text-primary" : ""}`}
       >
         <Search className="h-[18px] w-[18px]" />
@@ -111,7 +113,7 @@ export function HeaderSearch() {
 
       {open &&
         createPortal(
-          <div className="fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-label="搜索文档">
+          <div className="fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-label={t("shell.search.title")}>
             {/* 压暗背景 —— 点击关闭 */}
             <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} aria-hidden />
             {/* 水平居中、垂直约 1/4 处再上移 80px 的搜索面板 */}
@@ -130,7 +132,7 @@ export function HeaderSearch() {
                     else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
                     else if (e.key === "Enter") { e.preventDefault(); const h = hits[active]; if (h) goTo(h.id); }
                   }}
-                  placeholder="搜索文档…"
+                  placeholder={t("shell.search.placeholder")}
                   className="w-full bg-transparent py-3.5 pl-12 pr-4 text-[15px] placeholder:text-muted focus:outline-none"
                   role="combobox"
                   aria-expanded={!showEmptyState && hits.length > 0}
@@ -146,13 +148,13 @@ export function HeaderSearch() {
                     {history.length > 0 && (
                       <section className="mb-1">
                         <div className="flex items-center justify-between px-3 pb-1 pt-2">
-                          <span className="text-xs font-medium text-muted">搜索历史</span>
+                          <span className="text-xs font-medium text-muted">{t("shell.search.history")}</span>
                           <button
                             type="button"
                             onClick={() => setHistory(clearSearchHistory())}
                             className="text-xs text-muted transition hover:text-primary"
                           >
-                            清空
+                            {t("shell.search.clear")}
                           </button>
                         </div>
                         <ul>
@@ -168,7 +170,7 @@ export function HeaderSearch() {
                               </button>
                               <button
                                 type="button"
-                                aria-label={`删除历史「${term}」`}
+                                aria-label={t("shell.search.removeHistory", { term })}
                                 onClick={() => setHistory(removeSearchHistory(term))}
                                 className="shrink-0 rounded p-1 text-muted opacity-0 transition hover:bg-slate-200/70 hover:text-fg group-hover:opacity-100"
                               >
@@ -182,7 +184,7 @@ export function HeaderSearch() {
 
                     {recent.length > 0 && (
                       <section>
-                        <div className="px-3 pb-1 pt-2 text-xs font-medium text-muted">最近浏览</div>
+                        <div className="px-3 pb-1 pt-2 text-xs font-medium text-muted">{t("shell.search.recent")}</div>
                         {recent.map((d) => (
                           <DocResultRow key={d.id} doc={d} onNavigate={close} />
                         ))}
@@ -190,13 +192,13 @@ export function HeaderSearch() {
                     )}
 
                     {history.length === 0 && recent.length === 0 && (
-                      <div className="px-3 py-6 text-center text-sm text-muted">输入关键词搜索全部文档</div>
+                      <div className="px-3 py-6 text-center text-sm text-muted">{t("shell.search.hint")}</div>
                     )}
                   </>
                 ) : (
-                  <div id="header-search-results" role="listbox" aria-label="搜索结果">
-                    {loading && hits.length === 0 && <div className="px-3 py-2 text-sm text-muted">搜索中…</div>}
-                    {!loading && hits.length === 0 && <div className="px-3 py-2 text-sm text-muted">没有匹配的文档</div>}
+                  <div id="header-search-results" role="listbox" aria-label={t("shell.search.results")}>
+                    {loading && hits.length === 0 && <div className="px-3 py-2 text-sm text-muted">{t("shell.search.searching")}</div>}
+                    {!loading && hits.length === 0 && <div className="px-3 py-2 text-sm text-muted">{t("shell.search.noMatch")}</div>}
                     {hits.map((h, i) => (
                       <DocResultRow
                         key={h.id}

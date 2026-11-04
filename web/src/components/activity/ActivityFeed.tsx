@@ -3,25 +3,26 @@ import type { AdminActivityPageResponse, AdminActivityType } from "@team-knowled
 import { DelayedLoader } from "@/components/DelayedLoader";
 import { fmtRelativeTime } from "@/lib/relativeTime";
 import { getAssistantName } from "@/lib/assistantName";
+import { tr, useT } from "@/i18n";
 
 export const ACTIVITY_LABEL: Record<AdminActivityType, string> = {
-  doc_create: "新建文档",
-  doc_edit: "编辑文档",
-  doc_restore: "回滚版本",
-  doc_archive: "归档文档",
-  doc_unarchive: "取消归档",
-  comment: "评论",
-  like: "点赞",
-  bookmark: "收藏",
-  upload: "上传文件",
-  meeting: "发起会议",
-  get chat() { return `向 ${getAssistantName()} 提问`; },
-  doc_fix: "处理体检问题",
-  comment_like: "点赞评论",
-  automation_create: "创建自动化",
-  meeting_comment: "会议发言",
-  folder_create: "新建目录",
-  editor_grant: "加协作者",
+  get doc_create() { return tr("activity.type.doc_create"); },
+  get doc_edit() { return tr("activity.type.doc_edit"); },
+  get doc_restore() { return tr("activity.type.doc_restore"); },
+  get doc_archive() { return tr("activity.type.doc_archive"); },
+  get doc_unarchive() { return tr("activity.type.doc_unarchive"); },
+  get comment() { return tr("activity.type.comment"); },
+  get like() { return tr("activity.type.like"); },
+  get bookmark() { return tr("activity.type.bookmark"); },
+  get upload() { return tr("activity.type.upload"); },
+  get meeting() { return tr("activity.type.meeting"); },
+  get chat() { return tr("activity.type.chat", { name: getAssistantName() }); },
+  get doc_fix() { return tr("activity.type.doc_fix"); },
+  get comment_like() { return tr("activity.type.comment_like"); },
+  get automation_create() { return tr("activity.type.automation_create"); },
+  get meeting_comment() { return tr("activity.type.meeting_comment"); },
+  get folder_create() { return tr("activity.type.folder_create"); },
+  get editor_grant() { return tr("activity.type.editor_grant"); },
 };
 
 // Reusable paginated activity feed (10/page) shared by the admin dashboard
@@ -33,7 +34,7 @@ export function ActivityFeed({
   fetchPage,
   resetKey = "",
   hideUser,
-  emptyHint = "暂无动态",
+  emptyHint,
 }: {
   fetchPage: (page: number) => Promise<AdminActivityPageResponse>;
   resetKey?: string;
@@ -42,6 +43,8 @@ export function ActivityFeed({
 }) {
   const fetchRef = useRef(fetchPage);
   fetchRef.current = fetchPage;
+  const t = useT();
+  emptyHint = emptyHint ?? t("activity.empty");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<AdminActivityPageResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -74,7 +77,7 @@ export function ActivityFeed({
         ))}
       </ul>
       <div className="flex items-center justify-between border-t border-line px-4 py-2 text-xs text-muted">
-        <span>共 {data.total} 条</span>
+        <span>{t("activity.total", { total: data.total })}</span>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -82,7 +85,7 @@ export function ActivityFeed({
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             className="rounded-lg border border-line bg-white px-2 py-1 transition enabled:hover:bg-surface disabled:opacity-40"
           >
-            上一页
+            {t("activity.prev")}
           </button>
           <span className="tabular-nums">{page} / {totalPages}</span>
           <button
@@ -91,7 +94,7 @@ export function ActivityFeed({
             onClick={() => setPage((p) => p + 1)}
             className="rounded-lg border border-line bg-white px-2 py-1 transition enabled:hover:bg-surface disabled:opacity-40"
           >
-            下一页
+            {t("activity.next")}
           </button>
         </div>
       </div>

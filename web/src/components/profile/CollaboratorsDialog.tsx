@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { api, ApiError } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { useT } from "@/i18n";
 
 interface Props {
   open: boolean;
@@ -31,6 +32,7 @@ interface Props {
  * picking a person from the menu IS the grant.
  */
 export function CollaboratorsDialog({ open, onOpenChange, articleId, articleTitle }: Props) {
+  const t = useT();
   const [editors, setEditors] = useState<ArticleEditor[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -138,9 +140,9 @@ export function CollaboratorsDialog({ open, onOpenChange, articleId, articleTitl
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>协作者管理</DialogTitle>
+          <DialogTitle>{t("profile.collab.title")}</DialogTitle>
           <p className="mt-1 text-xs text-muted">
-            为《{articleTitle}》添加可编辑此文档的协作者。协作者只能修改此文档，无法继续给其他人授权。
+            {t("profile.collab.desc", { title: articleTitle })}
           </p>
         </DialogHeader>
 
@@ -150,15 +152,15 @@ export function CollaboratorsDialog({ open, onOpenChange, articleId, articleTitl
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索用户名或显示名…"
+            placeholder={t("profile.collab.searchPlaceholder")}
             className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-fg placeholder:text-muted focus:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
             autoFocus
           />
           {query.trim() && (
             <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-line bg-white shadow-glassLg">
-              {searching && <div className="px-3 py-2 text-xs text-muted">搜索中…</div>}
+              {searching && <div className="px-3 py-2 text-xs text-muted">{t("profile.collab.searching")}</div>}
               {!searching && visibleResults.length === 0 && (
-                <div className="px-3 py-2 text-xs text-muted">无匹配用户</div>
+                <div className="px-3 py-2 text-xs text-muted">{t("profile.collab.noMatch")}</div>
               )}
               {visibleResults.map((u) => (
                 <button
@@ -175,7 +177,7 @@ export function CollaboratorsDialog({ open, onOpenChange, articleId, articleTitl
                   <span className="flex-1 truncate">
                     <span className="font-medium">{u.displayName}</span>
                   </span>
-                  <span className="text-xs text-primary">+ 添加</span>
+                  <span className="text-xs text-primary">{t("profile.collab.add")}</span>
                 </button>
               ))}
             </div>
@@ -184,10 +186,10 @@ export function CollaboratorsDialog({ open, onOpenChange, articleId, articleTitl
 
         {/* Existing editors */}
         <div className="mt-4">
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">当前协作者</h4>
-          {loading && <div className="text-xs text-muted">加载中…</div>}
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("profile.collab.current")}</h4>
+          {loading && <div className="text-xs text-muted">{t("common.loading")}</div>}
           {!loading && editors.length === 0 && !loadError && (
-            <div className="text-xs text-muted">尚无协作者。</div>
+            <div className="text-xs text-muted">{t("profile.collab.none")}</div>
           )}
           {loadError && (
             <div className="mb-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
@@ -208,7 +210,7 @@ export function CollaboratorsDialog({ open, onOpenChange, articleId, articleTitl
                   disabled={busyUserId === e.userId}
                   onClick={() => removeEditor(e.userId)}
                 >
-                  移除
+                  {t("profile.collab.remove")}
                 </Button>
               </li>
             ))}
@@ -217,7 +219,7 @@ export function CollaboratorsDialog({ open, onOpenChange, articleId, articleTitl
 
         <div className="mt-4 flex justify-end">
           <DialogClose asChild>
-            <Button variant="ghost" size="sm">关闭</Button>
+            <Button variant="ghost" size="sm">{t("common.close")}</Button>
           </DialogClose>
         </div>
       </DialogContent>

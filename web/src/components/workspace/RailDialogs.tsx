@@ -15,6 +15,7 @@ import { toast } from "@/components/Toaster";
 import { dialog } from "@/components/Dialog";
 import { cn } from "@/lib/cn";
 import { useUnsavedGuard } from "@/stores/unsavedGuard";
+import { tr, useT } from "@/i18n";
 
 // Creating / importing a doc navigates into its editor, leaving whatever
 // the user was editing. If that editor has unsaved changes, confirm first
@@ -28,8 +29,8 @@ import { useUnsavedGuard } from "@/stores/unsavedGuard";
 async function confirmLeaveIfDirty(): Promise<boolean> {
   const { dirty, setDirty } = useUnsavedGuard.getState();
   if (!dirty) return true;
-  const ok = await dialog.confirm("有未保存的修改，确定离开？未保存的内容将丢失。", {
-    confirmText: "离开",
+  const ok = await dialog.confirm(tr("workspace.leaveConfirm"), {
+    confirmText: tr("workspace.leave"),
     danger: true,
   });
   if (!ok) return false;
@@ -68,6 +69,7 @@ export function useAddActions(target: AddTarget, onCreated: () => void): {
   items: AddActionItem[];
   dialogs: React.ReactNode;
 } {
+  const t = useT();
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importFeishuOpen, setImportFeishuOpen] = useState(false);
@@ -100,30 +102,30 @@ export function useAddActions(target: AddTarget, onCreated: () => void): {
       ? [{
           key: "folder",
           icon: ICON_FOLDER,
-          title: "新建目录",
-          desc: target.kind === "folder" ? "在此目录内新建子目录" : "在该角色下新建目录",
+          title: t("workspace.add.folder"),
+          desc: target.kind === "folder" ? t("workspace.add.folderInFolder") : t("workspace.add.folderInRole"),
           run: () => setCreateFolderOpen(true),
         }]
       : []),
     {
       key: "doc",
       icon: ICON_DOC,
-      title: "新建文档",
-      desc: target.kind === "folder" ? "在此目录内新建一篇文档" : "直接在该角色下新建一篇文档",
+      title: t("workspace.add.doc"),
+      desc: target.kind === "folder" ? t("workspace.add.docInFolder") : t("workspace.add.docInRole"),
       run: () => { void createDocImmediate(); },
     },
     {
       key: "import",
       icon: ICON_IMPORT,
-      title: "导入文档",
-      desc: `将 .md 文件导入${target.kind === "folder" ? "此目录" : "该角色"}`,
+      title: t("workspace.add.import"),
+      desc: target.kind === "folder" ? t("workspace.add.importFolder") : t("workspace.add.importRole"),
       run: () => setImportOpen(true),
     },
     {
       key: "import-feishu",
       icon: ICON_IMPORT,
-      title: "同步飞书文档",
-      desc: `粘贴飞书 docx/wiki 链接导入${target.kind === "folder" ? "此目录" : "该角色"}`,
+      title: t("workspace.add.feishu"),
+      desc: target.kind === "folder" ? t("workspace.add.feishuFolder") : t("workspace.add.feishuRole"),
       run: () => setImportFeishuOpen(true),
     },
   ];
@@ -275,6 +277,7 @@ function CreateFolderDialog({
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
 }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -306,23 +309,23 @@ function CreateFolderDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>新建目录</DialogTitle>
+          <DialogTitle>{t("workspace.add.folder")}</DialogTitle>
         </DialogHeader>
         <div className="mt-3">
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="目录名称"
+            placeholder={t("workspace.createFolder.placeholder")}
             autoFocus
             onKeyDown={(e) => { if (e.key === "Enter") void submit(); }}
           />
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <DialogClose asChild>
-            <Button variant="ghost" size="sm">取消</Button>
+            <Button variant="ghost" size="sm">{t("common.cancel")}</Button>
           </DialogClose>
           <Button size="sm" disabled={!name.trim() || busy} onClick={submit}>
-            {busy ? "创建中…" : "创建"}
+            {busy ? t("workspace.creating") : t("workspace.create")}
           </Button>
         </div>
       </DialogContent>
@@ -346,6 +349,7 @@ function ImportMdDialog({
   onOpenChange: (open: boolean) => void;
   onImported: (newId: string) => void;
 }) {
+  const t = useT();
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
@@ -360,7 +364,7 @@ function ImportMdDialog({
   // Accept a picked/dropped file: gate to .md, default the title to its stem.
   function pickFile(f: File | null) {
     if (!f) return;
-    if (!/\.md$/i.test(f.name)) { toast.error("仅支持 .md 文件"); return; }
+    if (!/\.md$/i.test(f.name)) { toast.error(t("workspace.import.onlyMd")); return; }
     setFile(f);
     setTitle(f.name.replace(/\.md$/i, ""));
     setConflict(null); // 重新选文件 → 清掉旧的冲突态
@@ -385,7 +389,7 @@ function ImportMdDialog({
         setConflict(r.conflict);
         return;
       }
-      toast.success(r.overwritten ? "已覆盖导入(原内容已存入历史版本)" : "导入成功");
+      toast.success(r.overwritten ? t("workspace.import.overwritten") : t("workspace.import.done"));
       onImported(r.article.id);
       onOpenChange(false);
     } catch (err) {
@@ -400,9 +404,9 @@ function ImportMdDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>该位置已存在同名文档</DialogTitle>
+            <DialogTitle>{t("workspace.import.conflictTitle")}</DialogTitle>
             <p className="mt-1 text-xs text-muted">
-              《{conflict.title}》已存在,请选择处理方式:
+              {t("workspace.import.conflictDesc", { title: conflict.title })}
             </p>
           </DialogHeader>
           <div className="mt-3 space-y-2">
@@ -412,9 +416,9 @@ function ImportMdDialog({
               onClick={() => void submit("overwrite")}
               className="w-full rounded-xl border border-line px-4 py-3 text-left transition hover:border-primary/50 hover:bg-blue-50/50 disabled:opacity-60"
             >
-              <span className="block text-sm font-medium text-fg">覆盖导入</span>
+              <span className="block text-sm font-medium text-fg">{t("workspace.import.overwrite")}</span>
               <span className="mt-0.5 block text-xs text-muted">
-                用导入内容替换该文档;原内容存入历史版本(可回滚)。
+                {t("workspace.import.overwriteDesc")}
               </span>
             </button>
             <button
@@ -423,15 +427,15 @@ function ImportMdDialog({
               onClick={() => void submit("rename")}
               className="w-full rounded-xl border border-line px-4 py-3 text-left transition hover:border-primary/50 hover:bg-blue-50/50 disabled:opacity-60"
             >
-              <span className="block text-sm font-medium text-fg">改名导入</span>
+              <span className="block text-sm font-medium text-fg">{t("workspace.import.rename")}</span>
               <span className="mt-0.5 block text-xs text-muted">
-                保留原文档,新文档自动改名(如「{conflict.title} (2)」)后导入。
+                {t("workspace.import.renameDesc", { title: conflict.title })}
               </span>
             </button>
           </div>
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConflict(null)}>
-              {busy ? "导入中…" : "返回"}
+              {busy ? t("workspace.importing") : t("workspace.import.back")}
             </Button>
           </div>
         </DialogContent>
@@ -443,8 +447,8 @@ function ImportMdDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>导入文档</DialogTitle>
-          <p className="mt-1 text-xs text-muted">仅支持 .md 文件,导入后即为可见文档。</p>
+          <DialogTitle>{t("workspace.add.import")}</DialogTitle>
+          <p className="mt-1 text-xs text-muted">{t("workspace.import.hint")}</p>
         </DialogHeader>
         <div className="mt-3 space-y-3">
           <label
@@ -467,7 +471,7 @@ function ImportMdDialog({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-fg">{file.name}</span>
-                  <span className="block text-xs text-muted">{(file.size / 1024).toFixed(1)} KB · 点击或拖拽可重新选择</span>
+                  <span className="block text-xs text-muted">{t("workspace.import.reselect", { size: (file.size / 1024).toFixed(1) })}</span>
                 </span>
               </div>
             ) : (
@@ -477,17 +481,17 @@ function ImportMdDialog({
                     <path d="M12 16V4M7 9l5-5 5 5" /><path d="M5 16v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" />
                   </svg>
                 </span>
-                <span className="text-sm font-medium text-fg/85">点击选择，或将 .md 文件拖到此处</span>
-                <span className="text-xs text-muted">仅支持 Markdown（.md）文件</span>
+                <span className="text-sm font-medium text-fg/85">{t("workspace.import.dropHint")}</span>
+                <span className="text-xs text-muted">{t("workspace.import.mdOnly")}</span>
               </>
             )}
           </label>
           <div>
-            <label className="text-xs font-medium text-muted">文档标题</label>
+            <label className="text-xs font-medium text-muted">{t("workspace.import.docTitle")}</label>
             <Input
               value={title}
               onChange={(e) => { setTitle(e.target.value); setConflict(null); }}
-              placeholder="文档标题"
+              placeholder={t("workspace.import.docTitle")}
               className="mt-1"
               disabled={!file}
             />
@@ -495,10 +499,10 @@ function ImportMdDialog({
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <DialogClose asChild>
-            <Button variant="ghost" size="sm">取消</Button>
+            <Button variant="ghost" size="sm">{t("common.cancel")}</Button>
           </DialogClose>
           <Button size="sm" disabled={!file || !title.trim() || busy} onClick={() => void submit()}>
-            {busy ? "导入中…" : "导入"}
+            {busy ? t("workspace.importing") : t("workspace.import.submit")}
           </Button>
         </div>
       </DialogContent>
@@ -515,13 +519,13 @@ function ImportMdDialog({
 const UNSUPPORTED_OPTIONS = [
   {
     value: "placeholder",
-    title: "保留不支持的内容",
-    desc: "尽量转换为可编辑内容（可能有偏差）；仍无法转换的块保留占位说明并附原文链接",
+    get title() { return tr("workspace.feishu.placeholder.title"); },
+    get desc() { return tr("workspace.feishu.placeholder.desc"); },
   },
   {
     value: "drop",
-    title: "丢弃不支持的内容",
-    desc: "尽量转换为可编辑内容（可能有偏差）；仍无法转换的块直接丢弃，不保留占位",
+    get title() { return tr("workspace.feishu.drop.title"); },
+    get desc() { return tr("workspace.feishu.drop.desc"); },
   },
 ] as const;
 
@@ -536,6 +540,7 @@ function ImportFeishuDialog({
   onOpenChange: (open: boolean) => void;
   onImported: (newId: string) => void;
 }) {
+  const t = useT();
   const [url, setUrl] = useState("");
   const [mode, setMode] = useState<"placeholder" | "drop">("placeholder");
   const [busy, setBusy] = useState(false);
@@ -555,11 +560,11 @@ function ImportFeishuDialog({
         unsupportedMode: mode,
       });
       const { report } = r;
-      const bits = [`已导入,转换 ${report.converted} 块`];
-      if (report.placeholderBlocks) bits.push(`${report.placeholderBlocks} 个不支持的块转为占位`);
-      if (report.droppedBlocks) bits.push(`已丢弃 ${report.droppedBlocks} 个不支持的块`);
-      if (report.warnings.length) bits.push(`${report.warnings.length} 处告警`);
-      toast.success(bits.join("，"));
+      const bits = [t("workspace.feishu.imported", { n: report.converted })];
+      if (report.placeholderBlocks) bits.push(t("workspace.feishu.placeholders", { n: report.placeholderBlocks }));
+      if (report.droppedBlocks) bits.push(t("workspace.feishu.dropped", { n: report.droppedBlocks }));
+      if (report.warnings.length) bits.push(t("workspace.feishu.warnings", { n: report.warnings.length }));
+      toast.success(bits.join(t("workspace.feishu.sep")));
       onImported(r.article.id);
     } catch (err) {
       // The server returns a clear, actionable message per failure (missing
@@ -576,8 +581,8 @@ function ImportFeishuDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>同步飞书文档</DialogTitle>
-          <p className="mt-1 text-xs text-muted">粘贴你有查看权限的飞书 docx / 知识库 wiki 链接，导入后创建为文档。</p>
+          <DialogTitle>{t("workspace.feishu.title")}</DialogTitle>
+          <p className="mt-1 text-xs text-muted">{t("workspace.feishu.hint")}</p>
         </DialogHeader>
         <div className="mt-3 space-y-3">
           <Input
@@ -616,10 +621,10 @@ function ImportFeishuDialog({
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <DialogClose asChild>
-            <Button variant="ghost" size="sm">取消</Button>
+            <Button variant="ghost" size="sm">{t("common.cancel")}</Button>
           </DialogClose>
           <Button size="sm" disabled={!url.trim() || busy} onClick={submit}>
-            {busy ? "导入中…" : "导入"}
+            {busy ? t("workspace.importing") : t("workspace.import.submit")}
           </Button>
         </div>
       </DialogContent>
@@ -646,6 +651,7 @@ export function RenameDialog({
   onOpenChange: (open: boolean) => void;
   onRenamed: () => void;
 }) {
+  const t = useT();
   const [name, setName] = useState(initialName);
   const [busy, setBusy] = useState(false);
 
@@ -673,7 +679,7 @@ export function RenameDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>重命名{kind === "folder" ? "目录" : "文档"}</DialogTitle>
+          <DialogTitle>{kind === "folder" ? t("workspace.rename.folder") : t("workspace.rename.doc")}</DialogTitle>
         </DialogHeader>
         <div className="mt-3">
           <Input
@@ -685,10 +691,10 @@ export function RenameDialog({
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <DialogClose asChild>
-            <Button variant="ghost" size="sm">取消</Button>
+            <Button variant="ghost" size="sm">{t("common.cancel")}</Button>
           </DialogClose>
           <Button size="sm" disabled={!name.trim() || busy} onClick={submit}>
-            {busy ? "保存中…" : "保存"}
+            {busy ? t("common.saving") : t("common.save")}
           </Button>
         </div>
       </DialogContent>
@@ -719,6 +725,7 @@ export function MoveDialog({
   onOpenChange: (open: boolean) => void;
   onMoved: () => void;
 }) {
+  const t = useT();
   const [target, setTarget] = useState<string | null>(currentFolderId);
   const [busy, setBusy] = useState(false);
 
@@ -742,8 +749,8 @@ export function MoveDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>移动文档</DialogTitle>
-          <p className="mt-1 text-xs text-muted">选择目标目录，或直接挂到角色下。</p>
+          <DialogTitle>{t("workspace.move.title")}</DialogTitle>
+          <p className="mt-1 text-xs text-muted">{t("workspace.move.hint")}</p>
         </DialogHeader>
         <div className="mt-3 max-h-64 overflow-y-auto rounded-md border border-line">
           <button
@@ -755,7 +762,7 @@ export function MoveDialog({
             )}
           >
             <span className="text-muted">📁</span>
-            <span>角色根目录（直挂）</span>
+            <span>{t("workspace.move.root")}</span>
           </button>
           {folders.map((f) => (
             <button
@@ -775,15 +782,22 @@ export function MoveDialog({
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <DialogClose asChild>
-            <Button variant="ghost" size="sm">取消</Button>
+            <Button variant="ghost" size="sm">{t("common.cancel")}</Button>
           </DialogClose>
           <Button size="sm" disabled={busy} onClick={submit}>
-            {busy ? "移动中…" : "移动"}
+            {busy ? t("workspace.moving") : t("workspace.move.submit")}
           </Button>
         </div>
       </DialogContent>
     </Dialog>
   );
+}
+
+// 把文案里的数字渲染成加粗(文案已按语言/单复数格式化好，这里只定位数字)。
+function BoldCount({ text, n }: { text: string; n: number }) {
+  const s = String(n);
+  const i = text.indexOf(s);
+  return <>{text.slice(0, i)}<span className="font-medium text-fg">{s}</span>{text.slice(i + s.length)}</>;
 }
 
 // =============================================================
@@ -810,6 +824,7 @@ export function DeleteFolderDialog({
   onOpenChange: (open: boolean) => void;
   onDeleted: () => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
 
   async function doDelete() {
@@ -830,24 +845,24 @@ export function DeleteFolderDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>删除目录《{folderName}》</DialogTitle>
+          <DialogTitle>{t("workspace.delFolder.title", { name: folderName })}</DialogTitle>
         </DialogHeader>
         {articleCount === 0 && subfolderCount === 0 ? (
-          <p className="mt-3 text-sm text-muted">此目录为空。删除后会移到回收站，可在回收站还原。</p>
+          <p className="mt-3 text-sm text-muted">{t("workspace.delFolder.empty")}</p>
         ) : (
           <p className="mt-3 text-sm text-muted">
-            此目录包含
-            {subfolderCount > 0 && <> <span className="font-medium text-fg">{subfolderCount}</span> 个子目录</>}
-            {articleCount > 0 && <>{subfolderCount > 0 ? "、" : " "}<span className="font-medium text-fg">{articleCount}</span> 篇文档{subfolderCount > 0 && "（含子目录中的文档）"}</>}
-            。删除后会和其中内容一起移到回收站，你可以在回收站整体还原或永久删除。
+            {t("workspace.delFolder.contains")}
+            {subfolderCount > 0 && <BoldCount text={t("workspace.delFolder.subs", { n: subfolderCount })} n={subfolderCount} />}
+            {articleCount > 0 && <>{subfolderCount > 0 ? t("workspace.delFolder.sep") : t("workspace.delFolder.sepFirst")}<BoldCount text={t("workspace.delFolder.docs", { n: articleCount }).trimStart()} n={articleCount} />{subfolderCount > 0 && t("workspace.delFolder.nested")}</>}
+            {t("workspace.delFolder.tail")}
           </p>
         )}
         <div className="mt-4 flex justify-end gap-2">
           <DialogClose asChild>
-            <Button variant="ghost" size="sm">取消</Button>
+            <Button variant="ghost" size="sm">{t("common.cancel")}</Button>
           </DialogClose>
           <Button variant="danger" size="sm" disabled={busy} onClick={doDelete}>
-            {busy ? "删除中…" : "删除"}
+            {busy ? t("workspace.deleting") : t("common.delete")}
           </Button>
         </div>
       </DialogContent>
@@ -880,6 +895,7 @@ export function DeleteDocDialog({
 }) {
   const nav = useNavigate();
   const loc = useLocation();
+  const t = useT();
   const [busy, setBusy] = useState(false);
 
   async function doDelete() {
@@ -908,15 +924,15 @@ export function DeleteDocDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>删除文档《{docTitle}》</DialogTitle>
+          <DialogTitle>{t("workspace.delDoc.title", { title: docTitle })}</DialogTitle>
         </DialogHeader>
-        <p className="mt-3 text-sm text-muted">删除后会移到回收站，可在回收站还原。确认删除？</p>
+        <p className="mt-3 text-sm text-muted">{t("workspace.delDoc.body")}</p>
         <div className="mt-4 flex justify-end gap-2">
           <DialogClose asChild>
-            <Button variant="ghost" size="sm">取消</Button>
+            <Button variant="ghost" size="sm">{t("common.cancel")}</Button>
           </DialogClose>
           <Button variant="danger" size="sm" disabled={busy} onClick={doDelete}>
-            {busy ? "删除中…" : "删除"}
+            {busy ? t("workspace.deleting") : t("common.delete")}
           </Button>
         </div>
       </DialogContent>
