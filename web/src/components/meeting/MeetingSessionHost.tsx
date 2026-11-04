@@ -12,6 +12,7 @@ import { useBeforeUnloadWhileRecording } from "./useBeforeUnloadWhileRecording";
 import { MeetingSessionContext, type MeetingSessionValue } from "./MeetingSessionContext";
 import { RecordingPill } from "./RecordingPill";
 import { getAssistantName } from "@/lib/assistantName";
+import { tr } from "@/i18n";
 
 // Shell-level owner of the live meeting session (mic capture + WebSocket +
 // meeting detail). Mounted ABOVE the routed <Outlet/> in WorkspaceShell, so it
@@ -35,7 +36,7 @@ export function MeetingSessionHost({ children }: { children: ReactNode }) {
       setDetail(await api.meeting.get(activeMeetingId));
       setError(null);
     } catch (e) {
-      if (e instanceof ApiError && e.status === 404) setError("会议不存在或已删除");
+      if (e instanceof ApiError && e.status === 404) setError(tr("meeting.host.notFound"));
       else setError((e as Error).message);
     }
   }, [activeMeetingId]);
@@ -77,8 +78,8 @@ export function MeetingSessionHost({ children }: { children: ReactNode }) {
 
   async function endMeeting() {
     if (!activeMeetingId) return;
-    const ok = await dialog.confirm(`所有参会者将退出实时视图，${getAssistantName()} 也会停止收听。`, {
-      title: "结束这场会议？", confirmText: "结束", danger: true,
+    const ok = await dialog.confirm(tr("meeting.host.endBody", { name: getAssistantName() }), {
+      title: tr("meeting.host.endTitle"), confirmText: tr("meeting.host.endConfirm"), danger: true,
     });
     if (!ok) return;
     setEnding(true);
@@ -86,7 +87,7 @@ export function MeetingSessionHost({ children }: { children: ReactNode }) {
     try {
       await api.meeting.end(activeMeetingId);
       useMeetingBadge.getState().refresh();
-      toast.success("会议已结束");
+      toast.success(tr("meeting.host.ended"));
       await reload();
     } catch (e) {
       toast.error((e as Error).message);
@@ -97,15 +98,15 @@ export function MeetingSessionHost({ children }: { children: ReactNode }) {
 
   async function hardDeleteMeeting() {
     if (!activeMeetingId) return;
-    const ok = await dialog.confirm("会议会移到回收站，你可以稍后在回收站还原，或永久删除。", {
-      title: "删除这场会议？", confirmText: "删除", danger: true,
+    const ok = await dialog.confirm(tr("meeting.host.deleteBody"), {
+      title: tr("meeting.host.deleteTitle"), confirmText: tr("common.delete"), danger: true,
     });
     if (!ok) return;
     setHardDeleting(true);
     try {
       await api.meeting.hardDelete(activeMeetingId);
       useMeetingBadge.getState().refresh();
-      toast.success("会议已移到回收站");
+      toast.success(tr("meeting.host.deleted"));
       leave();
       navigate("/meeting");
     } catch (e) {

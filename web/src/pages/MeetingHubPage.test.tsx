@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { MeetingHubPage } from "./MeetingHubPage";
 import { usePageChromeStore } from "@/stores/pageChrome";
+import { setCurrentLang } from "@/i18n/lang";
 
 // 「新会议」现登记到右区顶栏(usePageChrome),页面本体不再渲染它。测试里没有真实
 // 顶栏,用这个小消费组件把登记的 rightActions 渲染出来断言(与 RightTopBar 一致)。
@@ -99,5 +100,23 @@ describe("MeetingHubPage", () => {
     render(<MemoryRouter><MeetingHubPage /><ChromeActions /></MemoryRouter>);
     await screen.findByText("私密会");
     expect(screen.getByText("私密")).toBeInTheDocument();
+  });
+
+  it("renders English copy when the language is en", async () => {
+    setCurrentLang("en");
+    try {
+      const { api } = await import("@/lib/api");
+      (api.meeting.hub as ReturnType<typeof vi.fn>).mockResolvedValue({
+        active: [activeMeeting("m1", "V2 review")],
+        recent: [],
+      });
+      render(<MemoryRouter><MeetingHubPage /><ChromeActions /></MemoryRouter>);
+      await screen.findByText("V2 review");
+      expect(screen.getByText("New meeting")).toBeInTheDocument();
+      expect(screen.getByText("Past meetings")).toBeInTheDocument();
+      expect(screen.getByText("Enter room →")).toBeInTheDocument();
+    } finally {
+      setCurrentLang("zh");
+    }
   });
 });

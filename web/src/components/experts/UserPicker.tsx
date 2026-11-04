@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type RoleMember } from "@/lib/api";
+import { useT } from "@/i18n";
 
 // 选人:默认展示建议列表(角色成员),输入 ≥2 字即按名搜任意启用用户。
 // value = 选中 userId;onChange(userId, label) 回传选择。
@@ -8,6 +9,7 @@ export function UserPicker({ suggestions, value, onChange }: {
   value: string | null;
   onChange: (userId: string | null, label?: string) => void;
 }) {
+  const t = useT();
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<RoleMember[] | null>(null);
 
@@ -27,11 +29,11 @@ export function UserPicker({ suggestions, value, onChange }: {
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="按名字搜索,或从下方选择"
+        placeholder={t("experts.picker.placeholder")}
         className="w-full rounded-lg border border-line px-2 py-1 text-sm outline-none"
       />
       <ul className="max-h-40 overflow-y-auto rounded-lg border border-line">
-        {list.length === 0 && <li className="px-2 py-1 text-xs text-muted">{q.trim().length >= 2 ? "无匹配" : "暂无建议,输入名字搜索"}</li>}
+        {list.length === 0 && <li className="px-2 py-1 text-xs text-muted">{q.trim().length >= 2 ? t("experts.picker.noMatch") : t("experts.picker.noSuggestions")}</li>}
         {list.map((m) => (
           <li key={m.userId}>
             <button

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type { RoleSkillSummaryItem } from "@team-knowledge/shared";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { useT } from "@/i18n";
 
 export type ChatMentionType = "doc" | "folder" | "skill";
 
@@ -126,6 +127,7 @@ function firstEnabled(list: ChatMentionItem[]): number {
 }
 
 export function ChatMentionPopover({ query, anchor, onSelect, onClose }: Props) {
+  const t = useT();
   const [docs, setDocs] = useState<ChatMentionItem[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [docsError, setDocsError] = useState<string | null>(null);
@@ -198,7 +200,7 @@ export function ChatMentionPopover({ query, anchor, onSelect, onClose }: Props) 
         .catch((err: unknown) => {
           if (cancelled) return;
           setDocs([]);
-          setDocsError((err as Error).message || "搜索失败");
+          setDocsError((err as Error).message || t("chat.mention.searchFailed"));
         })
         .finally(() => {
           if (!cancelled) setDocsLoading(false);
@@ -244,7 +246,7 @@ export function ChatMentionPopover({ query, anchor, onSelect, onClose }: Props) 
       type: "skill" as const,
       id: s.roleId,
       label: s.roleName,
-      hint: s.usable ? "技能就绪" : "未生成,无法选择",
+      hint: s.usable ? t("chat.mention.skillReady") : t("chat.mention.skillMissing"),
       disabled: !s.usable,
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -390,8 +392,8 @@ export function ChatMentionPopover({ query, anchor, onSelect, onClose }: Props) 
   // Inline label for each tab — kept short so 3 buttons fit in the
   // 288–384px popover width without wrapping.
   const TAB_META: Record<ChatMentionType, { label: string; icon: string }> = {
-    doc:    { label: "文档", icon: "📄" },
-    folder: { label: "目录", icon: "📁" },
+    doc:    { label: t("chat.mention.tabDoc"), icon: "📄" },
+    folder: { label: t("chat.mention.tabFolder"), icon: "📁" },
     skill:  { label: "Skills", icon: "🧩" },
   };
   const counts: Record<ChatMentionType, number> = {
@@ -421,13 +423,13 @@ export function ChatMentionPopover({ query, anchor, onSelect, onClose }: Props) 
           "px-3 py-4 text-sm",
           docsError ? "text-rose-600" : "text-muted",
         )}>
-          {docsLoading ? "搜索中…" : docsError ? `搜索失败：${docsError}` : "无匹配文档"}
+          {docsLoading ? t("chat.mention.searching") : docsError ? t("chat.mention.searchFailedWith", { error: docsError }) : t("chat.mention.noDoc")}
         </div>
       );
     }
     return (
       <div className="px-3 py-4 text-sm text-muted">
-        {activeTab === "folder" ? "无匹配目录" : "暂无角色技能"}
+        {activeTab === "folder" ? t("chat.mention.noFolder") : t("chat.mention.noSkill")}
       </div>
     );
   }
@@ -436,7 +438,7 @@ export function ChatMentionPopover({ query, anchor, onSelect, onClose }: Props) 
     <div
       ref={ref}
       role="dialog"
-      aria-label="选择引用对象"
+      aria-label={t("chat.mention.pickAria")}
       // flex flex-col: tab strip stays pinned at top while the body
       // scrolls. max-w-96 caps width on desktop; min-w-72 keeps it
       // readable on tight viewports.
@@ -450,7 +452,7 @@ export function ChatMentionPopover({ query, anchor, onSelect, onClose }: Props) 
           autoFocus
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="搜索 文档 / 目录 / Skills…"
+          placeholder={t("chat.mention.searchPlaceholder")}
           className="w-full rounded-lg border border-line px-2.5 py-1.5 text-xs outline-none focus:border-primary"
         />
       </div>

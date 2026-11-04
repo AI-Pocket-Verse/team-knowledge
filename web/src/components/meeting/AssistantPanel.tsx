@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { MeetingCommentRow, MeetingCommentTrigger } from "@team-knowledge/shared";
 import { beijingParts } from "@/lib/tz";
 import { getAssistantName } from "@/lib/assistantName";
+import { tr, useT } from "@/i18n";
 
 // ─── assistant chime-in panel ─────────────────────────────────
 // Right-side companion to LiveTranscript. Renders:
@@ -14,12 +15,12 @@ import { getAssistantName } from "@/lib/assistantName";
 
 function triggerLabel(t: MeetingCommentTrigger): { icon: string; label: string } {
   switch (t) {
-    case "explicit_wake":  return { icon: "🗣️", label: "被呼叫" };
-    case "keyword":         return { icon: "🔍", label: "关键词" };
-    case "silence":         return { icon: "🤫", label: "冷场" };
-    case "proactive":       return { icon: "💡", label: "主动" };
-    case "manual_button":   return { icon: "📢", label: "主持人邀请" };
-    case "user_question":   return { icon: "💬", label: "提问" };
+    case "explicit_wake":  return { icon: "🗣️", label: tr("meeting.trigger.explicit_wake") };
+    case "keyword":         return { icon: "🔍", label: tr("meeting.trigger.keyword") };
+    case "silence":         return { icon: "🤫", label: tr("meeting.trigger.silence") };
+    case "proactive":       return { icon: "💡", label: tr("meeting.trigger.proactive") };
+    case "manual_button":   return { icon: "📢", label: tr("meeting.trigger.manual_button") };
+    case "user_question":   return { icon: "💬", label: tr("meeting.trigger.user_question") };
   }
 }
 
@@ -118,6 +119,7 @@ export function AssistantPanel({
   queuedCount = 0,
   readOnly = false,
 }: Props) {
+  const t = useT();
   const [input, setInput] = useState("");
   const [skippedVisible, setSkippedVisible] = useState(false);
   const [userMsgs, setUserMsgs] = useState<UserEcho[]>([]);
@@ -232,7 +234,7 @@ export function AssistantPanel({
       <header className="flex items-center justify-between gap-2 pb-3">
         <div className="flex items-center gap-2 font-semibold text-fg">
           <span aria-hidden>💬</span>
-          <span>{getAssistantName()} 评论</span>
+          <span>{t("meeting.assistant.comments", { name: getAssistantName() })}</span>
           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">{comments.length}</span>
         </div>
         {isHost && onToggleTts && (
@@ -243,16 +245,16 @@ export function AssistantPanel({
               onChange={(e) => onToggleTts(e.target.checked)}
               className="h-3.5 w-3.5 accent-primary"
             />
-            <span className="inline-flex items-center gap-1"><SpeakerIcon /> 播放</span>
-            {playingId && <span className="ml-1 text-emerald-600"> 播放中</span>}
-            {queuedCount > 0 && <span className="ml-1"> 排队 {queuedCount}</span>}
+            <span className="inline-flex items-center gap-1"><SpeakerIcon />{t("meeting.assistant.play")}</span>
+            {playingId && <span className="ml-1 text-emerald-600">{t("meeting.assistant.playing")}</span>}
+            {queuedCount > 0 && <span className="ml-1">{t("meeting.assistant.queued", { n: queuedCount })}</span>}
           </label>
         )}
       </header>
 
       {skippedVisible && lastSkipped && (
         <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
-          ⚠ {getAssistantName()} 已跳过本次：{lastSkipped.reason}
+          {t("meeting.assistant.skipped", { name: getAssistantName(), reason: lastSkipped.reason })}
         </div>
       )}
 
@@ -263,7 +265,7 @@ export function AssistantPanel({
       >
         {timeline.length === 0 && !pending ? (
           <div className="flex h-32 items-center justify-center text-center text-xs text-muted">
-            还没有评论。会议中说“{getAssistantName()}”或下方提问即可触发。
+            {t("meeting.assistant.empty", { name: getAssistantName() })}
           </div>
         ) : (
           <ul className="flex flex-col gap-3">
@@ -276,19 +278,19 @@ export function AssistantPanel({
                 return (
                   <li key={u.id} className="flex justify-end">
                     <div className="max-w-[80%] rounded-lg bg-accent-soft px-3 py-2 text-fg shadow-glass">
-                      <div className="text-[10px] text-primary/70">你的提问</div>
+                      <div className="text-[10px] text-primary/70">{t("meeting.assistant.yourQuestion")}</div>
                       <div className="mt-0.5 whitespace-pre-wrap leading-relaxed">{u.text}</div>
                     </div>
                   </li>
                 );
               }
               const c = row.data;
-              const t = triggerLabel(c.triggerType);
+              const trig = triggerLabel(c.triggerType);
               return (
                 <li key={c.id} className="rounded-lg border border-line bg-surface p-3">
                   <div className="flex items-center gap-2 text-xs text-muted">
-                    <span aria-hidden>{t.icon}</span>
-                    <span>{t.label}</span>
+                    <span aria-hidden>{trig.icon}</span>
+                    <span>{trig.label}</span>
                     <span className="tabular-nums">{formatClock(startedAtMs + c.atMs)}</span>
                     {c.triggeredByName && (
                       <>
@@ -296,7 +298,7 @@ export function AssistantPanel({
                       </>
                     )}
                     {c.id === playingId && (
-                      <span className="ml-auto inline-flex items-center gap-1 text-emerald-600"><SpeakerIcon /> 播放中</span>
+                      <span className="ml-auto inline-flex items-center gap-1 text-emerald-600"><SpeakerIcon />{t("meeting.assistant.playing")}</span>
                     )}
                   </div>
                   <div className="mt-1.5 whitespace-pre-wrap text-fg leading-relaxed">
@@ -306,7 +308,7 @@ export function AssistantPanel({
                       // caret so the growing text reads as live, not stuck.
                       <span className="ml-1 align-baseline text-xs text-blue-500">
                         <span className="animate-pulse">▌</span>
-                        <span className="ml-1 text-muted">正在发言…</span>
+                        <span className="ml-1 text-muted">{t("meeting.assistant.speaking")}</span>
                       </span>
                     )}
                   </div>
@@ -331,13 +333,13 @@ export function AssistantPanel({
                       {c.citedArticleIds.length > c.citedRefs.length && (
                         // Some cited docs were deleted (resolved to no title) —
                         // hint at the gap instead of silently dropping them.
-                        <span>+{c.citedArticleIds.length - c.citedRefs.length} 篇已删除</span>
+                        <span>{t("meeting.assistant.citedDeleted", { n: c.citedArticleIds.length - c.citedRefs.length })}</span>
                       )}
                     </div>
                   ) : c.citedArticleIds.length > 0 ? (
                     // Fallback: ids cited but titles unresolved (e.g. the docs
                     // were deleted after the comment) → show the bare count.
-                    <div className="mt-2 text-xs text-muted">📎 引用了 {c.citedArticleIds.length} 篇文档</div>
+                    <div className="mt-2 text-xs text-muted">{t("meeting.assistant.cited", { n: c.citedArticleIds.length })}</div>
                   ) : null}
                 </li>
               );
@@ -346,7 +348,7 @@ export function AssistantPanel({
               <li className="flex justify-start" aria-live="polite">
                 <div className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-muted">
                   <span aria-hidden>💬</span>
-                  <span className="text-xs">{getAssistantName()} 正在思考</span>
+                  <span className="text-xs">{t("meeting.assistant.thinking", { name: getAssistantName() })}</span>
                   <span className="flex items-center gap-1">
                     <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-400" style={{ animationDelay: "-0.3s" }} />
                     <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-400" style={{ animationDelay: "-0.15s" }} />
@@ -378,7 +380,7 @@ export function AssistantPanel({
                   submit();
                 }
               }}
-              placeholder={`向 ${getAssistantName()} 提问…`}
+              placeholder={t("meeting.assistant.askPlaceholder", { name: getAssistantName() })}
               className="flex-1 rounded-lg border border-line bg-white px-3 py-1.5 text-sm text-fg outline-none focus:border-primary"
             />
             <button
@@ -387,7 +389,7 @@ export function AssistantPanel({
               disabled={!input.trim()}
               className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg shadow-glass transition enabled:hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              发送
+              {t("meeting.assistant.send")}
             </button>
           </div>
           {isHost && onCommentNow && (
@@ -396,7 +398,7 @@ export function AssistantPanel({
               onClick={onCommentNow}
               className="rounded-lg border border-line bg-white px-3 py-1.5 text-xs text-muted transition hover:bg-surface hover:text-fg"
             >
-              📢 邀请 {getAssistantName()} 入会发言
+              {t("meeting.assistant.invite", { name: getAssistantName() })}
             </button>
           )}
         </footer>

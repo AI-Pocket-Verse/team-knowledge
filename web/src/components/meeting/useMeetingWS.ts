@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MeetingCommentRow, MeetingTranscriptRow } from "@team-knowledge/shared";
 import { API_BASE } from "@/lib/api";
+import { tr } from "@/i18n";
 
 // State broadcast from the server. Mirrors the event shapes in
 // api/src/routes/meeting-ws.ts. We keep both ends as plain
@@ -139,12 +140,12 @@ function backoffDelay(attempt: number): number {
 // generic "连接已关闭".
 function closeReason(code: number, reason: string): string {
   switch (code) {
-    case 4401: return "请先登录后再加入会议";
-    case 4403: return "无权访问该会议";
-    case 4404: return "会议不存在或已删除";
-    case 4410: return "会议已结束";
-    case 4409: return reason === "host_replaced" ? "另一个标签接管了主持人位置" : "连接被替换";
-    case 1000: return reason === "session_ended" ? "会议已结束" : "";
+    case 4401: return tr("meeting.ws.login");
+    case 4403: return tr("meeting.ws.forbidden");
+    case 4404: return tr("meeting.ws.notFound");
+    case 4410: return tr("meeting.ws.ended");
+    case 4409: return reason === "host_replaced" ? tr("meeting.ws.hostReplaced") : tr("meeting.ws.replaced");
+    case 1000: return reason === "session_ended" ? tr("meeting.ws.ended") : "";
     default:   return "";
   }
 }
@@ -423,7 +424,7 @@ export function useMeetingWS(
             return;
           }
           case "error": {
-            const message = typeof msg.message === "string" ? msg.message : "连接异常";
+            const message = typeof msg.message === "string" ? msg.message : tr("meeting.ws.error");
             setState((s) => ({ ...s, status: "error", lastError: message }));
             return;
           }
@@ -476,7 +477,7 @@ export function useMeetingWS(
         setState((s) => ({
           ...s,
           status: "reconnecting",
-          lastError: s.lastError ?? text ?? `网络波动，${Math.round(delay / 1000)} 秒后重连…`,
+          lastError: s.lastError ?? text ?? tr("meeting.ws.reconnecting", { n: Math.round(delay / 1000) }),
         }));
         reconnectTimer = window.setTimeout(() => {
           reconnectTimer = null;

@@ -11,6 +11,7 @@ import { useWorkspaceTree } from "@/stores/workspaceTree";
 import { beijingParts } from "@/lib/tz";
 import { AssistantPanel } from "./AssistantPanel";
 import { getAssistantName } from "@/lib/assistantName";
+import { tr, useT } from "@/i18n";
 
 // ─── Post-meeting summary view ────────────────────────────
 // Rendered by MeetingRoomPage when session.status === "ended".
@@ -42,6 +43,7 @@ interface Props {
 }
 
 export function MeetingSummary({ detail, canArchive, onRefresh }: Props) {
+  const t = useT();
   const session = detail.session;
   const summaryFailed = isMeetingSummaryFailure(session.summaryMarkdown);
   // The polling loop should keep running while we don't yet have a
@@ -98,7 +100,7 @@ export function MeetingSummary({ detail, canArchive, onRefresh }: Props) {
     setPollGeneration((g) => g + 1);
     try {
       await api.meeting.regenerateSummary(session.id);
-      if (!opts?.silent) toast.success("已重新触发纪要生成");
+      if (!opts?.silent) toast.success(tr("meeting.summary.regenTriggered"));
       await refreshOnce();
     } finally {
       regenInFlightRef.current = false;
@@ -183,7 +185,7 @@ export function MeetingSummary({ detail, canArchive, onRefresh }: Props) {
       {/* canArchive == isHost || isAdmin == who may edit meeting metadata. */}
       <VisibilityControl session={session} canEdit={canArchive} onChanged={onRefresh} />
       {session.recordingUrl && <RecordingPlayer url={session.recordingUrl} />}
-      <CollapsibleSection title="会议纪要" defaultOpen>
+      <CollapsibleSection title={t("meeting.summary.notes")} defaultOpen>
         <SummaryBlock
           session={session}
           docLinks={docLinkByTitle}
@@ -202,7 +204,7 @@ export function MeetingSummary({ detail, canArchive, onRefresh }: Props) {
         />
       </CollapsibleSection>
       {detail.comments.length > 0 && (
-        <CollapsibleSection title={`${getAssistantName()} 评论`} count={detail.comments.length} defaultOpen>
+        <CollapsibleSection title={t("meeting.assistant.comments", { name: getAssistantName() })} count={detail.comments.length} defaultOpen>
           <AssistantPanel
             comments={detail.comments}
             startedAtMs={new Date(session.createdAt).getTime()}
@@ -214,7 +216,7 @@ export function MeetingSummary({ detail, canArchive, onRefresh }: Props) {
         </CollapsibleSection>
       )}
       {detail.transcripts.length > 0 && (
-        <CollapsibleSection title={`完整转录（${detail.transcripts.length} 段）`}>
+        <CollapsibleSection title={t("meeting.summary.transcript", { n: detail.transcripts.length })}>
           <TranscriptList transcripts={detail.transcripts} startedAtMs={new Date(session.createdAt).getTime()} />
         </CollapsibleSection>
       )}
@@ -265,6 +267,7 @@ function CollapsibleSection({
 export function VisibilityControl({
   session, canEdit, onChanged,
 }: { session: MeetingSessionRow; canEdit: boolean; onChanged: () => Promise<void> | void }) {
+  const t = useT();
   const [vis, setVis] = useState<FolderVisibility>(session.visibility);
   const [saving, setSaving] = useState(false);
   useEffect(() => { setVis(session.visibility); }, [session.visibility]);
@@ -272,7 +275,7 @@ export function VisibilityControl({
   if (!canEdit) {
     return (
       <div className="text-xs text-muted">
-        可见性：{session.visibility === "private" ? "🔒 私密（仅主持人可见）" : "🌐 公开（所有成员可见）"}
+        {t("meeting.summary.visibilityLine", { value: session.visibility === "private" ? t("meeting.summary.privateLong") : t("meeting.summary.publicLong") })}
       </div>
     );
   }
@@ -284,7 +287,7 @@ export function VisibilityControl({
     setSaving(true);
     try {
       await api.meeting.update(session.id, { visibility: next });
-      toast.success(next === "private" ? "已设为私密" : "已设为公开");
+      toast.success(next === "private" ? tr("meeting.summary.setPrivate") : tr("meeting.summary.setPublic"));
       await onChanged();
     } catch (e) {
       setVis(prev); // rollback
@@ -296,7 +299,7 @@ export function VisibilityControl({
 
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span className="text-muted">可见性</span>
+      <span className="text-muted">{t("meeting.summary.visibility")}</span>
       <div className="inline-flex overflow-hidden rounded-lg border border-line">
         {(["public", "private"] as const).map((v) => (
           <button
@@ -309,7 +312,7 @@ export function VisibilityControl({
               vis === v ? "bg-primary text-primary-fg" : "bg-white text-muted hover:bg-surface",
             )}
           >
-            {v === "public" ? "🌐 公开" : "🔒 私密"}
+            {v === "public" ? t("meeting.summary.public") : t("meeting.summary.private")}
           </button>
         ))}
       </div>
@@ -318,29 +321,31 @@ export function VisibilityControl({
 }
 
 function SummaryMeta({ session }: { session: MeetingSessionRow }) {
+  const t = useT();
   const minutes = session.endedAt
     ? Math.max(1, Math.round((new Date(session.endedAt).getTime() - new Date(session.createdAt).getTime()) / 60_000))
     : null;
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-      <span>主持人：{session.hostName}</span>
-      <span>开始：{fmtDateTime(session.createdAt)}</span>
+      <span>{t("meeting.summary.host", { name: session.hostName })}</span>
+      <span>{t("meeting.summary.start", { time: fmtDateTime(session.createdAt) })}</span>
       {session.endedAt && (
         <>
-          <span>结束：{fmtDateTime(session.endedAt)}</span>
+          <span>{t("meeting.summary.end", { time: fmtDateTime(session.endedAt) })}</span>
         </>
       )}
       {minutes !== null && (
         <>
-          <span>{minutes} 分钟</span>
+          <span>{t("meeting.summary.minutes", { n: minutes })}</span>
         </>
       )}
-      <span>关联角色：{session.allowedRoles.map((r) => r.name).join(" / ") || "（无）"}</span>
+      <span>{t("meeting.summary.roles", { roles: session.allowedRoles.map((r) => r.name).join(" / ") || t("meeting.summary.noRoles") })}</span>
     </div>
   );
 }
 
 function RecordingPlayer({ url }: { url: string }) {
+  const t = useT();
   // The server returns a root-relative path (/meeting-recordings/<id>.wav). It
   // must be fetched through the gateway's API base (/…/api) — rendered raw it
   // resolves to the SITE root and 404s (blank player + failed download).
@@ -349,7 +354,7 @@ function RecordingPlayer({ url }: { url: string }) {
     <div className="rounded-xl border border-line bg-white p-4 shadow-glass">
       <div className="mb-2 flex items-center gap-2 text-sm font-medium text-fg">
         <span aria-hidden>🎧</span>
-        <span>会议录音</span>
+        <span>{t("meeting.summary.recording")}</span>
       </div>
       <audio controls src={src} className="w-full" preload="metadata" />
       {/* ?download=1 → server responds attachment with the meeting title as the
@@ -364,7 +369,7 @@ function RecordingPlayer({ url }: { url: string }) {
           <polyline points="7 10 12 15 17 10" />
           <line x1="12" y1="15" x2="12" y2="3" />
         </svg>
-        下载录音文件
+        {t("meeting.summary.downloadRecording")}
       </a>
     </div>
   );
@@ -406,6 +411,7 @@ function SummaryBlock({
   maxAutoRetries: number;
   onRetry: () => Promise<void>;
 }) {
+  const t = useT();
   const [retrying, setRetrying] = useState(false);
 
   // Real markdown — render it directly. We checked summaryFailed
@@ -420,8 +426,8 @@ function SummaryBlock({
     return (
       <div className="text-center text-sm text-muted">
         <div className="text-2xl animate-pulse">🔁</div>
-        <div className="mt-2 font-medium text-fg">正在自动重试…({autoRetryAttempt}/{maxAutoRetries})</div>
-        <p className="mt-1 text-xs">纪要生成失败，正在自动重新生成。</p>
+        <div className="mt-2 font-medium text-fg">{t("meeting.summary.autoRetrying", { n: autoRetryAttempt, max: maxAutoRetries })}</div>
+        <p className="mt-1 text-xs">{t("meeting.summary.autoRetryHint")}</p>
       </div>
     );
   }
@@ -435,12 +441,12 @@ function SummaryBlock({
         <>
           <div className="text-2xl">{summaryFailed ? "⚠️" : "⏱️"}</div>
           <div className="mt-2 font-medium text-fg">
-            {summaryFailed ? "纪要生成失败" : "纪要生成超时"}
+            {summaryFailed ? t("meeting.summary.failed") : t("meeting.summary.timeout")}
           </div>
           <p className="mt-1 text-xs">
             {summaryFailed
-              ? "LLM 返回了空内容或异常。点击重试 ↓"
-              : "LLM 没有在 90 秒内返回结果。点击重试 ↓"}
+              ? t("meeting.summary.failedHint")
+              : t("meeting.summary.timeoutHint")}
           </p>
           <button
             type="button"
@@ -452,14 +458,14 @@ function SummaryBlock({
             }}
             className="mt-3 rounded-lg border border-line bg-white px-3 py-1.5 text-xs text-fg transition hover:bg-surface disabled:opacity-60"
           >
-            {retrying ? "重新触发中…" : "🔁 重新生成纪要"}
+            {retrying ? t("meeting.summary.retrying") : t("meeting.summary.regenerate")}
           </button>
         </>
       ) : (
         <>
           <div className="text-2xl animate-pulse">🤖</div>
-          <div className="mt-2 font-medium text-fg">{getAssistantName()} 正在生成纪要…</div>
-          <p className="mt-1 text-xs">这通常需要 10-30 秒。页面会自动刷新。</p>
+          <div className="mt-2 font-medium text-fg">{t("meeting.summary.generating", { name: getAssistantName() })}</div>
+          <p className="mt-1 text-xs">{t("meeting.summary.generatingHint")}</p>
         </>
       )}
     </div>
@@ -490,6 +496,7 @@ function TranscriptList({ transcripts, startedAtMs }: { transcripts: MeetingDeta
 function SaveToKBPanel({
   sessionId, allowedRoleIds, allowedRoles,
 }: { sessionId: string; allowedRoleIds: string[]; allowedRoles: { id: string; name: string; color: string | null }[] }) {
+  const t = useT();
   const [savedArticleId, setSavedArticleId] = useState<string | null>(null);
   const [roleId, setRoleId] = useState<string>(allowedRoleIds[0] ?? "");
   const [submitting, setSubmitting] = useState(false);
@@ -498,15 +505,15 @@ function SaveToKBPanel({
   if (savedArticleId) {
     return (
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-        ✅ 已存为知识库文档（草稿状态）。
-        <a href={`/d/${savedArticleId}`} className="ml-1 underline">在知识库中打开 →</a>
+        {t("meeting.summary.savedDoc")}
+        <a href={`/d/${savedArticleId}`} className="ml-1 underline">{t("meeting.summary.openInKb")}</a>
       </div>
     );
   }
   if (allowedRoleIds.length === 0) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
-        ⚠ 这场会议没有关联角色，无法保存到知识库。
+        {t("meeting.summary.noRoleLinked")}
       </div>
     );
   }
@@ -514,10 +521,10 @@ function SaveToKBPanel({
     <div className="rounded-xl border border-line bg-white p-4 text-sm shadow-glass">
       <div className="mb-3 flex items-center gap-2 font-semibold text-fg">
         <span aria-hidden>📥</span>
-        <span>保存到知识库</span>
+        <span>{t("meeting.summary.saveToKb")}</span>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted">保存到角色：</span>
+        <span className="text-xs text-muted">{t("meeting.summary.saveToRole")}</span>
         <select
           value={roleId}
           onChange={(e) => setRoleId(e.target.value)}
@@ -538,7 +545,7 @@ function SaveToKBPanel({
               // Nudge the left rail to refetch this role's subtree so the
               // freshly-saved draft appears without a manual page reload.
               requestRoleRefresh(roleId);
-              toast.success("已存为知识库草稿");
+              toast.success(tr("meeting.summary.savedDraft"));
             } catch (e) {
               toast.error(e instanceof ApiError ? e.message : (e as Error).message);
             } finally {
@@ -547,11 +554,11 @@ function SaveToKBPanel({
           }}
           className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg shadow-glass transition enabled:hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {submitting ? "保存中…" : "保存为草稿"}
+          {submitting ? t("common.saving") : t("meeting.summary.saveDraft")}
         </button>
       </div>
       <p className="mt-2 text-xs text-muted">
-        新文档以「{`会议主题 - 会议纪要`}」为标题，以草稿状态保存，你可以编辑后再发布。
+        {t("meeting.summary.saveHint")}
       </p>
     </div>
   );

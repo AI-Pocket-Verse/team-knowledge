@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { streamingStatus } from "./streamingStatus";
 import type { ExpertTraceEvent } from "@/lib/api";
+import { setCurrentLang } from "@/i18n/lang";
 
 const rn = (id: string) => ({ "r-prod": "产品", "r-tech": "技术" }[id] ?? id);
 
@@ -32,5 +33,19 @@ describe("streamingStatus", () => {
     expect(streamingStatus(summarizing, rn)).toBe("正在汇总各专家意见…");
     expect(streamingStatus([{ type: "routed", roleIds: ["r-prod"] }, { type: "consult", roleId: "r-tech" }], rn)).toBe("正在跨专家请教…");
     expect(streamingStatus([{ type: "escalation", roleId: "r-prod" }], rn)).toBe("正在升级给负责人…");
+  });
+});
+
+describe("streamingStatus (English)", () => {
+  it("returns English status text", () => {
+    setCurrentLang("en");
+    try {
+      expect(streamingStatus(undefined, rn)).toBe("AI is thinking…");
+      const lt: ExpertTraceEvent[] = [{ type: "routed", roleIds: ["r-prod", "r-tech"] }];
+      expect(streamingStatus(lt, rn)).toBe("产品, 技术 answering…");
+      expect(streamingStatus([{ type: "websearch" }], rn)).toBe("Searching the web…");
+    } finally {
+      setCurrentLang("zh");
+    }
   });
 });
