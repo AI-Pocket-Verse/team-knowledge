@@ -1,3 +1,4 @@
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import type { AdminDashboardResponse, AdminDashboardUserRow } from "@team-knowledge/shared";
 import { prisma } from "../db.js";
@@ -137,7 +138,7 @@ export async function adminDashboardRoutes(app: FastifyInstance): Promise<void> 
     // The platform-wide feed powers the public live-activity stream; a specific
     // user's detailed activity stays admin-only.
     if (userId && !user.isAdmin) {
-      reply.code(403).send({ error: "forbidden", message: "需要管理员权限" });
+      reply.code(403).send({ error: "forbidden", message: L(req, "需要管理员权限", "Admin permission required") });
       return;
     }
     const pageRaw = Number(req.query.page);

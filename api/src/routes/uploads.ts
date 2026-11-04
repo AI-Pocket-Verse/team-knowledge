@@ -1,3 +1,4 @@
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { BLOCKED_UPLOAD_EXT } from "../utils/uploadPolicy.js";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -51,17 +52,17 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
     try {
       file = await req.file({ limits: { fileSize: MAX_BYTES } });
     } catch {
-      return reply.code(400).send({ error: "invalid_input", message: "请上传一个文件" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "请上传一个文件", "Upload a file") });
     }
     if (!file) {
-      return reply.code(400).send({ error: "invalid_input", message: "请上传一个文件" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "请上传一个文件", "Upload a file") });
     }
 
     let buffer: Buffer;
     try {
       buffer = await file.toBuffer();
     } catch {
-      return reply.code(413).send({ error: "payload_too_large", message: "文件超过 20MB 上限" });
+      return reply.code(413).send({ error: "payload_too_large", message: L(req, "文件超过 20MB 上限", "File exceeds the 20MB limit") });
     }
 
     // 校验(尺寸/MIME 白名单/magic-byte/配额)+ 落盘 + Upload 归属记录,与
@@ -95,30 +96,30 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
     try {
       file = await req.file({ limits: { fileSize: MAX_FILE_BYTES } });
     } catch {
-      return reply.code(400).send({ error: "invalid_input", message: "请上传一个文件" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "请上传一个文件", "Upload a file") });
     }
     if (!file) {
-      return reply.code(400).send({ error: "invalid_input", message: "请上传一个文件" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "请上传一个文件", "Upload a file") });
     }
 
     let buffer: Buffer;
     try {
       buffer = await file.toBuffer();
     } catch {
-      return reply.code(413).send({ error: "payload_too_large", message: "文件超过 30MB 上限" });
+      return reply.code(413).send({ error: "payload_too_large", message: L(req, "文件超过 30MB 上限", "File exceeds the 30MB limit") });
     }
     if (buffer.length > MAX_FILE_BYTES) {
-      return reply.code(413).send({ error: "payload_too_large", message: "文件超过 30MB 上限" });
+      return reply.code(413).send({ error: "payload_too_large", message: L(req, "文件超过 30MB 上限", "File exceeds the 30MB limit") });
     }
 
     const originalName = file.filename || "untitled";
     const ext = sanitizeExt(originalName);
     if (BLOCKED_UPLOAD_EXT.has(ext)) {
-      return reply.code(415).send({ error: "unsupported_media_type", message: `不允许上传 .${ext} 文件` });
+      return reply.code(415).send({ error: "unsupported_media_type", message: L(req, `不允许上传 .${ext} 文件`, `.${ext} files are not allowed`) });
     }
 
     if (await exceedsQuota(user.id, buffer.length)) {
-      return reply.code(413).send({ error: "quota_exceeded", message: "存储配额已用尽" });
+      return reply.code(413).send({ error: "quota_exceeded", message: L(req, "存储配额已用尽", "Storage quota exhausted") });
     }
 
     // Resolve the stored MIME from the actual bytes when possible. The

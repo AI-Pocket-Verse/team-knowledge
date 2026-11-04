@@ -1,3 +1,4 @@
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
@@ -13,13 +14,13 @@ export async function bookmarkRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const parsed = bookmarkCreateSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const a = await prisma.article.findUnique({
       where: { id: parsed.data.articleId },
       include: { folder: true },
     });
-    if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "文档不存在" });
+    if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
 
     const userRoleIds = await getUserRoleIds(user.id);
     const mp = getEffectiveFolderPermissions({
@@ -35,7 +36,7 @@ export async function bookmarkRoutes(app: FastifyInstance): Promise<void> {
       isAdmin: user.isAdmin,
       isCollaborator,
     });
-    if (!perms.canBookmark) return reply.code(403).send({ error: "forbidden", message: "无权收藏该文档" });
+    if (!perms.canBookmark) return reply.code(403).send({ error: "forbidden", message: L(req, "无权收藏该文档", "No permission to bookmark this document") });
 
     // Create-and-count in one transaction so two concurrent bookmarkers
     // can't both observe a stale count and return bookmarkCount=N+1
@@ -60,7 +61,7 @@ export async function bookmarkRoutes(app: FastifyInstance): Promise<void> {
       };
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-        return reply.code(409).send({ error: "conflict", message: "已经收藏过了" });
+        return reply.code(409).send({ error: "conflict", message: L(req, "已经收藏过了", "Already bookmarked") });
       }
       throw e;
     }

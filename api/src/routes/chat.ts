@@ -1,3 +1,4 @@
+import { L, requestLang } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -50,9 +51,9 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Querystring: { conversationId?: string; before?: string; limit?: string } }>("/api/chat/conversation", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!req.query.conversationId) return reply.code(400).send({ error: "invalid_input", message: "缺少 conversationId" });
+    if (!req.query.conversationId) return reply.code(400).send({ error: "invalid_input", message: L(req, "缺少 conversationId", "Missing conversationId") });
     const conv = await getOwnedConversation(user.id, req.query.conversationId);
-    if (!conv) return reply.code(404).send({ error: "not_found", message: "会话不存在" });
+    if (!conv) return reply.code(404).send({ error: "not_found", message: L(req, "会话不存在", "Conversation not found") });
 
     // keyset 分页:默认取最近 limit 条(limit≤100);before=游标消息 id → 取更早一页。
     const rawLimit = Number(req.query.limit ?? 100);
@@ -143,9 +144,9 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Querystring: { conversationId?: string } }>("/api/chat/conversation/summary", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!req.query.conversationId) return reply.code(400).send({ error: "invalid_input", message: "缺少 conversationId" });
+    if (!req.query.conversationId) return reply.code(400).send({ error: "invalid_input", message: L(req, "缺少 conversationId", "Missing conversationId") });
     const conv = await getOwnedConversation(user.id, req.query.conversationId);
-    if (!conv) return reply.code(404).send({ error: "not_found", message: "会话不存在" });
+    if (!conv) return reply.code(404).send({ error: "not_found", message: L(req, "会话不存在", "Conversation not found") });
     let messagesSinceSummary = 0;
     if (conv.summaryUpToMessageId) {
       const anchor = await prisma.chatMessage.findUnique({
@@ -178,7 +179,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const conv = req.query.conversationId ? await getOwnedConversation(user.id, req.query.conversationId) : null;
-    if (!conv) return reply.code(404).send({ error: "not_found", message: "会话不存在" });
+    if (!conv) return reply.code(404).send({ error: "not_found", message: L(req, "会话不存在", "Conversation not found") });
     await prisma.chatMessage.deleteMany({ where: { conversationId: conv.id } });
     // Also reset rolling-summary state. Without this, the next chat turn
     // still injects a stale [此前对话摘要] block referencing deleted messages,
@@ -208,13 +209,13 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     if (typeof req.body?.pinned === "boolean") {
       const ok = await pinConversation(user.id, req.params.id, req.body.pinned);
-      if (!ok) return reply.code(404).send({ error: "not_found", message: "会话不存在" });
+      if (!ok) return reply.code(404).send({ error: "not_found", message: L(req, "会话不存在", "Conversation not found") });
       return { ok: true };
     }
     const title = (req.body?.title ?? "").trim();
-    if (!title) return reply.code(400).send({ error: "invalid_input", message: "标题不能为空" });
+    if (!title) return reply.code(400).send({ error: "invalid_input", message: L(req, "标题不能为空", "Title cannot be empty") });
     const ok = await renameConversation(user.id, req.params.id, title);
-    if (!ok) return reply.code(404).send({ error: "not_found", message: "会话不存在" });
+    if (!ok) return reply.code(404).send({ error: "not_found", message: L(req, "会话不存在", "Conversation not found") });
     return { ok: true };
   });
 
@@ -223,7 +224,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const ok = await deleteConversation(user.id, req.params.id);
-    if (!ok) return reply.code(404).send({ error: "not_found", message: "会话不存在" });
+    if (!ok) return reply.code(404).send({ error: "not_found", message: L(req, "会话不存在", "Conversation not found") });
     return reply.code(204).send();
   });
 
@@ -243,7 +244,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const parsed = chatMessageCreateSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
 
     // 会话解析:带 conversationId 且归属本人 → 用之;否则惰性新建一条(首发即落库)。
@@ -329,25 +330,26 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const parsed = shareImageSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     // Bound total content so a huge selection can't blow up render time / size.
     const totalChars = parsed.data.messages.reduce((n, m) => n + m.content.length, 0);
     if (totalChars > 60_000) {
-      return reply.code(400).send({ error: "too_large", message: "选中的内容过多，请减少条数后再生成图片" });
+      return reply.code(400).send({ error: "too_large", message: L(req, "选中的内容过多，请减少条数后再生成图片", "Too much content selected. Select fewer items before generating the image") });
     }
     // 每行都是一个排版单元；行数过多时 400，免得白白解析。画布超高的部分由排版层截断。
     const totalLines = parsed.data.messages.reduce((n, m) => n + m.content.split("\n").length, 0);
     if (totalLines > SHARE_IMAGE_MAX_LINES) {
-      return reply.code(400).send({ error: "too_large", message: "选中的内容行数过多，请减少条数后再生成图片" });
+      return reply.code(400).send({ error: "too_large", message: L(req, "选中的内容行数过多，请减少条数后再生成图片", "Too many lines selected. Select fewer items before generating the image") });
     }
-    const dateLabel = `摘自 ${ASSISTANT_NAME} 对话 · ${new Intl.DateTimeFormat("zh-CN", {
+    const dateStr = new Intl.DateTimeFormat(requestLang(req) === "en" ? "en-US" : "zh-CN", {
       timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
-    }).format(new Date())}`;
+    }).format(new Date());
+    const dateLabel = L(req, `摘自 ${ASSISTANT_NAME} 对话 · ${dateStr}`, `From ${ASSISTANT_NAME} chat · ${dateStr}`);
     // 同一成员同时只生成一张:否则一个人连发就能占满全局唯一的渲染名额,让其他人一直 503。
     // 在读图之前占位(并发请求不必各自先把图读完);占位与全局名额一起在渲染进程结束后释放。
     if (shareImageUsers.has(user.id)) {
-      return reply.code(429).send({ error: "share_image_in_progress", message: "上一张图片还在生成，请稍候" });
+      return reply.code(429).send({ error: "share_image_in_progress", message: L(req, "上一张图片还在生成，请稍候", "The previous image is still being generated. Please wait") });
     }
     shareImageUsers.add(user.id);
     // Resolve each message's attached images (the user's OWN uploads) into
@@ -375,7 +377,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       releaseSlot = await shareImageSemaphore.acquire(SHARE_IMAGE_QUEUE_MS);
     } catch {
       shareImageUsers.delete(user.id);
-      return reply.code(503).send({ error: "share_image_busy", message: "正在生成其他图片，请稍后再试" });
+      return reply.code(503).send({ error: "share_image_busy", message: L(req, "正在生成其他图片，请稍后再试", "Other images are being generated. Try again later") });
     }
     const finishUser = () => { shareImageUsers.delete(user.id); releaseSlot(); };
     let png: Buffer;
@@ -386,7 +388,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       });
     } catch (e) {
       req.log.warn({ err: (e as Error).message }, "share image render failed");
-      return reply.code(503).send({ error: "share_image_failed", message: "图片生成超时或失败，请减少内容后再试" });
+      return reply.code(503).send({ error: "share_image_failed", message: L(req, "图片生成超时或失败，请减少内容后再试", "Image generation timed out or failed. Reduce the content and try again") });
     }
     reply.header("Content-Type", "image/png");
     reply.header("Content-Disposition", 'inline; filename="assistant-chat.png"');

@@ -1,3 +1,4 @@
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
@@ -59,20 +60,20 @@ export async function adminUserRoutes(app: FastifyInstance): Promise<void> {
     if (!admin) return;
     const parsed = adminUserUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const existing = await loadUser(req.params.id);
-    if (!existing) return reply.code(404).send({ error: "not_found", message: "用户不存在" });
+    if (!existing) return reply.code(404).send({ error: "not_found", message: L(req, "用户不存在", "User not found") });
 
     const data = parsed.data;
     const isSelf = existing.id === admin.id;
 
     // Self guards
     if (isSelf && data.isAdmin === false) {
-      return reply.code(403).send({ error: "forbidden", message: "不能取消自己的管理员权限" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "不能取消自己的管理员权限", "You cannot remove your own admin permission") });
     }
     if (isSelf && data.isActive === false) {
-      return reply.code(403).send({ error: "forbidden", message: "不能禁用自己" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "不能禁用自己", "You cannot deactivate yourself") });
     }
 
     // Bootstrap-admin guard: a configured (ADMIN_PHONES / ADMIN_EMAILS /
@@ -83,7 +84,7 @@ export async function adminUserRoutes(app: FastifyInstance): Promise<void> {
     if ((data.isActive === false || data.isAdmin === false) && isBootstrapAdminRow(existing)) {
       return reply.code(403).send({
         error: "forbidden",
-        message: "无法停用或降权配置内置管理员,请修改 ADMIN_PHONES 等环境变量",
+        message: L(req, "无法停用或降权配置内置管理员,请修改 ADMIN_PHONES 等环境变量", "Cannot deactivate or demote a built-in admin set in configuration. Change environment variables such as ADMIN_PHONES instead"),
       });
     }
 
@@ -93,7 +94,7 @@ export async function adminUserRoutes(app: FastifyInstance): Promise<void> {
         where: { isAdmin: true, isActive: true, id: { not: existing.id } },
       });
       if (otherAdmins === 0) {
-        return reply.code(403).send({ error: "forbidden", message: "不能取消最后一名管理员" });
+        return reply.code(403).send({ error: "forbidden", message: L(req, "不能取消最后一名管理员", "You cannot remove the last admin") });
       }
     }
 
@@ -105,13 +106,13 @@ export async function adminUserRoutes(app: FastifyInstance): Promise<void> {
         where: { isAdmin: true, isActive: true, id: { not: existing.id } },
       });
       if (otherActiveAdmins === 0) {
-        return reply.code(403).send({ error: "forbidden", message: "不能停用最后一名管理员" });
+        return reply.code(403).send({ error: "forbidden", message: L(req, "不能停用最后一名管理员", "You cannot deactivate the last admin") });
       }
     }
 
     // roleIds existence check
     if (data.roleIds && !(await assertRoleIdsExist(data.roleIds))) {
-      return reply.code(400).send({ error: "invalid_input", message: "存在无效的角色 id" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "存在无效的角色 id", "Invalid role id") });
     }
 
     const { roleIds, ...scalar } = data;
@@ -135,15 +136,15 @@ export async function adminUserRoutes(app: FastifyInstance): Promise<void> {
     const admin = await requireAdmin(req, reply);
     if (!admin) return;
     const target = await prisma.user.findUnique({ where: { id: req.params.id } });
-    if (!target) return reply.code(404).send({ error: "not_found", message: "用户不存在" });
+    if (!target) return reply.code(404).send({ error: "not_found", message: L(req, "用户不存在", "User not found") });
     if (target.id === admin.id) {
-      return reply.code(403).send({ error: "forbidden", message: "不能删除自己" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "不能删除自己", "You cannot delete yourself") });
     }
     // 与 PATCH 一致:配置内置管理员每次登录都会被重新置为管理员,删掉只会留下僵尸行。
     if (isBootstrapAdminRow(target)) {
       return reply.code(403).send({
         error: "forbidden",
-        message: "无法删除配置内置管理员,请修改 ADMIN_PHONES 等环境变量",
+        message: L(req, "无法删除配置内置管理员,请修改 ADMIN_PHONES 等环境变量", "Cannot delete a built-in admin set in configuration. Change environment variables such as ADMIN_PHONES instead"),
       });
     }
     if (target.isAdmin) {
@@ -151,7 +152,7 @@ export async function adminUserRoutes(app: FastifyInstance): Promise<void> {
         where: { isAdmin: true, isActive: true, id: { not: target.id } },
       });
       if (otherAdmins === 0) {
-        return reply.code(403).send({ error: "forbidden", message: "不能删除最后一名管理员" });
+        return reply.code(403).send({ error: "forbidden", message: L(req, "不能删除最后一名管理员", "You cannot delete the last admin") });
       }
     }
     // 上传记录与会议随用户级联删除:别人文档里引用的图片会 404、会议纪要丢失。
@@ -163,7 +164,7 @@ export async function adminUserRoutes(app: FastifyInstance): Promise<void> {
     if (uploads > 0 || meetings > 0) {
       return reply.code(409).send({
         error: "user_has_content",
-        message: `该用户有 ${uploads} 个上传文件、${meetings} 场会议，删除会一并丢失，请改为禁用`,
+        message: L(req, `该用户有 ${uploads} 个上传文件、${meetings} 场会议，删除会一并丢失，请改为禁用`, `This user has ${uploads} uploaded files and ${meetings} meetings that would be lost on deletion. Deactivate the user instead`),
         uploads,
         meetings,
       });

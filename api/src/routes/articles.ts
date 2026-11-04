@@ -1,3 +1,4 @@
+import { L } from "../utils/lang.js";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
@@ -268,14 +269,14 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
 
     const fold = await prisma.folder.findUnique({ where: { id: req.params.folderId } });
-    if (!fold || fold.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "目录不存在" });
+    if (!fold || fold.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "目录不存在", "Folder not found") });
 
     const userRoleIds = await getUserRoleIds(user.id);
     const mp = getFolderPermissions({
       user: { id: user.id, isAdmin: user.isAdmin }, userRoleIds,
       folder: { roleId: fold.roleId, visibility: asFolderVisibility(fold.visibility) },
     });
-    if (!mp.canView) return reply.code(403).send({ error: "forbidden", message: "无权访问该目录" });
+    if (!mp.canView) return reply.code(403).send({ error: "forbidden", message: L(req, "无权访问该目录", "No permission to access this folder") });
 
     const takeRaw = Number((req.query as { take?: string } | undefined)?.take ?? 200);
     const take = Number.isFinite(takeRaw) ? Math.min(Math.max(takeRaw, 1), 500) : 200;
@@ -344,7 +345,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         _count: { select: { versions: true, likes: true, comments: true, bookmarks: true } },
       },
     });
-    if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "文档不存在" });
+    if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
 
     const userRoleIds = await getUserRoleIds(user.id);
     const mp = getEffectiveFolderPermissions({
@@ -360,7 +361,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
       isAdmin: user.isAdmin,
       isCollaborator,
     });
-    if (!perms.canView) return reply.code(403).send({ error: "forbidden", message: "无权访问该文档" });
+    if (!perms.canView) return reply.code(403).send({ error: "forbidden", message: L(req, "无权访问该文档", "No permission to access this document") });
 
     // Best-effort PV / 谁看过 tracking — only AFTER the canView gate, so we
     // never stamp a view the user wasn't allowed to read. Fire-and-forget;
@@ -437,7 +438,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         editingBy: { select: { id: true, displayName: true } },
       },
     });
-    if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "文档不存在" });
+    if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
 
     const userRoleIds = await getUserRoleIds(user.id);
     const mp = getEffectiveFolderPermissions({
@@ -453,14 +454,14 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
       isAdmin: user.isAdmin,
       isCollaborator,
     });
-    if (!perms.canEdit) return reply.code(403).send({ error: "forbidden", message: "无权编辑该文档" });
+    if (!perms.canEdit) return reply.code(403).send({ error: "forbidden", message: L(req, "无权编辑该文档", "No permission to edit this document") });
 
     // ACTIVE lock held by SOMEONE ELSE → reject. A stale lock (or one held
     // by the caller) is acquirable/refreshable.
     if (isLockActive(a.editingById, a.editingAt) && a.editingById !== user.id) {
       return reply.code(409).send({
         error: "locked",
-        message: "文档正在被他人编辑",
+        message: L(req, "文档正在被他人编辑", "This document is being edited by someone else"),
         lock: { userId: a.editingById!, userName: a.editingBy?.displayName ?? null, mine: false },
       });
     }
@@ -508,13 +509,13 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return null;
     const id = (req.params as { id: string }).id;
     const a = await prisma.article.findUnique({ where: { id }, include: { folder: true } });
-    if (!a || a.deletedAt != null) { reply.code(404).send({ error: "not_found", message: "文档不存在" }); return null; }
+    if (!a || a.deletedAt != null) { reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") }); return null; }
     const userRoleIds = await getUserRoleIds(user.id);
     const mp = getEffectiveFolderPermissions({ user: { id: user.id, isAdmin: user.isAdmin }, userRoleIds, article: { roleId: a.roleId, folder: a.folder } });
     const isCollaborator = await isArticleCollaborator(user.id, a.id);
     const perms = getArticlePermissions({ folderPermissions: mp, article: { createdById: a.createdById }, userId: user.id, isAdmin: user.isAdmin, isCollaborator });
     if (!perms.canEdit) {
-      reply.code(403).send({ error: "forbidden", message: "无权编辑该文档" });
+      reply.code(403).send({ error: "forbidden", message: L(req, "无权编辑该文档", "No permission to edit this document") });
       return null;
     }
     return { user, article: a, canEdit: perms.canEdit };
@@ -560,7 +561,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
       return;
     }
     if (optimizeInFlight.has(ctx.article.id)) {
-      return reply.code(409).send({ error: "busy", message: "该文档正在优化中,请稍候再试" });
+      return reply.code(409).send({ error: "busy", message: L(req, "该文档正在优化中,请稍候再试", "This document is being optimized. Try again shortly") });
     }
     optimizeInFlight.add(ctx.article.id);
     // 客户端/网关断连(常见:优化较慢时网关先超时,前端报「请求失败」)→ 中断服务端 LLM 并立即释放
@@ -598,11 +599,11 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         // 据 callReviewLlm 回写的 reason 给出有区分度的提示 + 定位日志(不再统一「暂不可用」)。
         req.log.warn({ articleId: ctx.article.id, reason: diag.reason, elapsedMs, bodyChars }, "[articles/optimize] 无结果");
         const message =
-          diag.reason === "timeout" ? "AI 优化超时,请稍后再试" :
-          diag.reason === "semaphore_busy" ? "AI 正忙,请稍后再试" :
-          diag.reason === "client_abort" ? "优化已取消" :
-          diag.reason === "empty_output" ? "AI 未返回有效结果,请稍后再试" :
-          "AI 优化暂不可用,请稍后再试";
+          diag.reason === "timeout" ? L(req, "AI 优化超时,请稍后再试", "AI optimization timed out. Try again later") :
+          diag.reason === "semaphore_busy" ? L(req, "AI 正忙,请稍后再试", "AI is busy. Try again later") :
+          diag.reason === "client_abort" ? L(req, "优化已取消", "Optimization canceled") :
+          diag.reason === "empty_output" ? L(req, "AI 未返回有效结果,请稍后再试", "AI returned no valid result. Try again later") :
+          L(req, "AI 优化暂不可用,请稍后再试", "AI optimization is unavailable. Try again later");
         sse.send("error", { message });
       } else {
         // 定点补丁:解析 edits → 应用到原文得到修订全文。全部 edit 都无法定位(applied=0)则视为失败。
@@ -613,7 +614,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
           "[articles/optimize] 完成(补丁应用)",
         );
         if (applied === 0) {
-          sse.send("error", { message: edits.length === 0 ? "AI 未提出可应用的修改,请稍后再试" : "AI 未能定位到问题原文,请稍后再试" });
+          sse.send("error", { message: edits.length === 0 ? L(req, "AI 未提出可应用的修改,请稍后再试", "AI proposed no applicable changes. Try again later") : L(req, "AI 未能定位到问题原文,请稍后再试", "AI could not locate the problem text. Try again later") });
         } else {
           // unlocated = 未能定位/应用的补丁数:部分成功时前端据此提示「还有 N 处未自动定位」,
           // 避免用户误以为所有问题都已修复。
@@ -622,7 +623,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
       }
     } catch (e) {
       req.log.error({ err: e, articleId: ctx.article.id, elapsedMs: Date.now() - t0 }, "[articles/optimize] failed");
-      sse.send("error", { message: "AI 优化失败,请稍后再试" });
+      sse.send("error", { message: L(req, "AI 优化失败,请稍后再试", "AI optimization failed. Try again later") });
     } finally {
       clearInterval(hb);
       offClose();
@@ -638,12 +639,12 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     if (!ctx) return;
     const body = req.body as { contentMarkdown?: unknown; expectedUpdatedAt?: unknown };
     const newBody = typeof body.contentMarkdown === "string" ? body.contentMarkdown : null;
-    if (!newBody || !newBody.trim()) return reply.code(400).send({ error: "invalid_input", message: "缺少修订内容" });
-    if (newBody === ctx.article.contentMarkdown) return reply.code(400).send({ error: "no_change", message: "内容未变化" });
+    if (!newBody || !newBody.trim()) return reply.code(400).send({ error: "invalid_input", message: L(req, "缺少修订内容", "Missing revised content") });
+    if (newBody === ctx.article.contentMarkdown) return reply.code(400).send({ error: "no_change", message: L(req, "内容未变化", "Content unchanged") });
     // 乐观锁:optimize→看 diff→apply 间隔可达数十秒,期间他人可能保存。带了 expectedUpdatedAt
     // 且与当前不符 → 409,避免覆盖他人编辑(与 PATCH 同款保护)。
     if (typeof body.expectedUpdatedAt === "string" && ctx.article.updatedAt.toISOString() !== body.expectedUpdatedAt) {
-      return reply.code(409).send({ error: "conflict", message: "文档已被修改，请刷新后再应用", serverUpdatedAt: ctx.article.updatedAt.toISOString() });
+      return reply.code(409).send({ error: "conflict", message: L(req, "文档已被修改，请刷新后再应用", "The document was modified. Refresh and apply again"), serverUpdatedAt: ctx.article.updatedAt.toISOString() });
     }
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -684,20 +685,20 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const parsed = articleCreateSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const { roleId, folderId: inputFolderId, contentMarkdown } = parsed.data;
     const title = normalizeTitle(parsed.data.title);
 
     const role = await prisma.role.findUnique({ where: { id: roleId } });
-    if (!role) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    if (!role) return reply.code(404).send({ error: "not_found", message: L(req, "角色不存在", "Role not found") });
 
     let foldRecord: { id: string; roleId: string; visibility: string } | null = null;
     if (inputFolderId) {
       const fold = await prisma.folder.findUnique({ where: { id: inputFolderId } });
-      if (!fold || fold.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "目录不存在" });
+      if (!fold || fold.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "目录不存在", "Folder not found") });
       if (fold.roleId !== roleId) {
-        return reply.code(400).send({ error: "invalid_input", message: "目录不属于指定角色" });
+        return reply.code(400).send({ error: "invalid_input", message: L(req, "目录不属于指定角色", "The folder does not belong to the specified role") });
       }
       foldRecord = fold;
     }
@@ -707,7 +708,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     // Folder visibility doesn't affect create permission — role
     // membership is the gate.
     const canCreate = user.isAdmin || userRoleIds.has(roleId);
-    if (!canCreate) return reply.code(403).send({ error: "forbidden", message: "无权在该角色下创建文档" });
+    if (!canCreate) return reply.code(403).send({ error: "forbidden", message: L(req, "无权在该角色下创建文档", "No permission to create documents under this role") });
 
     // Next sortOrder = (current max in target sibling group) + 1.
     const sortAgg = await prisma.article.aggregate({
@@ -784,7 +785,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const parsed = articleUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const data = parsed.data;
 
@@ -792,7 +793,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
       where: { id: req.params.id },
       include: { folder: true, role: true },
     });
-    if (!existing || existing.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "文档不存在" });
+    if (!existing || existing.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
 
     const userRoleIds = await getUserRoleIds(user.id);
     const mp = getEffectiveFolderPermissions({
@@ -810,12 +811,12 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
       isAdmin: user.isAdmin,
       isCollaborator,
     });
-    if (!existingPerms.canEdit) return reply.code(403).send({ error: "forbidden", message: "无权编辑该文档" });
+    if (!existingPerms.canEdit) return reply.code(403).send({ error: "forbidden", message: L(req, "无权编辑该文档", "No permission to edit this document") });
 
     if (data.expectedUpdatedAt !== undefined && existing.updatedAt.toISOString() !== data.expectedUpdatedAt) {
       return reply.code(409).send({
         error: "conflict",
-        message: "另一处会话已修改了这篇文档，请刷新后再保存",
+        message: L(req, "另一处会话已修改了这篇文档，请刷新后再保存", "Another session modified this document. Refresh before saving"),
         serverUpdatedAt: existing.updatedAt.toISOString(),
       });
     }
@@ -880,7 +881,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
       const latest = await prisma.article.findUnique({ where: { id: existing.id }, select: { updatedAt: true } });
       return reply.code(409).send({
         error: "conflict",
-        message: "另一处会话已修改了这篇文档，请刷新后再保存",
+        message: L(req, "另一处会话已修改了这篇文档，请刷新后再保存", "Another session modified this document. Refresh before saving"),
         serverUpdatedAt: latest?.updatedAt.toISOString(),
       });
     }
@@ -944,11 +945,11 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const a = await prisma.article.findUnique({ where: { id: req.params.id } });
     // Already-binned docs read as not-found to the normal API surface.
-    if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "文档不存在" });
+    if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
 
     const isAuthor = a.createdById === user.id;
     if (!user.isAdmin && !isAuthor) {
-      return reply.code(403).send({ error: "forbidden", message: "无权删除该文档" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "无权删除该文档", "No permission to delete this document") });
     }
 
     await prisma.article.update({
@@ -965,7 +966,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const parsed = articleBulkSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const { action, ids } = parsed.data;
 
@@ -1016,7 +1017,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         where: { id: req.params.id },
         include: { folder: true, role: true },
       });
-      if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "文档不存在" });
+      if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
 
       const userRoleIds = await getUserRoleIds(user.id);
       const mp = getEffectiveFolderPermissions({
@@ -1032,7 +1033,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         isAdmin: user.isAdmin,
         isCollaborator,
       });
-      if (!perms.canView) return reply.code(403).send({ error: "forbidden", message: "无权访问该文档" });
+      if (!perms.canView) return reply.code(403).send({ error: "forbidden", message: L(req, "无权访问该文档", "No permission to access this document") });
 
       const take = Math.min(Math.max(Number(req.query.take) || 20, 1), 100);
       const cursorId = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
@@ -1081,7 +1082,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         where: { id: req.params.id },
         include: { folder: true, role: true },
       });
-      if (!existing || existing.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "文档不存在" });
+      if (!existing || existing.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
 
       const userRoleIds = await getUserRoleIds(user.id);
       const mp = getEffectiveFolderPermissions({
@@ -1097,14 +1098,14 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         isAdmin: user.isAdmin,
         isCollaborator,
       });
-      if (!existingPerms.canEdit) return reply.code(403).send({ error: "forbidden", message: "无权编辑该文档" });
+      if (!existingPerms.canEdit) return reply.code(403).send({ error: "forbidden", message: L(req, "无权编辑该文档", "No permission to edit this document") });
 
       // The version must belong to THIS article — a versionId from another
       // doc reads as not-found so callers can't probe across documents.
       const version = await prisma.articleVersion.findFirst({
         where: { id: req.params.versionId, articleId: existing.id },
       });
-      if (!version) return reply.code(404).send({ error: "not_found", message: "历史版本不存在" });
+      if (!version) return reply.code(404).send({ error: "not_found", message: L(req, "历史版本不存在", "Version not found") });
 
       // Restore = set title + body to the version's values, keeping the
       // current status. Snapshot the PRE-restore state into history first
@@ -1209,7 +1210,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
       where: { id: req.params.id },
       include: { folder: true, role: true },
     });
-    if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "文档不存在" });
+    if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
 
     const userRoleIds = await getUserRoleIds(user.id);
     const mp = getEffectiveFolderPermissions({
@@ -1225,7 +1226,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
       isAdmin: user.isAdmin,
       isCollaborator,
     });
-    if (!perms.canView) return reply.code(403).send({ error: "forbidden", message: "无权访问该文档" });
+    if (!perms.canView) return reply.code(403).send({ error: "forbidden", message: L(req, "无权访问该文档", "No permission to access this document") });
 
     // Only the author, an admin, or a per-article collaborator may see WHO
     // viewed the doc; everyone else sees aggregate counts only. This keeps
@@ -1273,7 +1274,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const parsed = articleSearchSchema.safeParse(req.query);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const { q } = parsed.data;
 
@@ -1425,7 +1426,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         createdBy: { select: { displayName: true } },
       },
     });
-    if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "文档不存在" });
+    if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
 
     const userRoleIds = await getUserRoleIds(user.id);
     const mp = getEffectiveFolderPermissions({
@@ -1441,7 +1442,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
       isAdmin: user.isAdmin,
       isCollaborator,
     });
-    if (!perms.canExport) return reply.code(403).send({ error: "forbidden", message: "无权导出该文档" });
+    if (!perms.canExport) return reply.code(403).send({ error: "forbidden", message: L(req, "无权导出该文档", "No permission to export this document") });
 
     const bundle = await buildArticleExport(prisma, a);
     reply
@@ -1461,12 +1462,12 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const parsed = articleMoveSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const { targetFolderId } = parsed.data;
 
     const a = await prisma.article.findUnique({ where: { id: req.params.id } });
-    if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "文档不存在" });
+    if (!a || a.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
 
     // Reorganizing a role's folders is an edit on that role's content, so
     // gate it the SAME way as create + reorder: admin, OR a current member
@@ -1477,14 +1478,14 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     const userRoleIds = await getUserRoleIds(user.id);
     const canMove = user.isAdmin || userRoleIds.has(a.roleId);
     if (!canMove) {
-      return reply.code(403).send({ error: "forbidden", message: "无权移动该文档" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "无权移动该文档", "No permission to move this document") });
     }
 
     if (targetFolderId) {
       const folder = await prisma.folder.findUnique({ where: { id: targetFolderId } });
-      if (!folder || folder.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "目标目录不存在" });
+      if (!folder || folder.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "目标目录不存在", "Target folder not found") });
       if (folder.roleId !== a.roleId) {
-        return reply.code(400).send({ error: "invalid_input", message: "目标目录与文档不在同一角色下" });
+        return reply.code(400).send({ error: "invalid_input", message: L(req, "目标目录与文档不在同一角色下", "The target folder and the document are not under the same role") });
       }
     }
 
@@ -1535,10 +1536,10 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         }
       }
     } catch {
-      return reply.code(400).send({ error: "invalid_input", message: "请上传 .md 文件" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "请上传 .md 文件", "Upload a .md file") });
     }
     if (!fileBuffer || fileFilename === null) {
-      return reply.code(400).send({ error: "invalid_input", message: "请上传 .md 文件" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "请上传 .md 文件", "Upload a .md file") });
     }
 
     const roleId = collectedFields.roleId?.trim();
@@ -1547,40 +1548,40 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     const title = collectedFields.title?.trim();
 
     if (!roleId || !title) {
-      return reply.code(400).send({ error: "invalid_input", message: "缺少 roleId 或 title" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "缺少 roleId 或 title", "Missing roleId or title") });
     }
     if (title.length > 255) {
-      return reply.code(400).send({ error: "invalid_input", message: "标题过长" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "标题过长", "Title too long") });
     }
 
     // Extension check — only .md (the file picker should narrow this
     // client-side, but server-side enforce the contract).
     const filename = fileFilename;
     if (!/\.md$/i.test(filename)) {
-      return reply.code(400).send({ error: "invalid_input", message: "仅支持 .md 文件" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "仅支持 .md 文件", "Only .md files are supported") });
     }
 
     const role = await prisma.role.findUnique({ where: { id: roleId } });
-    if (!role) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    if (!role) return reply.code(404).send({ error: "not_found", message: L(req, "角色不存在", "Role not found") });
 
     let foldRecord: { id: string; roleId: string } | null = null;
     if (folderId) {
       const fold = await prisma.folder.findUnique({ where: { id: folderId } });
-      if (!fold || fold.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "目录不存在" });
+      if (!fold || fold.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "目录不存在", "Folder not found") });
       if (fold.roleId !== roleId) {
-        return reply.code(400).send({ error: "invalid_input", message: "目录不属于指定角色" });
+        return reply.code(400).send({ error: "invalid_input", message: L(req, "目录不属于指定角色", "The folder does not belong to the specified role") });
       }
       foldRecord = fold;
     }
 
     const userRoleIds = await getUserRoleIds(user.id);
     const canCreate = user.isAdmin || userRoleIds.has(roleId);
-    if (!canCreate) return reply.code(403).send({ error: "forbidden", message: "无权在该角色下创建文档" });
+    if (!canCreate) return reply.code(403).send({ error: "forbidden", message: L(req, "无权在该角色下创建文档", "No permission to create documents under this role") });
 
     // Buffer was already collected in the parts loop above (fileSize cap enforced there).
     const contentMarkdown = fileBuffer.toString("utf8");
     if (contentMarkdown.length > 20_000_000) {
-      return reply.code(413).send({ error: "payload_too_large", message: "文档内容超过 20MB 上限" });
+      return reply.code(413).send({ error: "payload_too_large", message: L(req, "文档内容超过 20MB 上限", "Document content exceeds the 20MB limit") });
     }
 
     // 同名冲突:判定范围 = 同一容器(同角色 + 同目录,role-direct 即 folderId
@@ -1600,7 +1601,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     if (dup && onConflict !== "overwrite" && onConflict !== "rename") {
       return reply.code(409).send({
         error: "duplicate_title",
-        message: "该位置已存在同名文档",
+        message: L(req, "该位置已存在同名文档", "A document with this name already exists here"),
         existing: { id: dup.id, title: dup.title },
       });
     }
@@ -1657,7 +1658,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
       }
       // 循环结束时 finalTitle 仍被占用,说明 2..1000 号全满(第 1000 号空闲时不算耗尽)。
       if (taken.has(finalTitle)) {
-        return reply.code(409).send({ error: "too_many_duplicates", message: "同名文档过多,请修改标题后重新导入" });
+        return reply.code(409).send({ error: "too_many_duplicates", message: L(req, "同名文档过多,请修改标题后重新导入", "Too many documents with the same name. Change the title and import again") });
       }
     }
 
@@ -1703,13 +1704,13 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const parsed = articleReorderSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const { roleId, folderId, ids } = parsed.data;
 
     const userRoleIds = await getUserRoleIds(user.id);
     const canEdit = user.isAdmin || userRoleIds.has(roleId);
-    if (!canEdit) return reply.code(403).send({ error: "forbidden", message: "无权调整该角色下文档的顺序" });
+    if (!canEdit) return reply.code(403).send({ error: "forbidden", message: L(req, "无权调整该角色下文档的顺序", "No permission to reorder documents under this role") });
 
     // Validate the sibling set AND write the new order inside ONE
     // transaction. Doing the membership + completeness checks in separate
@@ -1726,7 +1727,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         select: { id: true },
       });
       if (rows.length !== ids.length) {
-        return { error: "部分文档不在该容器下" as const };
+        return { error: L(req, "部分文档不在该容器下", "Some documents are not in this container") };
       }
       // The submitted set must be COMPLETE: every live sibling in the
       // container has to appear. A partial list would rewrite only the
@@ -1736,7 +1737,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
         where: { roleId, folderId: folderId ?? null, deletedAt: null },
       });
       if (ids.length !== liveSiblingCount) {
-        return { error: "排序列表不完整，请刷新后重试" as const };
+        return { error: L(req, "排序列表不完整，请刷新后重试", "The ordering list is incomplete. Refresh and try again") };
       }
       for (const [index, id] of ids.entries()) {
         await tx.article.update({ where: { id }, data: { sortOrder: index } });

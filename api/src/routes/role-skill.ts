@@ -1,6 +1,7 @@
 // Per-role skill.md REST. Read-only to the client (copy / download); the file
 // is AI-generated and refreshed out-of-band by the role-skill dispatcher.
 // Access is scoped to the role's members (UserRole) + admins.
+import { L } from "../utils/lang.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { RoleSkillSummaryResponse } from "@team-knowledge/shared";
 import { prisma } from "../db.js";
@@ -20,13 +21,13 @@ async function resolveAccessibleRole(
 ): Promise<{ id: string; name: string } | null> {
   const role = await prisma.role.findUnique({ where: { id: roleId }, select: { id: true, name: true } });
   if (!role) {
-    reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    reply.code(404).send({ error: "not_found", message: L(reply.request, "角色不存在", "Role not found") });
     return null;
   }
   if (!user.isAdmin) {
     const ids = await getUserRoleIds(user.id);
     if (!ids.has(roleId)) {
-      reply.code(404).send({ error: "not_found", message: "角色不存在" });
+      reply.code(404).send({ error: "not_found", message: L(reply.request, "角色不存在", "Role not found") });
       return null;
     }
   }

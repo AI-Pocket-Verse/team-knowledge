@@ -1,3 +1,4 @@
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
@@ -89,8 +90,8 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const res = await loadArticleForSocial(req.params.id, user);
-    if (res.kind === "not_found") return reply.code(404).send({ error: "not_found", message: "文档不存在" });
-    if (res.kind === "forbidden") return reply.code(403).send({ error: "forbidden", message: "无权点赞" });
+    if (res.kind === "not_found") return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
+    if (res.kind === "forbidden") return reply.code(403).send({ error: "forbidden", message: L(req, "无权点赞", "No permission to like") });
 
     // Create-and-count in one transaction so two concurrent likers
     // can't both observe a stale count and return likeCount=N+1 when
@@ -117,8 +118,8 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const res = await loadArticleForSocial(req.params.id, user);
-    if (res.kind === "not_found") return reply.code(404).send({ error: "not_found", message: "文档不存在" });
-    if (res.kind === "forbidden") return reply.code(403).send({ error: "forbidden", message: "无权操作" });
+    if (res.kind === "not_found") return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
+    if (res.kind === "forbidden") return reply.code(403).send({ error: "forbidden", message: L(req, "无权操作", "No permission for this action") });
 
     const count = await prisma.$transaction(async (tx) => {
       await tx.like.deleteMany({ where: { articleId: req.params.id, userId: user.id } });
@@ -140,8 +141,8 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
       const user = await requireUser(req, reply);
       if (!user) return;
       const res = await loadArticleForSocial(req.params.id, user);
-      if (res.kind === "not_found") return reply.code(404).send({ error: "not_found", message: "文档不存在" });
-      if (res.kind === "forbidden") return reply.code(403).send({ error: "forbidden", message: "无权查看评论" });
+      if (res.kind === "not_found") return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
+      if (res.kind === "forbidden") return reply.code(403).send({ error: "forbidden", message: L(req, "无权查看评论", "No permission to view comments") });
 
       const TAKE_TOP = 200;
       // 回复只取本页顶层评论的子孙:从顶层 id 起逐层按 parentId IN 当前层 id 查,
@@ -236,19 +237,19 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
       const user = await requireUser(req, reply);
       if (!user) return;
       const res = await loadArticleForSocial(req.params.id, user);
-      if (res.kind === "not_found") return reply.code(404).send({ error: "not_found", message: "文档不存在" });
-      if (res.kind === "forbidden") return reply.code(403).send({ error: "forbidden", message: "无权评论" });
+      if (res.kind === "not_found") return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
+      if (res.kind === "forbidden") return reply.code(403).send({ error: "forbidden", message: L(req, "无权评论", "No permission to comment") });
 
       const rawBody = req.body?.body ?? "";
       if (typeof rawBody !== "string") {
-        return reply.code(400).send({ error: "invalid_input", message: "评论内容格式不正确" });
+        return reply.code(400).send({ error: "invalid_input", message: L(req, "评论内容格式不正确", "Invalid comment format") });
       }
       const body = rawBody.trim();
       if (body.length === 0) {
-        return reply.code(400).send({ error: "invalid_input", message: "评论内容不能为空" });
+        return reply.code(400).send({ error: "invalid_input", message: L(req, "评论内容不能为空", "Comment cannot be empty") });
       }
       if (body.length > MAX_COMMENT_CHARS) {
-        return reply.code(413).send({ error: "payload_too_large", message: `评论超过 ${MAX_COMMENT_CHARS} 字上限` });
+        return reply.code(413).send({ error: "payload_too_large", message: L(req, `评论超过 ${MAX_COMMENT_CHARS} 字上限`, `Comment exceeds the ${MAX_COMMENT_CHARS}-character limit`) });
       }
 
       let parentAuthorId: string | null = null;
@@ -259,7 +260,7 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
         // 平铺在顶层祖先下并带「回复 @某人」标记,避免深层缩进。
         const parent = await prisma.comment.findUnique({ where: { id: parentId } });
         if (!parent || parent.articleId !== req.params.id) {
-          return reply.code(400).send({ error: "invalid_input", message: "回复的评论不存在" });
+          return reply.code(400).send({ error: "invalid_input", message: L(req, "回复的评论不存在", "The comment being replied to does not exist") });
         }
         parentAuthorId = parent.authorId;
       }
@@ -306,11 +307,11 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const comment = await prisma.comment.findUnique({ where: { id: req.params.id } });
-    if (!comment) return reply.code(404).send({ error: "not_found", message: "评论不存在" });
+    if (!comment) return reply.code(404).send({ error: "not_found", message: L(req, "评论不存在", "Comment not found") });
     const articleRes = await loadArticleForSocial(comment.articleId, user);
     if (articleRes.kind !== "ok") {
       // Mask forbidden as 404 to match DELETE-comment leak gate.
-      return reply.code(404).send({ error: "not_found", message: "评论不存在" });
+      return reply.code(404).send({ error: "not_found", message: L(req, "评论不存在", "Comment not found") });
     }
 
     const { count, isLiked } = await prisma.$transaction(async (tx) => {
@@ -331,10 +332,10 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const comment = await prisma.comment.findUnique({ where: { id: req.params.id } });
-    if (!comment) return reply.code(404).send({ error: "not_found", message: "评论不存在" });
+    if (!comment) return reply.code(404).send({ error: "not_found", message: L(req, "评论不存在", "Comment not found") });
     const articleRes = await loadArticleForSocial(comment.articleId, user);
     if (articleRes.kind !== "ok") {
-      return reply.code(404).send({ error: "not_found", message: "评论不存在" });
+      return reply.code(404).send({ error: "not_found", message: L(req, "评论不存在", "Comment not found") });
     }
 
     const count = await prisma.$transaction(async (tx) => {
@@ -351,13 +352,13 @@ export async function socialRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const comment = await prisma.comment.findUnique({ where: { id: req.params.id } });
-    if (!comment) return reply.code(404).send({ error: "not_found", message: "评论不存在" });
+    if (!comment) return reply.code(404).send({ error: "not_found", message: L(req, "评论不存在", "Comment not found") });
     const articleRes = await loadArticleForSocial(comment.articleId, user);
     if (articleRes.kind !== "ok") {
-      return reply.code(404).send({ error: "not_found", message: "评论不存在" });
+      return reply.code(404).send({ error: "not_found", message: L(req, "评论不存在", "Comment not found") });
     }
     if (!user.isAdmin && comment.authorId !== user.id) {
-      return reply.code(403).send({ error: "forbidden", message: "无权删除该评论" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "无权删除该评论", "No permission to delete this comment") });
     }
     // FK cascade kills any replies + likes automatically (set up in
     // the schema), so a single delete drops the whole sub-thread.

@@ -5,7 +5,8 @@
 // 图片链路:feishu-sso 先把飞书消息里的图片字节 POST 到 /api/internal/feishu/image
 // (octet-stream)落盘成 /uploads/<file>,再带着这些 URL 调 /chat —— 与网页端
 // 上传后发消息完全同构,LLM 经 provider 视觉通道真实读图。
-import type { FastifyInstance } from "fastify";
+import { L } from "../utils/lang.js";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { internalTokenOk } from "../utils/internalToken.js";
 import { isRestoring } from "../services/backup.js";
@@ -39,7 +40,7 @@ const observeSchema = z.object({
 });
 const feedbackSchema = z.object({ hash: z.string().min(1).max(32), helpful: z.boolean().optional().default(false) });
 
-const bodySchema = z.object({
+const makeBodySchema = (req: FastifyRequest) => z.object({
   openId: z.string().startsWith("ou_"),
   // 带图时允许无文字(飞书纯图片消息没有 text)。
   text: z.string().max(4000).default(""),
@@ -50,7 +51,7 @@ const bodySchema = z.object({
     .array(z.string().regex(/^\/uploads\/[A-Za-z0-9][A-Za-z0-9._-]*$/))
     .max(3)
     .optional(),
-}).refine((v) => v.text.trim().length > 0 || (v.images?.length ?? 0) > 0, { message: "text 与 images 至少一项" });
+}).refine((v) => v.text.trim().length > 0 || (v.images?.length ?? 0) > 0, { message: L(req, "text 与 images 至少一项", "Provide at least one of text and images") });
 
 export async function internalFeishuRoutes(app: FastifyInstance): Promise<void> {
   // 飞书入站图片落盘:feishu-sso 下载消息资源后把原始字节 POST 过来(octet-stream,
@@ -64,17 +65,17 @@ export async function internalFeishuRoutes(app: FastifyInstance): Promise<void> 
       return reply.code(401).send({ error: "unauthorized" });
     }
     if (isRestoring()) {
-      return reply.code(503).send({ error: "restoring", message: "维护中，请稍后再试" });
+      return reply.code(503).send({ error: "restoring", message: L(req, "维护中，请稍后再试", "Under maintenance. Try again later") });
     }
     const openId = req.headers["x-open-id"];
     if (typeof openId !== "string" || !openId.startsWith("ou_")) {
-      return reply.code(400).send({ error: "invalid_input", message: "缺少 x-open-id" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "缺少 x-open-id", "Missing x-open-id") });
     }
     if (!Buffer.isBuffer(req.body)) {
-      return reply.code(415).send({ error: "unsupported_media_type", message: "请以 application/octet-stream 上传图片字节" });
+      return reply.code(415).send({ error: "unsupported_media_type", message: L(req, "请以 application/octet-stream 上传图片字节", "Upload image bytes as application/octet-stream") });
     }
     const user = await resolveUserByOpenId(openId);
-    if (!user) return reply.code(404).send({ error: "not_found", message: "非知识库成员" });
+    if (!user) return reply.code(404).send({ error: "not_found", message: L(req, "非知识库成员", "Not a knowledge base member") });
     try {
       const stored = await storeImageBuffer(req.body, user.id);
       reply.code(201);
@@ -94,18 +95,18 @@ export async function internalFeishuRoutes(app: FastifyInstance): Promise<void> 
     }
     // 还原热替换库期间不碰 DB(与维护期 503 一致)。
     if (isRestoring()) {
-      return reply.code(503).send({ error: "restoring", message: "维护中，请稍后再试" });
+      return reply.code(503).send({ error: "restoring", message: L(req, "维护中，请稍后再试", "Under maintenance. Try again later") });
     }
-    const parsed = bodySchema.safeParse(req.body);
+    const parsed = makeBodySchema(req).safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
 
     const user = await resolveUserByOpenId(parsed.data.openId);
     if (!user) {
       // 非成员:一条 SSE，让 feishu-sso 桥用引导卡片回给用户(对应「仅已登录成员」)。
       const sse = openSse(reply);
-      sse.send("need_login", { message: "你还没有知识库账号，请先用飞书登录网页版开通后再来私聊我～" });
+      sse.send("need_login", { message: L(req, "你还没有知识库账号，请先用飞书登录网页版开通后再来私聊我～", "You do not have a knowledge base account yet. Sign in to the web app with Feishu first, then message me again~") });
       sse.send("done", { ok: true });
       sse.end();
       return;
@@ -143,7 +144,7 @@ export async function internalFeishuRoutes(app: FastifyInstance): Promise<void> 
         // 排队文案;真正开始流式后卡片照常被 token 更新覆盖。
         const conv = await getOrCreateFeishuConversation(user.id);
         if (isExclusiveBusy(conv.id)) {
-          sse.send("queued", { message: `上一条回答还在生成，已为你排队，${ASSISTANT_NAME} 会按顺序回答…` });
+          sse.send("queued", { message: L(req, `上一条回答还在生成，已为你排队，${ASSISTANT_NAME} 会按顺序回答…`, `The previous answer is still being generated. You are queued and ${ASSISTANT_NAME} will answer in order...`) });
         }
         await runChatTurn({ user, conversationId: conv.id, text: parsed.data.text, images: parsed.data.images ?? [], scope: "feishu", signal: ac.signal, log: req.log, onChunk });
       }
@@ -164,7 +165,7 @@ export async function internalFeishuRoutes(app: FastifyInstance): Promise<void> 
     if (isRestoring()) return reply.code(503).send({ error: "restoring" });
     const parsed = observeSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const { chatId, messageId, openId, senderName, text } = parsed.data;
     const log = req.log;
@@ -181,7 +182,7 @@ export async function internalFeishuRoutes(app: FastifyInstance): Promise<void> 
     }
     const parsed = feedbackSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     if (parsed.data.helpful) await registerUpvote(parsed.data.hash, Date.now());
     else await registerDownvote(parsed.data.hash, Date.now());
@@ -198,14 +199,14 @@ export async function internalFeishuRoutes(app: FastifyInstance): Promise<void> 
     if (isRestoring()) return reply.code(503).send({ error: "restoring" });
     const parsed = escalationResolveSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const user = await resolveUserByOpenId(parsed.data.operatorOpenId);
-    if (!user) return reply.code(404).send({ error: "not_found", message: "非知识库成员" });
+    if (!user) return reply.code(404).send({ error: "not_found", message: L(req, "非知识库成员", "Not a knowledge base member") });
     const esc = await prisma.escalation.findUnique({ where: { id: parsed.data.escalationId }, select: { assigneeUserId: true } });
-    if (!esc) return reply.code(404).send({ error: "not_found", message: "升级单不存在" });
+    if (!esc) return reply.code(404).send({ error: "not_found", message: L(req, "升级单不存在", "Escalation not found") });
     if (!user.isAdmin && esc.assigneeUserId !== user.id) {
-      return reply.code(403).send({ error: "forbidden", message: "只有该升级单的负责人可以拍板" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "只有该升级单的负责人可以拍板", "Only the owner of this escalation can decide") });
     }
     const resolved = await resolveEscalation(parsed.data.escalationId, { resolution: parsed.data.resolution, by: user.id });
     return reply.send({ id: resolved.id, status: resolved.status });

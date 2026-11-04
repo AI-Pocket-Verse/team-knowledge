@@ -2,6 +2,7 @@
 //   GET  /api/admin/weekly-report           周报列表(按周倒序)
 //   GET  /api/admin/weekly-report/:id        单份周报全量快照
 //   POST /api/admin/weekly-report/generate   生成 / 刷新本周周报
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { requireAdmin } from "../utils/guards.js";
 import { requireAdminOrOpenPage } from "../services/admin-visibility/index.js";
@@ -19,7 +20,7 @@ export async function adminWeeklyReportRoutes(app: FastifyInstance): Promise<voi
     if (!admin) return;
     const { id } = req.params as { id: string };
     const r = await getWeeklyReport(id);
-    if (!r) return reply.code(404).send({ error: "not_found", message: "周报不存在" });
+    if (!r) return reply.code(404).send({ error: "not_found", message: L(req, "周报不存在", "Weekly report not found") });
     return r;
   });
 
@@ -34,7 +35,7 @@ export async function adminWeeklyReportRoutes(app: FastifyInstance): Promise<voi
       return { id: r.id, weekKey: r.weekKey, created: r.created };
     } catch (err) {
       req.log.error({ err }, "manual weekly report generation failed");
-      return reply.code(500).send({ error: "generate_failed", message: `生成失败：${(err as Error).message}` });
+      return reply.code(500).send({ error: "generate_failed", message: L(req, `生成失败：${(err as Error).message}`, `Generation failed: ${(err as Error).message}`) });
     }
   });
 }

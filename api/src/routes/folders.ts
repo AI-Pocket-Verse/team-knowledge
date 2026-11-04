@@ -1,3 +1,4 @@
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -51,7 +52,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
 
     const parsed = folderCreateSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const { name, description, visibility, roleId, parentId } = parsed.data;
     const normParent = parentId ?? null;
@@ -62,12 +63,12 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
     const release = await acquireKeyedLock(`${roleId}|${normParent ?? ""}`);
     try {
       const role = await prisma.role.findUnique({ where: { id: roleId } });
-      if (!role) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+      if (!role) return reply.code(404).send({ error: "not_found", message: L(req, "角色不存在", "Role not found") });
 
       const userRoleIds = await getUserRoleIds(user.id);
       const canEditTarget = user.isAdmin || userRoleIds.has(role.id);
       if (!canEditTarget) {
-        return reply.code(403).send({ error: "forbidden", message: "无权在该角色下创建目录" });
+        return reply.code(403).send({ error: "forbidden", message: L(req, "无权在该角色下创建目录", "No permission to create folders under this role") });
       }
 
       // Subfolder support (2-level cap). A parent must exist, be live, belong to
@@ -76,10 +77,10 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
       if (normParent !== null) {
         const parent = await prisma.folder.findUnique({ where: { id: normParent } });
         if (!parent || parent.deletedAt != null || parent.roleId !== roleId) {
-          return reply.code(400).send({ error: "invalid_input", message: "父目录不存在或不在该角色下" });
+          return reply.code(400).send({ error: "invalid_input", message: L(req, "父目录不存在或不在该角色下", "Parent folder not found or not under this role") });
         }
         if (parent.parentId != null) {
-          return reply.code(400).send({ error: "invalid_input", message: "子目录下不能再新建目录（最多两级）" });
+          return reply.code(400).send({ error: "invalid_input", message: L(req, "子目录下不能再新建目录（最多两级）", "Cannot create a folder inside a subfolder (two levels maximum)") });
         }
       }
 
@@ -108,7 +109,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
         select: { id: true, deletedAt: true },
       });
       if (sameName && sameName.deletedAt == null) {
-        return reply.code(409).send({ error: "conflict", message: "同一角色下已有同名目录" });
+        return reply.code(409).send({ error: "conflict", message: L(req, "同一角色下已有同名目录", "A folder with this name already exists under this role") });
       }
       const recycledSameNameId = sameName?.id ?? null;
       // 8-char shortId for URLs `/m/<8chars>` — resolved before the tx (it does its
@@ -120,7 +121,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
           if (recycledSameNameId) {
             await tx.folder.update({
               where: { id: recycledSameNameId },
-              data: { name: `${name}（已删除 ${recycledSameNameId.slice(0, 6)}）` },
+              data: { name: L(req, `${name}（已删除 ${recycledSameNameId.slice(0, 6)}）`, `${name} (deleted ${recycledSameNameId.slice(0, 6)})`) },
             });
           }
           return tx.folder.create({
@@ -149,7 +150,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
         return { folder: toFolderWithRole(created, permissions) };
       } catch (e) {
         if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-          return reply.code(409).send({ error: "conflict", message: "同一角色下已有同名目录" });
+          return reply.code(409).send({ error: "conflict", message: L(req, "同一角色下已有同名目录", "A folder with this name already exists under this role") });
         }
         throw e;
       }
@@ -164,23 +165,23 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
 
     const parsed = folderUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const data = parsed.data;
 
     const existing = await prisma.folder.findUnique({ where: { id: req.params.id } });
-    if (!existing || existing.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "目录不存在" });
+    if (!existing || existing.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "目录不存在", "Folder not found") });
 
     const userRoleIds = await getUserRoleIds(user.id);
     const canEdit = user.isAdmin || userRoleIds.has(existing.roleId);
-    if (!canEdit) return reply.code(403).send({ error: "forbidden", message: "无权编辑该目录" });
+    if (!canEdit) return reply.code(403).send({ error: "forbidden", message: L(req, "无权编辑该目录", "No permission to edit this folder") });
 
     if (data.roleId !== undefined && data.roleId !== existing.roleId) {
       if (!user.isAdmin) {
-        return reply.code(403).send({ error: "forbidden", message: "仅管理员可重新归属角色" });
+        return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可重新归属角色", "Only admins can reassign the role") });
       }
       const newRole = await prisma.role.findUnique({ where: { id: data.roleId } });
-      if (!newRole) return reply.code(404).send({ error: "not_found", message: "目标角色不存在" });
+      if (!newRole) return reply.code(404).send({ error: "not_found", message: L(req, "目标角色不存在", "Target role not found") });
     }
 
     // When the folder is reassigned to a different role, its child
@@ -201,20 +202,20 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
     const newParentId = reparenting ? (data.parentId ?? null) : existing.parentId;
     if (reparenting && newParentId !== null) {
       if (newParentId === existing.id) {
-        return reply.code(400).send({ error: "invalid_input", message: "不能把目录移动到它自己里" });
+        return reply.code(400).send({ error: "invalid_input", message: L(req, "不能把目录移动到它自己里", "Cannot move a folder into itself") });
       }
       const parent = await prisma.folder.findUnique({ where: { id: newParentId } });
       if (!parent || parent.deletedAt != null || parent.roleId !== targetRoleId) {
-        return reply.code(400).send({ error: "invalid_input", message: "目标目录不存在或不在该角色下" });
+        return reply.code(400).send({ error: "invalid_input", message: L(req, "目标目录不存在或不在该角色下", "Target folder not found or not under this role") });
       }
       if (parent.parentId != null) {
-        return reply.code(400).send({ error: "invalid_input", message: "不能移动到子目录下（最多两级）" });
+        return reply.code(400).send({ error: "invalid_input", message: L(req, "不能移动到子目录下（最多两级）", "Cannot move into a subfolder (two levels maximum)") });
       }
       // A folder that itself contains subfolders can't be nested — that would
       // push its own children to level 3.
       const childCount = await prisma.folder.count({ where: { parentId: existing.id, deletedAt: null } });
       if (childCount > 0) {
-        return reply.code(400).send({ error: "invalid_input", message: "含子目录的目录不能移动到别的目录" });
+        return reply.code(400).send({ error: "invalid_input", message: L(req, "含子目录的目录不能移动到别的目录", "A folder with subfolders cannot be moved into another folder") });
       }
     }
 
@@ -246,7 +247,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
         });
         if (sameName) {
           if (sameName.deletedAt == null) {
-            return reply.code(409).send({ error: "conflict", message: "目标位置已有同名目录" });
+            return reply.code(409).send({ error: "conflict", message: L(req, "目标位置已有同名目录", "A folder with this name already exists at the destination") });
           }
           recycledSameNameId = sameName.id;
         }
@@ -268,7 +269,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
           if (recycledSameNameId) {
             await tx.folder.update({
               where: { id: recycledSameNameId },
-              data: { name: `${targetName}（已删除 ${recycledSameNameId.slice(0, 6)}）` },
+              data: { name: L(req, `${targetName}（已删除 ${recycledSameNameId.slice(0, 6)}）`, `${targetName} (deleted ${recycledSameNameId.slice(0, 6)})`) },
             });
           }
           const f = await tx.folder.update({
@@ -305,7 +306,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
         return { folder: toFolderWithRole(updated, permissions) };
       } catch (e) {
         if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-          return reply.code(409).send({ error: "conflict", message: "同一角色下已有同名目录" });
+          return reply.code(409).send({ error: "conflict", message: L(req, "同一角色下已有同名目录", "A folder with this name already exists under this role") });
         }
         throw e;
       }
@@ -327,10 +328,10 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const fold = await prisma.folder.findUnique({ where: { id: req.params.id } });
-    if (!fold || fold.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "目录不存在" });
+    if (!fold || fold.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "目录不存在", "Folder not found") });
     const userRoleIds = await getUserRoleIds(user.id);
     const canEdit = user.isAdmin || userRoleIds.has(fold.roleId);
-    if (!canEdit) return reply.code(403).send({ error: "forbidden", message: "无权删除该目录" });
+    if (!canEdit) return reply.code(403).send({ error: "forbidden", message: L(req, "无权删除该目录", "No permission to delete this folder") });
 
     // One shared timestamp for the whole subtree (folder + its subfolders +
     // every live article in them) so restore can re-unite them by exact
@@ -354,7 +355,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
       if (othersDocs > 0) {
         return reply.code(403).send({
           error: "folder_has_others_docs",
-          message: `目录里有 ${othersDocs} 篇其他成员的文档，只有管理员能删除整个目录`,
+          message: L(req, `目录里有 ${othersDocs} 篇其他成员的文档，只有管理员能删除整个目录`, `This folder contains ${othersDocs} documents from other members. Only admins can delete the whole folder`),
         });
       }
     }
@@ -385,14 +386,14 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const parsed = folderReorderSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const { roleId, parentId, ids } = parsed.data;
     const normParent = parentId ?? null;
 
     const userRoleIds = await getUserRoleIds(user.id);
     const canEdit = user.isAdmin || userRoleIds.has(roleId);
-    if (!canEdit) return reply.code(403).send({ error: "forbidden", message: "无权调整该角色下目录顺序" });
+    if (!canEdit) return reply.code(403).send({ error: "forbidden", message: L(req, "无权调整该角色下目录顺序", "No permission to reorder folders under this role") });
 
     // Validate the sibling set AND write the new order inside ONE
     // transaction. Running the membership + completeness checks in separate
@@ -410,7 +411,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
         select: { id: true },
       });
       if (rows.length !== ids.length) {
-        return { error: "部分目录不在该分组下" as const };
+        return { error: L(req, "部分目录不在该分组下", "Some folders are not in this group") };
       }
       // The submitted set must be COMPLETE: every live folder in the role
       // has to appear. A partial list would rewrite only the submitted rows
@@ -419,7 +420,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
         where: { roleId, parentId: normParent, deletedAt: null },
       });
       if (ids.length !== liveSiblingCount) {
-        return { error: "排序列表不完整，请刷新后重试" as const };
+        return { error: L(req, "排序列表不完整，请刷新后重试", "The ordering list is incomplete. Refresh and try again") };
       }
       for (const [index, id] of ids.entries()) {
         await tx.folder.update({ where: { id }, data: { sortOrder: index } });

@@ -1,4 +1,5 @@
-import type { FastifyInstance } from "fastify";
+import { L, appLang } from "../utils/lang.js";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { requireUser } from "../utils/guards.js";
@@ -64,11 +65,11 @@ function toFeedRow(a: {
 // mobile) come from the platform SSO (Feishu): set at JIT-provision time and
 // shown read-only — NOT user-editable here. isAdmin / isActive are admin-only.
 // The only self-editable field is the free-text chat preference.
-const profilePatchSchema = z.object({
+const makeProfilePatchSchema = (req: FastifyRequest) => z.object({
   // Free-text chat preference fed into every chat turn's system prompt.
   // 200-char cap keeps the prompt from being hijacked by a runaway preference
   // string; empty string clears it (stored as null in DB).
-  chatPreference: z.string().trim().max(200, "聊天偏好最长 200 字").nullable().optional(),
+  chatPreference: z.string().trim().max(200, L(req, "聊天偏好最长 200 字", "Chat preference can be at most 200 characters")).nullable().optional(),
 });
 
 export async function meRoutes(app: FastifyInstance): Promise<void> {
@@ -84,7 +85,7 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
     // No SSO identity on the request → not logged in. Return the same
     // `{ user: null }` shape the client's auth bootstrap expects rather
     // than a 401 (that would force the SSO redirect on every cold load).
-    if (!req.user) return { user: null, assistantName: ASSISTANT_NAME };
+    if (!req.user) return { user: null, assistantName: ASSISTANT_NAME, appLanguage: appLang() };
     // Authenticated: JIT-provision (race-safe) and return the local user.
     // requireUser sends its own 403 if the local row is inactive; in that
     // case it already replied, so we bail out and let that response stand.
@@ -103,6 +104,7 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
       },
       // 助手显示名由服务端配置（ASSISTANT_NAME），web 不硬编码。
       assistantName: ASSISTANT_NAME,
+      appLanguage: appLang(),
     };
   });
 
@@ -110,13 +112,13 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
 
-    const parsed = profilePatchSchema.safeParse(req.body);
+    const parsed = makeProfilePatchSchema(req).safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     // Reject a no-op patch so the client doesn't accidentally bump updatedAt.
     if (parsed.data.chatPreference === undefined) {
-      return reply.code(400).send({ error: "invalid_input", message: "无可更新字段" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "无可更新字段", "No fields to update") });
     }
 
     const updated = await prisma.user.update({
@@ -193,7 +195,7 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
       if (!user) return;
       // 重复的 query 参数会被解析成数组,直接进 where 会让 Prisma 抛 500。
       if ([req.query.roleId, req.query.folderId, req.query.take].some((v) => v !== undefined && typeof v !== "string")) {
-        return reply.code(400).send({ error: "invalid_input", message: "查询参数不能重复" });
+        return reply.code(400).send({ error: "invalid_input", message: L(req, "查询参数不能重复", "Query parameters cannot be repeated") });
       }
       const userRoleIds = await getUserRoleIds(user.id);
 

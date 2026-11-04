@@ -4,6 +4,7 @@
 //   POST /api/agents/escalations/:id/resolve  站内回流(负责人在待办里拍板)
 //   GET  /api/me/escalations                  我作为负责人的待办升级单
 // 注:编排非流式(orchestrate 全程 await),故 chat 走 JSON(非 SSE);token 级流式留作后续细化。
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -69,14 +70,14 @@ export async function expertsRoutes(app: FastifyInstance): Promise<void> {
       images: z.array(z.string().regex(/^\/uploads\/[A-Za-z0-9][A-Za-z0-9._-]*$/)).max(3).optional(),
       articleId: z.string().min(1).optional(),
       conversationId: z.string().min(1).optional(),
-    }).refine((d) => (d.message?.length ?? 0) > 0 || (d.images?.length ?? 0) > 0, { message: "消息不能为空", path: ["message"] })
+    }).refine((d) => (d.message?.length ?? 0) > 0 || (d.images?.length ?? 0) > 0, { message: L(req, "消息不能为空", "Message cannot be empty"), path: ["message"] })
       .safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     // 只发图片(message 为空)→ 给模型一句兜底指令看图作答;持久化的 content 仍保持原样(空),
     // 这样气泡只显示图片、不夹一句机器味文案。标题也用「[图片]」兜底。
     const message = parsed.data.message ?? "";
     const hasImages = (parsed.data.images?.length ?? 0) > 0;
-    const promptText = message || (hasImages ? "(我发了图片,请查看图片内容并回应。)" : message);
+    const promptText = message || (hasImages ? L(req, "(我发了图片,请查看图片内容并回应。)", "(I sent an image. Please look at it and respond.)") : message);
 
     // 图片归属校验(必须是该用户自己的上传、且确为图片)→ 绝对路径。失败按输入错误回(SSE 未开)。
     let chatImages: { urls: string[]; absPaths: string[] };
@@ -88,7 +89,7 @@ export async function expertsRoutes(app: FastifyInstance): Promise<void> {
 
     // 会话解析:带 conversationId 且归属本人 → 用之;否则惰性新建(首发即落库),标题取首条消息。
     const ownedConv = parsed.data.conversationId ? await getOwnedConversation(user.id, parsed.data.conversationId) : null;
-    const conv = ownedConv ?? await createConversation(user.id, deriveTitle(message || (hasImages ? "[图片]" : "")));
+    const conv = ownedConv ?? await createConversation(user.id, deriveTitle(message || (hasImages ? L(req, "[图片]", "[Image]") : "")));
 
     // 整轮置于每会话互斥锁内:既然与首页助手共享同一条会话(roleId=""),就必须与
     // runChatTurn 走同一把 runExclusive(conv.id) 锁,否则两端并发轮次会交错读写历史/摘要、
@@ -159,8 +160,8 @@ export async function expertsRoutes(app: FastifyInstance): Promise<void> {
           void emitSelfNotification({
             userId: user.id,
             type: "image_gen",
-            title: `${ASSISTANT_NAME} 已生成图片`,
-            body: "点击查看生成的图片",
+            title: L(req, `${ASSISTANT_NAME} 已生成图片`, `${ASSISTANT_NAME} generated an image`),
+            body: L(req, "点击查看生成的图片", "Tap to view the generated image"),
             link: `/c/${conv.id}`,
             dedupeKey: `image:${assistantMsg.id}`,
           });
@@ -179,7 +180,7 @@ export async function expertsRoutes(app: FastifyInstance): Promise<void> {
       } catch (e) {
         // 不把原始异常文本透给前端(可能含 SQL/路径/二进制名);详情记服务端日志。
         req.log.error({ err: e }, "[agents/chat] orchestrate failed");
-        sse.send("error", { message: "对话失败,请稍后再试" });
+        sse.send("error", { message: L(req, "对话失败,请稍后再试", "Chat failed. Try again later") });
       } finally {
         clearInterval(hb); // 停掉全程心跳
       }
@@ -191,12 +192,12 @@ export async function expertsRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const parsed = z.object({ resolution: z.string().trim().min(1).max(2000) }).safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: "缺少结论" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: L(req, "缺少结论", "Missing conclusion") });
     // 授权:只有该升级单的负责人(assignee)或管理员能拍板,防止任意登录用户凭 id 替别人决策。
     const row = await prisma.escalation.findUnique({ where: { id: req.params.id }, select: { assigneeUserId: true } });
-    if (!row) return reply.code(404).send({ error: "not_found", message: "升级单不存在" });
+    if (!row) return reply.code(404).send({ error: "not_found", message: L(req, "升级单不存在", "Escalation not found") });
     if (!user.isAdmin && row.assigneeUserId !== user.id) {
-      return reply.code(403).send({ error: "forbidden", message: "只有该升级单的负责人可以拍板" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "只有该升级单的负责人可以拍板", "Only the owner of this escalation can decide") });
     }
     const esc = await resolveEscalation(req.params.id, { resolution: parsed.data.resolution, by: user.id });
     return { id: esc.id, status: esc.status, resolution: esc.resolution };
@@ -207,13 +208,13 @@ export async function expertsRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const parsed = z.object({ toUserId: z.string().min(1) }).safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: "缺少转交对象" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: L(req, "缺少转交对象", "Missing transfer target") });
     const row = await prisma.escalation.findUnique({ where: { id: req.params.id }, select: { assigneeUserId: true, roleId: true } });
-    if (!row) return reply.code(404).send({ error: "not_found", message: "升级单不存在" });
-    if (!user.isAdmin && row.assigneeUserId !== user.id) return reply.code(403).send({ error: "forbidden", message: "只有当前负责人可以转交" });
+    if (!row) return reply.code(404).send({ error: "not_found", message: L(req, "升级单不存在", "Escalation not found") });
+    if (!user.isAdmin && row.assigneeUserId !== user.id) return reply.code(403).send({ error: "forbidden", message: L(req, "只有当前负责人可以转交", "Only the current owner can transfer") });
     const role = await prisma.role.findUnique({ where: { id: row.roleId }, select: { name: true } });
     const res = await forwardEscalation(req.params.id, { toUserId: parsed.data.toUserId, byUserId: user.id, roleName: role?.name ?? "" });
-    if (!res.ok) return reply.code(400).send({ error: "invalid_input", message: res.reason === "bad-target" ? "转交对象不存在或已停用" : "该升级单已处理" });
+    if (!res.ok) return reply.code(400).send({ error: "invalid_input", message: res.reason === "bad-target" ? L(req, "转交对象不存在或已停用", "Transfer target not found or deactivated") : L(req, "该升级单已处理", "This escalation has already been handled") });
     return { ok: true, cardSent: res.cardSent ?? false };
   });
 

@@ -2,6 +2,10 @@
 // (numeric block_type enum, text_element_style shape) live here, isolated from
 // the converter. The block_type numbers are the documented docx-v1 enum
 // (confirmed via official docs research).
+import { L, appLang, type Lang } from "./lang.js";
+
+// 兜底标签的语言：normalizeBlocks 是同步函数，进入时设置、全程同步使用，不会跨请求串值
+let curLang: Lang = "zh";
 import type { DocNode, Inline } from "./feishuDoc.js";
 
 // docx v1 block_type enum (subset we map; everything else → unsupported).
@@ -93,14 +97,14 @@ function toInlines(payload: unknown): Inline[] {
     } else if (e.mention_doc) {
       out.push({
         kind: "mention",
-        label: String(e.mention_doc.title ?? "文档"),
+        label: String(e.mention_doc.title ?? L(curLang, "文档", "Document")),
         url: e.mention_doc.url ? decodeUrl(String(e.mention_doc.url)) : undefined,
       });
     } else if (e.mention_user) {
       // Prefer a display name; fall back to a generic label rather than dumping
       // the opaque open_id/user_id into the document body.
       const nm = e.mention_user.name;
-      out.push({ kind: "mention", label: "@" + (typeof nm === "string" && nm ? nm : "用户") });
+      out.push({ kind: "mention", label: "@" + (typeof nm === "string" && nm ? nm : L(curLang, "用户", "User")) });
     } else if (e.equation) {
       out.push({ kind: "text", text: String(e.equation.content ?? ""), code: true });
     }
@@ -154,7 +158,7 @@ function mapBlock(b: RawBlock): DocNode {
   if (bt === BT.file) {
     const token = String((b.file as any)?.token ?? "");
     const node: DocNode = { type: "unsupported", unsupportedKind: "file" };
-    if (token) node.embed = { kind: "file", token, name: String((b.file as any)?.name ?? "附件") };
+    if (token) node.embed = { kind: "file", token, name: String((b.file as any)?.name ?? L(curLang, "附件", "Attachment")) };
     return node;
   }
 
@@ -164,7 +168,8 @@ function mapBlock(b: RawBlock): DocNode {
 }
 
 /** Build DocNode[] from a flat Feishu block array (skips the root page block). */
-export function normalizeBlocks(blocks: unknown[]): DocNode[] {
+export function normalizeBlocks(blocks: unknown[], lang: Lang = appLang()): DocNode[] {
+  curLang = lang;
   const list = blocks as RawBlock[];
   const byId = new Map<string, RawBlock>();
   for (const b of list) if (b?.block_id) byId.set(b.block_id, b);

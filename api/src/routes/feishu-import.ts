@@ -4,6 +4,7 @@
 // unsupported-mode toggle) → rehost images → create the article (same path as
 // the .md import). The Feishu SDK / token stays in feishu-sso; this route only
 // talks to the gateway over HTTP, forwarding the user's sso_session cookie.
+import { L, requestLang } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -43,24 +44,24 @@ export async function feishuImportRoutes(app: FastifyInstance): Promise<void> {
 
     const parsed = bodySchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const { roleId, folderId, url, unsupportedMode } = parsed.data;
 
     const link = parseFeishuUrl(url);
-    if (!link) return reply.code(400).send({ error: "invalid_input", message: "仅支持飞书 docx / wiki 文档链接" });
+    if (!link) return reply.code(400).send({ error: "invalid_input", message: L(req, "仅支持飞书 docx / wiki 文档链接", "Only Feishu docx / wiki document links are supported") });
 
     // Target permission — identical to create / import-md.
     const role = await prisma.role.findUnique({ where: { id: roleId } });
-    if (!role) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    if (!role) return reply.code(404).send({ error: "not_found", message: L(req, "角色不存在", "Role not found") });
     if (folderId) {
       const fold = await prisma.folder.findUnique({ where: { id: folderId } });
-      if (!fold || fold.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "目录不存在" });
-      if (fold.roleId !== roleId) return reply.code(400).send({ error: "invalid_input", message: "目录不属于指定角色" });
+      if (!fold || fold.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "目录不存在", "Folder not found") });
+      if (fold.roleId !== roleId) return reply.code(400).send({ error: "invalid_input", message: L(req, "目录不属于指定角色", "The folder does not belong to the specified role") });
     }
     const userRoleIds = await getUserRoleIds(user.id);
     if (!(user.isAdmin || userRoleIds.has(roleId))) {
-      return reply.code(403).send({ error: "forbidden", message: "无权在该角色下创建文档" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "无权在该角色下创建文档", "No permission to create documents under this role") });
     }
 
     const cookie = req.headers.cookie ?? "";
@@ -70,7 +71,7 @@ export async function feishuImportRoutes(app: FastifyInstance): Promise<void> {
       if (link.kind === "wiki") {
         const node = await feishuGateway.resolveWikiNode(cookie, link.token);
         if (node.objType !== "docx") {
-          return reply.code(400).send({ error: "invalid_input", message: `暂不支持该 wiki 节点类型(${node.objType || "未知"})` });
+          return reply.code(400).send({ error: "invalid_input", message: L(req, `暂不支持该 wiki 节点类型(${node.objType || "未知"})`, `Unsupported wiki node type (${node.objType || "unknown"})`) });
         }
         documentId = node.objToken;
       }
@@ -80,13 +81,14 @@ export async function feishuImportRoutes(app: FastifyInstance): Promise<void> {
         feishuGateway.listDocxBlocks(cookie, documentId),
       ]);
 
-      const nodes = normalizeBlocks(blocksRes.blocks);
+      const nodes = normalizeBlocks(blocksRes.blocks, requestLang(req));
       // Per-import budget (closed over by the resolvers). Exceeding any cap
       // returns null → the converter degrades that block to a placeholder +
       // warning, so the cap is never silent.
       const budget = { images: 0, embeds: 0, bytes: 0 };
       const overBudget = () => budget.bytes >= MAX_IMPORT_BYTES;
       const { markdown, report } = await convertDoc(nodes, {
+        lang: requestLang(req),
         unsupportedMode,
         sourceUrl: url,
         resolveImage: async (fileToken) => {
@@ -115,7 +117,7 @@ export async function feishuImportRoutes(app: FastifyInstance): Promise<void> {
               const { bytes } = await feishuGateway.downloadWhiteboardImage(cookie, embed.token);
               budget.bytes += bytes.length;
               const u = await storeImageBuffer(user.id, bytes);
-              return u ? `![白板](${u})` : null;
+              return u ? L(req, `![白板](${u})`, `![Whiteboard](${u})`) : null;
             }
             // 文件附件 → 下载并落本地 uploads,渲染成链接
             if (embed.kind === "file") {
@@ -134,7 +136,7 @@ export async function feishuImportRoutes(app: FastifyInstance): Promise<void> {
               if (!fields.fields.length) return null;
               const { rows, truncated } = bitableToRows(fields.fields, recs.records, MAX_TABLE_ROWS);
               let md = buildGfmTable(rows);
-              if (truncated) md += `\n\n> 📌 多维表格记录较多,仅展示部分(顺序可能与原表不同) · [查看原表](${url})`;
+              if (truncated) md += L(req, `\n\n> 📌 多维表格记录较多,仅展示部分(顺序可能与原表不同) · [查看原表](${url})`, `\n\n> 📌 This Base table has many records; only some are shown (order may differ from the original) · [View original](${url})`);
               return md;
             }
             // 电子表格 → 读区域 → GFM 表格
@@ -145,7 +147,7 @@ export async function feishuImportRoutes(app: FastifyInstance): Promise<void> {
               let md = buildGfmTable(rows);
               // readSheetRange caps at A1:Z200 — flag possible truncation.
               if (rows.length >= 200 || rows.some((r) => r.length >= 26)) {
-                md += `\n\n> 📌 电子表格内容较大,可能仅展示部分 · [查看原文](${url})`;
+                md += L(req, `\n\n> 📌 电子表格内容较大,可能仅展示部分 · [查看原文](${url})`, `\n\n> 📌 This spreadsheet is large; only part may be shown · [View original](${url})`);
               }
               return md;
             }
@@ -196,18 +198,18 @@ export async function feishuImportRoutes(app: FastifyInstance): Promise<void> {
         if (e.code === "feishu_scope_disabled")
           return reply.code(403).send({
             error: "feishu_scope_disabled",
-            message: "飞书应用尚未开通所需文档权限(或版本未发布生效)。请在飞书开放平台为应用开通并发布 docx / wiki / drive 读取权限后重试。",
+            message: L(req, "飞书应用尚未开通所需文档权限(或版本未发布生效)。请在飞书开放平台为应用开通并发布 docx / wiki / drive 读取权限后重试。", "The Feishu app lacks the required document permissions (or the version is not published). Enable and publish docx / wiki / drive read permissions on the Feishu Open Platform, then try again."),
           });
         if (e.code === "feishu_permission")
-          return reply.code(403).send({ error: "feishu_permission", message: "你没有该飞书文档的查看权限(或该文档不在应用所属企业内)。" });
+          return reply.code(403).send({ error: "feishu_permission", message: L(req, "你没有该飞书文档的查看权限(或该文档不在应用所属企业内)。", "You do not have permission to view this Feishu document (or it is outside the app's organization).") });
         if (e.code === "feishu_need_reauth")
-          return reply.code(403).send({ error: "feishu_need_reauth", message: "飞书授权未包含文档读取权限,请退出后重新登录并在授权页同意云文档权限。" });
+          return reply.code(403).send({ error: "feishu_need_reauth", message: L(req, "飞书授权未包含文档读取权限,请退出后重新登录并在授权页同意云文档权限。", "Your Feishu authorization does not include document read access. Sign out, sign in again and grant the Docs permission on the consent page.") });
         if (e.code === "need_relogin")
-          return reply.code(401).send({ error: "need_relogin", message: "飞书登录已过期,请重新登录" });
-        return reply.code(502).send({ error: "feishu_upstream", message: "拉取飞书文档失败,请稍后再试" });
+          return reply.code(401).send({ error: "need_relogin", message: L(req, "飞书登录已过期,请重新登录", "Your Feishu session has expired. Sign in again") });
+        return reply.code(502).send({ error: "feishu_upstream", message: L(req, "拉取飞书文档失败,请稍后再试", "Failed to fetch the Feishu document. Try again later") });
       }
       app.log.error({ err: e }, "feishu import failed");
-      return reply.code(500).send({ error: "internal", message: "导入失败" });
+      return reply.code(500).send({ error: "internal", message: L(req, "导入失败", "Import failed") });
     }
   });
 }

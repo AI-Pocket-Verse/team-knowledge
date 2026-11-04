@@ -1,3 +1,4 @@
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { Prisma } from "@prisma/client";
 import type { RecycleBinItem, RecycleBinListResponse } from "@team-knowledge/shared";
@@ -134,9 +135,9 @@ export async function recycleBinRoutes(app: FastifyInstance): Promise<void> {
       where: { id: req.params.id },
       include: { folder: { select: { deletedAt: true } } },
     });
-    if (!a || a.deletedAt == null) return reply.code(404).send({ error: "not_found", message: "回收项不存在" });
+    if (!a || a.deletedAt == null) return reply.code(404).send({ error: "not_found", message: L(req, "回收项不存在", "Recycle bin item not found") });
     if (a.deletedById !== user.id && !user.isAdmin) {
-      return reply.code(403).send({ error: "forbidden", message: "无权恢复该文档" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "无权恢复该文档", "No permission to restore this document") });
     }
 
     // If the article's folder is itself still in the bin, detach the doc
@@ -167,9 +168,9 @@ export async function recycleBinRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const f = await prisma.folder.findUnique({ where: { id: req.params.id } });
-    if (!f || f.deletedAt == null) return reply.code(404).send({ error: "not_found", message: "回收项不存在" });
+    if (!f || f.deletedAt == null) return reply.code(404).send({ error: "not_found", message: L(req, "回收项不存在", "Recycle bin item not found") });
     if (f.deletedById !== user.id && !user.isAdmin) {
-      return reply.code(403).send({ error: "forbidden", message: "无权恢复该目录" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "无权恢复该目录", "No permission to restore this folder") });
     }
 
     const folderDeletedAt = f.deletedAt;
@@ -190,12 +191,12 @@ export async function recycleBinRoutes(app: FastifyInstance): Promise<void> {
       );
       if (!taken.has(base)) return base;
       const candidates = [
-        `${base}（恢复 ${selfId.slice(0, 6)}）`,
-        ...Array.from({ length: 20 }, (_, i) => `${base}（恢复 ${selfId.slice(0, 6)}-${i + 1}）`),
-        `${base}（恢复 ${selfId}）`,
+        L(req, `${base}（恢复 ${selfId.slice(0, 6)}）`, `${base} (restored ${selfId.slice(0, 6)})`),
+        ...Array.from({ length: 20 }, (_, i) => L(req, `${base}（恢复 ${selfId.slice(0, 6)}-${i + 1}）`, `${base} (restored ${selfId.slice(0, 6)}-${i + 1})`)),
+        L(req, `${base}（恢复 ${selfId}）`, `${base} (restored ${selfId})`),
       ];
       for (const c of candidates) if (!taken.has(c)) return c;
-      return `${base}（恢复 ${selfId}）`;
+      return L(req, `${base}（恢复 ${selfId}）`, `${base} (restored ${selfId})`);
     }
 
     await prisma.$transaction(async (tx) => {
@@ -239,9 +240,9 @@ export async function recycleBinRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const m = await prisma.meetingSession.findUnique({ where: { id: req.params.id } });
-    if (!m || m.deletedAt == null) return reply.code(404).send({ error: "not_found", message: "回收项不存在" });
+    if (!m || m.deletedAt == null) return reply.code(404).send({ error: "not_found", message: L(req, "回收项不存在", "Recycle bin item not found") });
     if (m.deletedById !== user.id && !user.isAdmin) {
-      return reply.code(403).send({ error: "forbidden", message: "无权恢复该会议" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "无权恢复该会议", "No permission to restore this meeting") });
     }
 
     await prisma.meetingSession.update({
@@ -257,9 +258,9 @@ export async function recycleBinRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const a = await prisma.article.findUnique({ where: { id: req.params.id } });
-    if (!a || a.deletedAt == null) return reply.code(404).send({ error: "not_found", message: "回收项不存在" });
+    if (!a || a.deletedAt == null) return reply.code(404).send({ error: "not_found", message: L(req, "回收项不存在", "Recycle bin item not found") });
     if (a.deletedById !== user.id && !user.isAdmin) {
-      return reply.code(403).send({ error: "forbidden", message: "无权删除该文档" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "无权删除该文档", "No permission to delete this document") });
     }
 
     await prisma.article.delete({ where: { id: a.id } });
@@ -273,9 +274,9 @@ export async function recycleBinRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const f = await prisma.folder.findUnique({ where: { id: req.params.id } });
-    if (!f || f.deletedAt == null) return reply.code(404).send({ error: "not_found", message: "回收项不存在" });
+    if (!f || f.deletedAt == null) return reply.code(404).send({ error: "not_found", message: L(req, "回收项不存在", "Recycle bin item not found") });
     if (f.deletedById !== user.id && !user.isAdmin) {
-      return reply.code(403).send({ error: "forbidden", message: "无权删除该目录" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "无权删除该目录", "No permission to delete this folder") });
     }
 
     const folderDeletedAt = f.deletedAt;
@@ -380,9 +381,9 @@ export async function recycleBinRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const m = await prisma.meetingSession.findUnique({ where: { id: req.params.id } });
-    if (!m || m.deletedAt == null) return reply.code(404).send({ error: "not_found", message: "回收项不存在" });
+    if (!m || m.deletedAt == null) return reply.code(404).send({ error: "not_found", message: L(req, "回收项不存在", "Recycle bin item not found") });
     if (m.deletedById !== user.id && !user.isAdmin) {
-      return reply.code(403).send({ error: "forbidden", message: "无权删除该会议" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "无权删除该会议", "No permission to delete this meeting") });
     }
 
     await purgeMeeting(m);

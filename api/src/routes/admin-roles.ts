@@ -1,3 +1,4 @@
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
@@ -58,7 +59,7 @@ export async function adminRoleRoutes(app: FastifyInstance): Promise<void> {
     if (!admin) return;
     const parsed = roleCreateSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     try {
       const role = await prisma.role.create({
@@ -78,7 +79,7 @@ export async function adminRoleRoutes(app: FastifyInstance): Promise<void> {
       return { role: toPublic(role) };
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-        return reply.code(409).send({ error: "conflict", message: "角色名称已存在" });
+        return reply.code(409).send({ error: "conflict", message: L(req, "角色名称已存在", "A role with this name already exists") });
       }
       throw e;
     }
@@ -89,10 +90,10 @@ export async function adminRoleRoutes(app: FastifyInstance): Promise<void> {
     if (!admin) return;
     const parsed = roleUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const existing = await loadRole(req.params.id);
-    if (!existing) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    if (!existing) return reply.code(404).send({ error: "not_found", message: L(req, "角色不存在", "Role not found") });
     try {
       const role = await prisma.role.update({
         where: { id: req.params.id },
@@ -105,7 +106,7 @@ export async function adminRoleRoutes(app: FastifyInstance): Promise<void> {
       return { role: toPublic(role) };
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-        return reply.code(409).send({ error: "conflict", message: "角色名称已存在" });
+        return reply.code(409).send({ error: "conflict", message: L(req, "角色名称已存在", "A role with this name already exists") });
       }
       throw e;
     }
@@ -115,7 +116,7 @@ export async function adminRoleRoutes(app: FastifyInstance): Promise<void> {
     const admin = await requireAdmin(req, reply);
     if (!admin) return;
     const existing = await loadRole(req.params.id);
-    if (!existing) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    if (!existing) return reply.code(404).send({ error: "not_found", message: L(req, "角色不存在", "Role not found") });
     // DATA LOSS GUARD: prisma.role.delete hard-cascades EVERY folder + article
     // (and their version/comment/like/bookmark/view children) under this role —
     // bypassing the recycle bin entirely, INCLUDING already-binned rows. Count
@@ -128,7 +129,7 @@ export async function adminRoleRoutes(app: FastifyInstance): Promise<void> {
     if (folders > 0 || articles > 0) {
       return reply.code(409).send({
         error: "conflict",
-        message: `该角色下还有 ${folders} 个目录、${articles} 篇文档,请先删除或迁移后再删除角色`,
+        message: L(req, `该角色下还有 ${folders} 个目录、${articles} 篇文档,请先删除或迁移后再删除角色`, `This role still has ${folders} folders and ${articles} documents. Delete or move them before deleting the role`),
         folders,
         articles,
       });

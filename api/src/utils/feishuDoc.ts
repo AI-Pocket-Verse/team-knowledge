@@ -1,3 +1,4 @@
+import { L, appLang, type Lang } from "./lang.js";
 // Internal, Feishu-agnostic document model + the Markdown(+HTML) converter.
 //
 // The converter is a PURE function over DocNode[] — all Feishu-format quirks
@@ -85,6 +86,8 @@ export interface ConvertOptions {
    * Feishu gateway calls); the converter stays pure + testable with a stub.
    */
   resolveEmbed?: (embed: EmbedRef) => Promise<string | null>;
+  /** 占位文案与警告的语言；缺省用部署语言 */
+  lang?: Lang;
 }
 
 export interface ConversionReport {
@@ -95,18 +98,21 @@ export interface ConversionReport {
   warnings: string[];
 }
 
-const EMBED_LABEL: Record<string, string> = {
-  bitable: "多维表格",
-  sheet: "电子表格",
-  mindnote: "思维笔记",
-  board: "画板",
-  diagram: "流程图",
-  file: "文件附件",
-  grid: "分栏",
-  callout: "高亮块",
-  table: "复杂表格",
-  isv: "小组件",
-};
+function embedLabel(kind: string, lang: Lang): string | undefined {
+  switch (kind) {
+    case "bitable": return L(lang, "多维表格", "Base table");
+    case "sheet": return L(lang, "电子表格", "Spreadsheet");
+    case "mindnote": return L(lang, "思维笔记", "Mind note");
+    case "board": return L(lang, "画板", "Whiteboard");
+    case "diagram": return L(lang, "流程图", "Flowchart");
+    case "file": return L(lang, "文件附件", "File attachment");
+    case "grid": return L(lang, "分栏", "Columns");
+    case "callout": return L(lang, "高亮块", "Callout");
+    case "table": return L(lang, "复杂表格", "Complex table");
+    case "isv": return L(lang, "小组件", "Widget");
+    default: return undefined;
+  }
+}
 
 // Escape Markdown control chars in plain text runs so doc content can't
 // accidentally inject formatting. Links/code are handled separately.
@@ -152,10 +158,10 @@ function renderInlines(inlines: Inline[] | undefined): string {
 // Markdown-native placeholder so the WYSIWYG editor renders it as a real
 // blockquote + bold + link — NOT raw HTML shown as literal text (spike 0.1's
 // real-browser conclusion: Milkdown/commonmark does not render embedded HTML).
-function renderUnsupportedPlaceholder(node: DocNode, fallbackUrl: string): string {
-  const label = EMBED_LABEL[node.unsupportedKind ?? ""] ?? "飞书内容";
+function renderUnsupportedPlaceholder(node: DocNode, fallbackUrl: string, lang: Lang): string {
+  const label = embedLabel(node.unsupportedKind ?? "", lang) ?? L(lang, "飞书内容", "Feishu content");
   const url = node.sourceUrl ?? fallbackUrl;
-  return `> 📌 **${label}**(未导入) · [查看原文](${url})`;
+  return L(lang, `> 📌 **${label}**(未导入) · [查看原文](${url})`, `> 📌 **${label}** (not imported) · [View original](${url})`);
 }
 
 /**
@@ -187,6 +193,7 @@ async function renderNode(
   report: ConversionReport,
 ): Promise<string | null> {
   const inl = () => renderInlines(node.inlines);
+  const lang = opts.lang ?? appLang();
   switch (node.type) {
     case "heading":
       report.converted++;
@@ -221,8 +228,8 @@ async function renderNode(
     case "image": {
       const url = node.imageToken ? await opts.resolveImage(node.imageToken, node.imageAlt) : null;
       if (!url) {
-        report.warnings.push("图片导入失败");
-        return "*（图片导入失败）*";
+        report.warnings.push(L(lang, "图片导入失败", "Image import failed"));
+        return L(lang, "*（图片导入失败）*", "*(Image import failed)*");
       }
       report.converted++;
       return `![${node.imageAlt ?? ""}](${url})`;
@@ -237,7 +244,7 @@ async function renderNode(
         return null;
       }
       report.placeholderBlocks++;
-      return renderUnsupportedPlaceholder({ ...node, unsupportedKind: "table" }, opts.sourceUrl);
+      return renderUnsupportedPlaceholder({ ...node, unsupportedKind: "table" }, opts.sourceUrl, lang);
     }
     case "unsupported": {
       // A fetchable embed (whiteboard/bitable/sheet/file) → try to resolve it
@@ -251,14 +258,20 @@ async function renderNode(
         }
         // Had a fetchable embed but resolution failed/empty → surface it so a
         // silently-degraded table/board/file isn't mistaken for "no content".
-        report.warnings.push(`${EMBED_LABEL[node.unsupportedKind ?? ""] ?? "嵌入"}导入失败,已降级`);
+        report.warnings.push(
+          L(
+            lang,
+            `${embedLabel(node.unsupportedKind ?? "", lang) ?? "嵌入"}导入失败,已降级`,
+            `${embedLabel(node.unsupportedKind ?? "", lang) ?? "Embed"} import failed; downgraded`,
+          ),
+        );
       }
       if (opts.unsupportedMode === "drop") {
         report.droppedBlocks++;
         return null;
       }
       report.placeholderBlocks++;
-      return renderUnsupportedPlaceholder(node, opts.sourceUrl);
+      return renderUnsupportedPlaceholder(node, opts.sourceUrl, lang);
     }
   }
 }

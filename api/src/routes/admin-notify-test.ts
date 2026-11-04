@@ -4,7 +4,8 @@
 // - PATCH /api/admin/notify-test/scenarios/:key   更新配置 { enabled?, chatIds? }
 // - POST  /api/admin/notify-test/send             手动触发(异步)→ 202 { jobId }
 // - GET   /api/admin/notify-test/send/:jobId      查询发送结果(前端轮询)
-import type { FastifyInstance } from "fastify";
+import { L } from "../utils/lang.js";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireAdmin } from "../utils/guards.js";
 import { listScenarios, scenarioMetaByKey, startSendJob, getSendJob, AlreadyRunningError } from "../services/notify-test/index.js";
@@ -12,18 +13,18 @@ import { SCENARIO_KEYS, type ScenarioKey, getScenarioNotifyConfig, setScenarioNo
 import { rescheduleNotifyCron } from "../services/notify-cron/index.js";
 
 const sendSchema = z.object({ key: z.string().min(1).max(64) });
-const patchSchema = z.object({
+const makePatchSchema = (req: FastifyRequest) => z.object({
   enabled: z.boolean().optional(),
   chatIds: z.array(z.string().startsWith("oc_")).max(50).optional(),
   // 定时类任务的触发时刻(北京时间):星期多选 + 时:分 + 是否每周重复。
   schedule: z.object({
-    weekdays: z.array(z.number().int().min(1).max(7)).min(1, "至少选择一个星期").max(7),
+    weekdays: z.array(z.number().int().min(1).max(7)).min(1, L(req, "至少选择一个星期", "Select at least one weekday")).max(7),
     hour: z.number().int().min(0).max(23),
     minute: z.number().int().min(0).max(59),
     repeat: z.boolean(),
   }).optional(),
 }).refine((v) => v.enabled !== undefined || v.chatIds !== undefined || v.schedule !== undefined, {
-  message: "至少提供 enabled / chatIds / schedule 之一",
+  message: L(req, "至少提供 enabled / chatIds / schedule 之一", "Provide at least one of enabled / chatIds / schedule"),
 });
 
 export async function adminNotifyTestRoutes(app: FastifyInstance): Promise<void> {
@@ -40,11 +41,11 @@ export async function adminNotifyTestRoutes(app: FastifyInstance): Promise<void>
     if (!user) return;
     const key = req.params.key as ScenarioKey;
     if (!SCENARIO_KEYS.includes(key)) {
-      return reply.code(404).send({ error: "not_found", message: `未知的通知任务:${req.params.key}` });
+      return reply.code(404).send({ error: "not_found", message: L(req, `未知的通知任务:${req.params.key}`, `Unknown notification job: ${req.params.key}`) });
     }
-    const parsed = patchSchema.safeParse(req.body);
+    const parsed = makePatchSchema(req).safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     try {
       await setScenarioNotifyConfig(key, parsed.data, user.id);
@@ -65,12 +66,12 @@ export async function adminNotifyTestRoutes(app: FastifyInstance): Promise<void>
     const user = await requireAdmin(req, reply);
     if (!user) return;
     const parsed = sendSchema.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     const meta = scenarioMetaByKey(parsed.data.key);
-    if (!meta) return reply.code(400).send({ error: "invalid_input", message: `未知的通知场景:${parsed.data.key}` });
+    if (!meta) return reply.code(400).send({ error: "invalid_input", message: L(req, `未知的通知场景:${parsed.data.key}`, `Unknown notification scenario: ${parsed.data.key}`) });
     const cfg = await getScenarioNotifyConfig(meta.key);
     if (cfg.chatIds.length === 0) {
-      return reply.code(400).send({ error: "no_target", message: `「${meta.title}」未勾选目标群聊,请先在下方勾选至少一个群。` });
+      return reply.code(400).send({ error: "no_target", message: L(req, `「${meta.title}」未勾选目标群聊,请先在下方勾选至少一个群。`, `No target group chat selected for "${meta.title}". Select at least one group below first.`) });
     }
     try {
       const job = startSendJob(meta.key);
@@ -90,7 +91,7 @@ export async function adminNotifyTestRoutes(app: FastifyInstance): Promise<void>
     const user = await requireAdmin(req, reply);
     if (!user) return;
     const job = getSendJob(req.params.jobId);
-    if (!job) return reply.code(404).send({ error: "not_found", message: "任务不存在或已过期" });
+    if (!job) return reply.code(404).send({ error: "not_found", message: L(req, "任务不存在或已过期", "Job not found or expired") });
     return { status: job.status, ok: job.ok, results: job.results, error: job.error };
   });
 }
