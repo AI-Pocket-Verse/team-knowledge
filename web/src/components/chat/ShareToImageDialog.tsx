@@ -4,6 +4,7 @@ import { api, ApiError } from "@/lib/api";
 import { toast } from "@/components/Toaster";
 import { cn } from "@/lib/cn";
 import { getAssistantName } from "@/lib/assistantName";
+import { tr, useT } from "@/i18n";
 
 // Render selected chat messages into a shareable PNG. Sibling of
 // ShareToDocDialog: the server lays the turns out as a chat-bubble image
@@ -11,7 +12,7 @@ import { getAssistantName } from "@/lib/assistantName";
 // download + copy-to-clipboard. The whole thing is the user's OWN chat, so
 // there's no extra permission gate.
 
-const getDefaultTitle = () => `${getAssistantName()} 对话摘录`;
+const getDefaultTitle = () => tr("chat.share.defaultTitle", { name: getAssistantName() });
 
 // Map selected rows → the API payload. Exported for unit testing.
 export function buildChatImagePayload(
@@ -36,6 +37,7 @@ export function ShareToImageDialog({
   messages: ChatMessageRow[];
   onClose: () => void;
 }) {
+  const t = useT();
   const [title, setTitle] = useState(getDefaultTitle());
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string>("");
@@ -87,12 +89,12 @@ export function ShareToImageDialog({
     if (!blob) return;
     try {
       if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) {
-        throw new Error("浏览器不支持复制图片");
+        throw new Error(t("chat.shareImage.copyUnsupported"));
       }
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-      toast.success("已复制到剪贴板");
+      toast.success(t("chat.shareImage.copied"));
     } catch {
-      toast.error("复制失败，请改用「下载」");
+      toast.error(t("chat.shareImage.copyFailed"));
     }
   };
 
@@ -103,14 +105,14 @@ export function ShareToImageDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-line px-5 py-3">
-          <div className="text-base font-semibold text-fg">生成图片</div>
-          <div className="text-xs text-muted">已选 {messages.length} 条</div>
+          <div className="text-base font-semibold text-fg">{t("chat.shareImage.title")}</div>
+          <div className="text-xs text-muted">{t("chat.shareImage.selected", { n: messages.length })}</div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 text-sm">
           <div className="flex flex-col gap-4">
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted">图片标题</span>
+              <span className="text-xs text-muted">{t("chat.shareImage.imageTitle")}</span>
               <div className="flex gap-2">
                 <input
                   value={title}
@@ -125,18 +127,18 @@ export function ShareToImageDialog({
                   disabled={status === "loading"}
                   className="rounded-lg border border-line bg-white px-3 py-2 text-sm transition enabled:hover:bg-surface disabled:opacity-50"
                 >
-                  {status === "loading" ? "生成中…" : "重新生成"}
+                  {status === "loading" ? t("chat.shareImage.generating") : t("chat.shareImage.regenerate")}
                 </button>
               </div>
             </label>
 
             <div className="flex flex-col gap-1">
-              <span className="text-xs text-muted">预览</span>
+              <span className="text-xs text-muted">{t("chat.shareImage.preview")}</span>
               <div className="flex min-h-[8rem] items-center justify-center rounded-lg border border-line bg-surface p-2">
-                {status === "loading" && <span className="text-xs text-muted">正在生成图片…</span>}
+                {status === "loading" && <span className="text-xs text-muted">{t("chat.shareImage.generatingImage")}</span>}
                 {status === "error" && <span className="text-xs text-rose-600">⚠ {error}</span>}
                 {status === "ready" && url && (
-                  <img src={url} alt="对话图片预览" className="max-h-[50vh] w-auto max-w-full rounded-lg shadow-glass" />
+                  <img src={url} alt={t("chat.shareImage.previewAlt")} className="max-h-[50vh] w-auto max-w-full rounded-lg shadow-glass" />
                 )}
               </div>
             </div>
@@ -149,7 +151,7 @@ export function ShareToImageDialog({
             onClick={onClose}
             className="rounded-lg border border-line bg-white px-4 py-1.5 text-sm transition hover:bg-surface"
           >
-            关闭
+            {t("common.close")}
           </button>
           <button
             type="button"
@@ -157,7 +159,7 @@ export function ShareToImageDialog({
             disabled={status !== "ready"}
             className="rounded-lg border border-line bg-white px-4 py-1.5 text-sm transition enabled:hover:bg-surface disabled:opacity-50"
           >
-            复制到剪贴板
+            {t("chat.shareImage.copy")}
           </button>
           <button
             type="button"
@@ -168,7 +170,7 @@ export function ShareToImageDialog({
               "enabled:hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50",
             )}
           >
-            下载 PNG
+            {t("chat.shareImage.downloadPng")}
           </button>
         </div>
       </div>

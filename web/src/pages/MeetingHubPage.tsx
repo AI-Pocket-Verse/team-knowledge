@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { DelayedLoader } from "@/components/DelayedLoader";
 import { usePageChrome } from "@/stores/pageChrome";
 import { beijingParts } from "@/lib/tz";
+import { useT } from "@/i18n";
 
 //助手会议 hub — every logged-in user lands here from the nav tab.
 // Shows currently-running meetings (anyone can click in to watch
@@ -12,6 +13,7 @@ import { beijingParts } from "@/lib/tz";
 // meeting via "新会议"; private ones are flagged with a 🔒 badge.
 // The hub list is already visibility-filtered server-side.
 export function MeetingHubPage() {
+  const t = useT();
   const [data, setData] = useState<MeetingHubResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +38,7 @@ export function MeetingHubPage() {
         className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg shadow-glass transition hover:bg-primary/90 active:scale-95"
       >
         <span aria-hidden className="text-base leading-none">＋</span>
-        新会议
+        {t("meeting.hub.new")}
       </Link>
     ),
   });
@@ -50,7 +52,7 @@ export function MeetingHubPage() {
           active meeting — keeps the hub tidy on most loads. */}
       {data.active.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-medium text-muted">正在进行 ({data.active.length})</h2>
+          <h2 className="text-sm font-medium text-muted">{t("meeting.hub.active", { n: data.active.length })}</h2>
           <ul className="flex flex-col gap-2">
             {data.active.map((m) => (
               <li key={m.id}>
@@ -62,10 +64,10 @@ export function MeetingHubPage() {
       )}
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-muted">往期会议</h2>
+        <h2 className="text-sm font-medium text-muted">{t("meeting.hub.recent")}</h2>
         {data.recent.length === 0 ? (
           <div className="rounded-xl border border-line bg-surface px-8 py-10 text-center text-sm text-muted">
-            还没有任何会议记录。点击右上「新会议」开始第一场。
+            {t("meeting.hub.empty")}
           </div>
         ) : (
           <ul className="flex flex-col gap-2">
@@ -82,6 +84,7 @@ export function MeetingHubPage() {
 }
 
 function ActiveMeetingCard({ meeting }: { meeting: MeetingSessionRow }) {
+  const t = useT();
   return (
     <Link
       to={`/meeting/${meeting.id}`}
@@ -98,18 +101,19 @@ function ActiveMeetingCard({ meeting }: { meeting: MeetingSessionRow }) {
             {meeting.visibility === "private" && <PrivateBadge />}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-            <span>主持人：{meeting.hostName}</span>
-            <span>开始于 {formatTime(meeting.createdAt)}</span>
-            <span>关联：{meeting.allowedRoles.map((r) => r.name).join(" / ") || "（无）"}</span>
+            <span>{t("meeting.hub.host", { name: meeting.hostName })}</span>
+            <span>{t("meeting.hub.startedAt", { time: formatTime(meeting.createdAt) })}</span>
+            <span>{t("meeting.hub.linked", { roles: meeting.allowedRoles.map((r) => r.name).join(" / ") || t("meeting.hub.none") })}</span>
           </div>
         </div>
-        <span className="shrink-0 text-sm text-primary">进入会议室 →</span>
+        <span className="shrink-0 text-sm text-primary">{t("meeting.hub.enter")}</span>
       </div>
     </Link>
   );
 }
 
 function RecentMeetingCard({ meeting }: { meeting: MeetingSessionRow }) {
+  const t = useT();
   const minutes = meeting.endedAt
     ? Math.max(1, Math.round((new Date(meeting.endedAt).getTime() - new Date(meeting.createdAt).getTime()) / 60_000))
     : null;
@@ -126,21 +130,22 @@ function RecentMeetingCard({ meeting }: { meeting: MeetingSessionRow }) {
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
             <span>{formatDate(meeting.endedAt ?? meeting.createdAt)}</span>
-            {minutes !== null && <span>{minutes} 分钟</span>}
-            <span>主持人：{meeting.hostName}</span>
-            <span>关联：{meeting.allowedRoles.map((r) => r.name).join(" / ") || "（无）"}</span>
+            {minutes !== null && <span>{t("meeting.hub.minutes", { n: minutes })}</span>}
+            <span>{t("meeting.hub.host", { name: meeting.hostName })}</span>
+            <span>{t("meeting.hub.linked", { roles: meeting.allowedRoles.map((r) => r.name).join(" / ") || t("meeting.hub.none") })}</span>
           </div>
         </div>
-        <span className="shrink-0 text-sm text-muted">查看 →</span>
+        <span className="shrink-0 text-sm text-muted">{t("meeting.hub.view")}</span>
       </div>
     </Link>
   );
 }
 
 function PrivateBadge() {
+  const t = useT();
   return (
     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface px-1.5 py-0.5 text-[11px] font-medium text-muted">
-      <span aria-hidden>🔒</span>私密
+      <span aria-hidden>🔒</span>{t("meeting.hub.private")}
     </span>
   );
 }

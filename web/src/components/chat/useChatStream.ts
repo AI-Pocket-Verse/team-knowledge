@@ -1,6 +1,7 @@
 import { API_BASE } from "@/lib/api";
 import { parseSseChunk, type SseEvent } from "@/lib/sse";
 import { handleUnauthorized } from "@/lib/sseAuth";
+import { tr } from "@/i18n";
 
 // parseSseChunk / SseEvent moved to @/lib/sse (shared with the dashboard
 // stream); re-exported here so existing callers + tests that import them from
@@ -63,14 +64,14 @@ export async function streamChat(content: string, h: StreamHandlers): Promise<vo
   if (!res.ok) {
     if (res.status === 401) {
       // Session expired — bounce to SSO re-auth (same as api.ts).
-      h.onError("登录已过期，正在跳转到登录页…");
+      h.onError(tr("chat.stream.expired"));
       void handleUnauthorized();
       return;
     }
-    h.onError(res.status === 403 ? "你没有权限使用对话功能" : `请求失败（${res.status}）`);
+    h.onError(res.status === 403 ? tr("chat.stream.forbidden") : tr("chat.stream.failedStatus", { status: res.status }));
     return;
   }
-  if (!res.body) { h.onError("响应为空，请稍后重试"); return; }
+  if (!res.body) { h.onError(tr("chat.stream.noBody")); return; }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();

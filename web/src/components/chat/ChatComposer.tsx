@@ -4,6 +4,7 @@ import { api, uploadSrc } from "@/lib/api";
 import { toast } from "@/components/Toaster";
 import { ChatMentionPopover, type ChatMentionItem } from "./ChatMentionPopover";
 import { getAssistantName } from "@/lib/assistantName";
+import { useT } from "@/i18n";
 
 interface Props {
   onSend(
@@ -169,6 +170,7 @@ function isEffectivelyEmpty(root: HTMLElement): boolean {
 }
 
 export function ChatComposer({ onSend, disabled, onStop, headerSlot, onShare, shareActive, large, focusKey, readDraft, writeDraft }: Props) {
+  const t = useT();
   const editorRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [hasContent, setHasContent] = useState(false);
@@ -215,7 +217,7 @@ export function ChatComposer({ onSend, disabled, onStop, headerSlot, onShare, sh
   async function pickImages(files: FileList | File[] | null) {
     if (!files || files.length === 0) return;
     const room = MAX_IMAGES - pendingImages.length;
-    if (room <= 0) { toast.error(`一条消息最多 ${MAX_IMAGES} 张图片`); return; }
+    if (room <= 0) { toast.error(t("chat.composer.maxImages", { n: MAX_IMAGES })); return; }
     const batch = Array.from(files).slice(0, room);
     setUploading(true);
     try {
@@ -224,7 +226,7 @@ export function ChatComposer({ onSend, disabled, onStop, headerSlot, onShare, sh
         setPendingImages((cur) => (cur.length < MAX_IMAGES ? [...cur, url] : cur));
       }
     } catch (e) {
-      toast.error((e as Error).message || "图片上传失败");
+      toast.error((e as Error).message || t("chat.composer.uploadFailed"));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -487,17 +489,17 @@ export function ChatComposer({ onSend, disabled, onStop, headerSlot, onShare, sh
               <div key={url} className="relative h-14 w-14 overflow-hidden rounded-lg border border-line bg-surface">
                 <button
                   type="button"
-                  aria-label="预览图片"
-                  title="点击预览"
+                  aria-label={t("chat.composer.previewImage")}
+                  title={t("chat.composer.clickPreview")}
                   onClick={() => setPreviewUrl(url)}
                   className="block h-full w-full cursor-zoom-in"
                 >
-                  <img src={uploadSrc(url)} alt="待发送图片" className="h-full w-full object-cover" />
+                  <img src={uploadSrc(url)} alt={t("chat.composer.pendingImageAlt")} className="h-full w-full object-cover" />
                 </button>
                 <button
                   type="button"
-                  aria-label="移除图片"
-                  title="移除图片"
+                  aria-label={t("chat.composer.removeImage")}
+                  title={t("chat.composer.removeImage")}
                   onClick={() => setPendingImages((cur) => cur.filter((u) => u !== url))}
                   className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-[10px] leading-none text-white hover:bg-black/80"
                 >
@@ -507,7 +509,7 @@ export function ChatComposer({ onSend, disabled, onStop, headerSlot, onShare, sh
             ))}
             {uploading && (
               <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-line text-xs text-muted">
-                上传中
+                {t("chat.composer.uploading")}
               </div>
             )}
           </div>
@@ -516,13 +518,13 @@ export function ChatComposer({ onSend, disabled, onStop, headerSlot, onShare, sh
           ref={editorRef}
           role="textbox"
           aria-multiline="true"
-          aria-label={`向 ${getAssistantName()} 提问`}
+          aria-label={t("chat.composer.askAria", { name: getAssistantName() })}
           contentEditable={!disabled}
           suppressContentEditableWarning
           onInput={handleInput}
           onKeyDown={handleKey}
           onPaste={handlePaste}
-          data-placeholder={`向 ${getAssistantName()} 提问…（输入 @ 引用文档/目录/角色，Enter 发送，Shift+Enter 换行）`}
+          data-placeholder={t("chat.composer.placeholder", { name: getAssistantName() })}
           className={cn(
             "tm-chat-editor w-full resize-none bg-transparent text-sm outline-none",
             "max-h-[18rem] overflow-y-auto whitespace-pre-wrap break-words",
@@ -549,8 +551,8 @@ export function ChatComposer({ onSend, disabled, onStop, headerSlot, onShare, sh
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled || uploading || pendingImages.length >= MAX_IMAGES}
-              aria-label="上传图片"
-              title={pendingImages.length >= MAX_IMAGES ? `最多 ${MAX_IMAGES} 张` : `上传图片(发给 ${getAssistantName()} 看)`}
+              aria-label={t("chat.composer.uploadImage")}
+              title={pendingImages.length >= MAX_IMAGES ? t("chat.composer.maxImagesShort", { n: MAX_IMAGES }) : t("chat.composer.uploadImageTip", { name: getAssistantName() })}
               className={cn(
                 "flex h-8 w-8 items-center justify-center rounded-lg transition",
                 disabled || uploading || pendingImages.length >= MAX_IMAGES
@@ -570,8 +572,8 @@ export function ChatComposer({ onSend, disabled, onStop, headerSlot, onShare, sh
               <button
                 type="button"
                 onClick={onShare}
-                aria-label="多选分享"
-                title="多选分享(挑消息生成图片 / 分享到文档)"
+                aria-label={t("chat.composer.multiShare")}
+                title={t("chat.composer.multiShareTip")}
                 className={cn(
                   "flex h-8 w-8 items-center justify-center rounded-lg transition active:scale-95",
                   shareActive ? "bg-accent-soft text-primary" : "text-muted hover:bg-surface hover:text-primary",
@@ -590,8 +592,8 @@ export function ChatComposer({ onSend, disabled, onStop, headerSlot, onShare, sh
               <button
                 type="button"
                 onClick={onStop}
-                aria-label="停止生成"
-                title="停止生成"
+                aria-label={t("chat.composer.stop")}
+                title={t("chat.composer.stop")}
                 className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500 text-white shadow-glass transition hover:bg-rose-500/90 active:scale-95"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -603,8 +605,8 @@ export function ChatComposer({ onSend, disabled, onStop, headerSlot, onShare, sh
                 type="button"
                 onClick={doSend}
                 disabled={!canSend}
-                aria-label="发送"
-                title="发送 (Enter)"
+                aria-label={t("chat.composer.send")}
+                title={t("chat.composer.sendTip")}
                 className={cn(
                   "flex h-8 w-8 items-center justify-center rounded-lg transition",
                   canSend
@@ -634,19 +636,19 @@ export function ChatComposer({ onSend, disabled, onStop, headerSlot, onShare, sh
       {previewUrl && (
         <div
           role="dialog"
-          aria-label="图片预览"
+          aria-label={t("chat.composer.imagePreview")}
           onClick={() => setPreviewUrl(null)}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
         >
           <img
             src={uploadSrc(previewUrl)}
-            alt="图片预览"
+            alt={t("chat.composer.imagePreview")}
             onClick={(e) => e.stopPropagation()}
             className="max-h-[85vh] max-w-[90vw] rounded-lg object-contain shadow-pop"
           />
           <button
             type="button"
-            aria-label="关闭预览"
+            aria-label={t("chat.composer.closePreview")}
             onClick={() => setPreviewUrl(null)}
             className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-base text-white hover:bg-black/70"
           >

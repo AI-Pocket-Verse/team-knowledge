@@ -1,6 +1,7 @@
 import { API_BASE, type ExpertChatResult, type ExpertTraceEvent } from "@/lib/api";
 import { parseSseChunk } from "@/lib/sse";
 import { handleUnauthorized } from "@/lib/sseAuth";
+import { tr } from "@/i18n";
 
 // 统一聊天的 SSE 消费(fetch + ReadableStream,带 cookie),走 orchestrate 总台。
 // 事件:step(过程)/token(打字机)/done(权威结果)/error。在专家对话事件契约上,
@@ -40,12 +41,12 @@ export async function streamUnifiedChat(message: string, o: UnifiedStreamOptions
     signal: o.signal,
   });
   if (!res.ok) {
-    if (res.status === 401) { o.onError("登录已过期，正在跳转到登录页…"); void handleUnauthorized(); return; }
-    if (res.status === 400) { o.onError("消息不能为空"); return; }
-    o.onError(res.status === 403 ? "你没有权限使用对话功能" : `请求失败（${res.status}）`);
+    if (res.status === 401) { o.onError(tr("chat.stream.expired")); void handleUnauthorized(); return; }
+    if (res.status === 400) { o.onError(tr("chat.stream.empty")); return; }
+    o.onError(res.status === 403 ? tr("chat.stream.forbidden") : tr("chat.stream.failedStatus", { status: res.status }));
     return;
   }
-  if (!res.body) { o.onError("响应为空，请稍后重试"); return; }
+  if (!res.body) { o.onError(tr("chat.stream.noBody")); return; }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();

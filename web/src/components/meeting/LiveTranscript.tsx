@@ -2,6 +2,7 @@ import { memo, useLayoutEffect, useRef } from "react";
 import type { MeetingTranscriptRow } from "@team-knowledge/shared";
 import type { ActivePartial } from "./useMeetingWS";
 import { beijingParts } from "@/lib/tz";
+import { useT } from "@/i18n";
 
 // Scrolling transcript pane shown in the meeting room while audio is flowing.
 // Two layers:
@@ -46,13 +47,14 @@ const FinalRow = memo(function FinalRow({ time, text }: { time: string; text: st
 const FinalsList = memo(function FinalsList({
   transcripts, startedAtMs,
 }: { transcripts: MeetingTranscriptRow[]; startedAtMs: number }) {
+  const t = useT();
   const overflow = transcripts.length - MAX_RENDERED_FINALS;
   const shown = overflow > 0 ? transcripts.slice(-MAX_RENDERED_FINALS) : transcripts;
   return (
     <>
       {overflow > 0 && (
         <div className="select-none text-center text-xs text-muted/60">
-          … 仅显示最近 {MAX_RENDERED_FINALS} 条，完整记录见会议结束后的纪要 …
+          {t("meeting.live.truncated", { n: MAX_RENDERED_FINALS })}
         </div>
       )}
       {shown.map((row) => (
@@ -72,7 +74,8 @@ interface Props {
   emptyHint?: string;
 }
 
-export function LiveTranscript({ transcripts, activePartial, startedAtMs, emptyHint = "等待主持人开始说话…" }: Props) {
+export function LiveTranscript({ transcripts, activePartial, startedAtMs, emptyHint }: Props) {
+  const t = useT();
   const ref = useRef<HTMLDivElement | null>(null);
   // `stick` starts true (initial render scrolls to bottom). Flips false when the
   // user scrolls away; flips back true when they return near the bottom. A ref,
@@ -102,7 +105,7 @@ export function LiveTranscript({ transcripts, activePartial, startedAtMs, emptyH
         <div className="flex h-32 items-center justify-center text-muted">
           <div className="text-center">
             <div className="text-2xl">📝</div>
-            <div className="mt-2 text-xs">{emptyHint}</div>
+            <div className="mt-2 text-xs">{emptyHint ?? t("meeting.live.waiting")}</div>
           </div>
         </div>
       ) : (

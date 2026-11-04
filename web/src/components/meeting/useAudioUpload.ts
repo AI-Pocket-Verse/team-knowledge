@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { tr } from "@/i18n";
 
 // Browser-side audio capture wrapper. Captures RAW PCM via Web Audio:
 //   1. `getUserMedia` for mic access
@@ -205,14 +206,14 @@ export function useAudioUpload(opts: Options): AudioUpload {
     // stop) can't leave a hot mic running with no UI.
     desiredRecordingRef.current = true;
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      setState({ status: "unavailable", error: "当前浏览器不支持麦克风采集，请使用 Chrome / Edge" });
+      setState({ status: "unavailable", error: tr("meeting.audio.noMic") });
       return false;
     }
     const AudioCtx = typeof window !== "undefined"
       ? (window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)
       : undefined;
     if (!AudioCtx) {
-      setState({ status: "unavailable", error: "当前浏览器不支持音频采集 (Web Audio)，请使用 Chrome / Edge" });
+      setState({ status: "unavailable", error: tr("meeting.audio.noWebAudio") });
       return false;
     }
 
@@ -236,11 +237,11 @@ export function useAudioUpload(opts: Options): AudioUpload {
       // NotAllowedError (denied) and PermissionDeniedError (legacy)
       // mean the user clicked "block" — surface a stable explanation.
       if (e?.name === "NotAllowedError" || e?.name === "PermissionDeniedError") {
-        setState({ status: "denied", error: "你拒绝了麦克风权限。请在浏览器地址栏右侧允许后重试。" });
+        setState({ status: "denied", error: tr("meeting.audio.denied") });
       } else if (e?.name === "NotFoundError" || e?.name === "DevicesNotFoundError") {
-        setState({ status: "unavailable", error: "未找到麦克风设备" });
+        setState({ status: "unavailable", error: tr("meeting.audio.notFound") });
       } else {
-        setState({ status: "error", error: e?.message ?? "麦克风初始化失败" });
+        setState({ status: "error", error: e?.message ?? tr("meeting.audio.initFailed") });
       }
       return false;
     }
@@ -351,7 +352,7 @@ export function useAudioUpload(opts: Options): AudioUpload {
       // bug). Make that loud so it's obvious in the console.
       if (ctx.sampleRate !== TARGET_SAMPLE_RATE) {
         console.warn("[meeting] ⚠ AudioContext sampleRate is NOT 16000 — STT will lag/drift", { actual: ctx.sampleRate, expected: TARGET_SAMPLE_RATE });
-        onErrorRef.current?.(`音频采样率为 ${ctx.sampleRate}Hz（预期 16000Hz），实时转录可能延迟。建议改用 Chrome/Edge。`);
+        onErrorRef.current?.(tr("meeting.audio.sampleRate", { rate: ctx.sampleRate }));
       } else if (import.meta.env.DEV) {
         console.log("[meeting] PCM capture started (AudioWorklet)", { sampleRate: ctx.sampleRate });
       }

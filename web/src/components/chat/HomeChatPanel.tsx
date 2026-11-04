@@ -8,10 +8,12 @@ import { ExpertSelectorBar } from "./ExpertSelectorBar";
 import { streamUnifiedChat } from "./streamUnifiedChat";
 import { toast } from "@/components/Toaster";
 import { getAssistantName } from "@/lib/assistantName";
+import { useT } from "@/i18n";
 
 // 首页统一聊天:全走 orchestrate(总台/专家)。与 AiBubble 共享 useChatStore;
 // 但 AiBubble 仍走旧 streamChat(/api/chat/message),保住飞书双向 + thinking(后续再退役旧路由)。
 export function HomeChatPanel() {
+  const t = useT();
   const messages = useChatStore((s) => s.messages);
   const status = useChatStore((s) => s.status);
   const error = useChatStore((s) => s.error);
@@ -124,7 +126,7 @@ export function HomeChatPanel() {
           // 只在「出错的这轮正是当前视图」时弹 toast —— 否则用户已切到别的会话,
           // 为后台某会话弹「请求失败」会让人摸不着头脑。
           const onThisView = useChatStore.getState().messages.some((mm) => mm.id === draftId);
-          if (mountedRef.current && onThisView) toast.error(m || "请求失败");
+          if (mountedRef.current && onThisView) toast.error(m || t("chat.home.requestFailed"));
         },
       });
     } finally {
@@ -175,24 +177,24 @@ export function HomeChatPanel() {
             // 切换到另一条会话、消息未回:显示加载中(而非误导的 Hi助手空态或旧内容)。
             <div className="mb-6 flex items-center justify-center gap-2 text-sm text-muted">
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-line border-t-primary" aria-hidden />
-              加载对话中…
+              {t("chat.home.loading")}
             </div>
           ) : loadError && conversationId ? (
             // 加载失败:显式提示 + 重试(而不是把拉取失败误当成新对话空态)。重试即再次拉取该会话。
             <div className="mb-6 flex flex-col items-center gap-3 text-center">
-              <p className="text-sm text-muted">对话加载失败,请重试({loadError})</p>
+              <p className="text-sm text-muted">{t("chat.home.loadFailed", { error: loadError })}</p>
               <button
                 type="button"
                 onClick={() => void useChatStore.getState().switchConversation(conversationId)}
                 className="rounded-lg border border-line px-4 py-1.5 text-sm text-fg transition hover:bg-surface"
               >
-                重试
+                {t("common.retry")}
               </button>
             </div>
           ) : conversationId ? (
             // 已有会话但暂无消息(如刚建的空会话 / 被清空):不显示 Hi助手新对话品牌页
             //(「点开对话却出现 Hi助手」正是要避免的),给中性提示,输入框仍在、可继续聊。
-            <p className="mb-6 text-center text-sm text-muted">这个对话还没有消息,发一条消息开始吧</p>
+            <p className="mb-6 text-center text-sm text-muted">{t("chat.home.empty")}</p>
           ) : (
             // 真正的新对话(conversationId 为空):助手落地页。
             <h2 className="mb-6 text-center font-brand text-[2.75rem] font-bold tracking-tight text-fg">Hi {getAssistantName()}</h2>

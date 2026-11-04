@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { uploadSrc } from "@/lib/api";
 import { CollapseChevron } from "@/components/ui/CollapseChevron";
 import { formatChatTimestamp, shouldShowChatTimestamp } from "@/lib/formatChatTime";
+import { useT } from "@/i18n";
 
 // Where a mention chip in the rendered history bubble should
 // navigate to when clicked. Matches the existing top-level routes —
@@ -93,6 +94,7 @@ function UserContent({ content, mentions }: { content: string; mentions: Mention
 // owning message list (preserves the user's expanded/folded choice
 // for each card across token-driven re-renders).
 function ThinkingCard({ text, active }: { text: string; active: boolean }) {
+  const t = useT();
   // Default-expanded WHILE thinking so the user can watch reasoning
   // arrive live (mimics OpenAI o1 / Claude reasoning UIs). Once
   // active flips to false, leave it as-is — the user can collapse
@@ -115,10 +117,10 @@ function ThinkingCard({ text, active }: { text: string; active: boolean }) {
   const hasBody = text.length > 0;
   const canToggle = hasBody;
   const label = active
-    ? "深度思考中…"
+    ? t("chat.list.thinkingActive")
     : hasBody
-      ? (expanded ? "已深度思考（点击折叠）" : "已深度思考（点击展开）")
-      : "已深度思考";
+      ? (expanded ? t("chat.list.thinkingCollapse") : t("chat.list.thinkingExpand"))
+      : t("chat.list.thinkingDone");
 
   return (
     <div className="max-w-[85%] rounded-xl border border-line bg-surface px-3 py-2 text-xs">
@@ -197,6 +199,7 @@ interface Props {
 }
 
 export function ChatMessageList({ messages, status, error, isThinking = false, roleName = (id) => id, onEscalationHandled = () => {}, selecting = false, onSelectingChange = () => {}, hasMoreOlder = false, loadingOlder = false, onLoadOlder = () => {}, replying = false, autoScroll = true }: Props) {
+  const t = useT();
   const ref = useRef<HTMLDivElement | null>(null);
   // The first scroll-to-bottom runs in `useLayoutEffect` so it
   // happens BEFORE the browser paints — the user lands directly on
@@ -431,8 +434,8 @@ export function ChatMessageList({ messages, status, error, isThinking = false, r
             // for "this transaction needed attention".
             <span
               className="mt-2 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-500 text-[12px] font-bold leading-none text-white"
-              title="生成已中断"
-              aria-label="生成已中断"
+              title={t("chat.list.interrupted")}
+              aria-label={t("chat.list.interrupted")}
             >!</span>
           )}
           <div className={cn(
@@ -452,7 +455,7 @@ export function ChatMessageList({ messages, status, error, isThinking = false, r
                   <a key={url} href={uploadSrc(url)} target="_blank" rel="noreferrer" className="block">
                     <img
                       src={uploadSrc(url)}
-                      alt={isUser ? "聊天图片" : "AI 生成图片"}
+                      alt={isUser ? t("chat.list.imageUser") : t("chat.list.imageAi")}
                       className={cn(
                         "rounded-lg border border-line object-cover",
                         isUser ? "max-h-40 max-w-[12rem]" : "max-h-72 max-w-[20rem]",
@@ -529,12 +532,12 @@ export function ChatMessageList({ messages, status, error, isThinking = false, r
       {selecting && (
         <div className="pointer-events-none absolute left-1/2 top-2 z-10 -translate-x-1/2">
           <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1.5 text-xs shadow-glassLg">
-            <span className="text-muted">已选 <b className="text-fg">{selectedRows.length}</b> 条</span>
+            <span className="text-muted">{t("chat.list.selectedPre")}<b className="text-fg">{selectedRows.length}</b>{t("chat.list.selectedPost")}</span>
             <button type="button" onClick={toggleAll} className="rounded-lg px-2 py-1 text-muted transition hover:bg-surface hover:text-fg">
-              {allSelected ? "取消全选" : "全选"}
+              {allSelected ? t("chat.list.deselectAll") : t("chat.list.selectAll")}
             </button>
             <button type="button" onClick={exitSelect} className="rounded-lg px-2 py-1 text-muted transition hover:bg-surface hover:text-fg">
-              取消
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -542,7 +545,7 @@ export function ChatMessageList({ messages, status, error, isThinking = false, r
               onClick={() => setImageOpen(true)}
               className="rounded-lg border border-line bg-white px-2.5 py-1 font-medium text-fg transition enabled:hover:bg-surface disabled:opacity-50"
             >
-              生成图片
+              {t("chat.list.makeImage")}
             </button>
             <button
               type="button"
@@ -550,7 +553,7 @@ export function ChatMessageList({ messages, status, error, isThinking = false, r
               onClick={() => setShareOpen(true)}
               className="rounded-lg bg-primary px-2.5 py-1 font-medium text-primary-fg transition enabled:hover:bg-primary/90 disabled:opacity-50"
             >
-              分享到文档
+              {t("chat.list.shareToDoc")}
             </button>
           </div>
         </div>
@@ -558,12 +561,12 @@ export function ChatMessageList({ messages, status, error, isThinking = false, r
       <div ref={ref} onScroll={onScrollList} className="flex-1 overflow-y-auto px-5 pt-5 pb-3 space-y-3 text-sm">
       {(loadingOlder || hasMoreOlder) && (
         <div className="py-1 text-center text-[11px] text-muted">
-          {loadingOlder ? "加载更早…" : "上滑加载更早的对话"}
+          {loadingOlder ? t("chat.list.loadingOlder") : t("chat.list.loadOlderHint")}
         </div>
       )}
       {visibleMessages.length === 0 && !isBusy && (
         <div className="text-center text-xs text-muted">
-          直接提问。AI 会基于「你能访问的已发布文档」回答。
+          {t("chat.list.emptyHint")}
         </div>
       )}
       {messagesWithTime.map(renderRow)}

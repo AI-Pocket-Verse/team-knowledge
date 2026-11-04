@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMeetingSessionContext } from "./MeetingSessionContext";
+import { useT } from "@/i18n";
 
 // Floating "picture-in-picture call bar". Appears only when the mic is actively
 // recording AND the user has navigated AWAY from that meeting's room (e.g. to
@@ -7,6 +8,7 @@ import { useMeetingSessionContext } from "./MeetingSessionContext";
 // the user can stop or jump back without hunting for the meeting. The recording
 // host lives above all routes, so this persists across every in-app page.
 export function RecordingPill() {
+  const t = useT();
   const session = useMeetingSessionContext();
   const location = useLocation();
   const navigate = useNavigate();
@@ -20,24 +22,24 @@ export function RecordingPill() {
     <div className="fixed bottom-5 right-5 z-50 flex items-center gap-3 rounded-full border border-rose-200 bg-white/95 px-4 py-2 shadow-glassLg backdrop-blur">
       <span className="inline-flex items-center gap-1.5 text-sm font-medium text-rose-700">
         <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
-        {muted ? "已静音录制" : "录制中"}
+        {muted ? t("meeting.pill.mutedRecording") : t("meeting.pill.recording")}
       </span>
       <span className="max-w-[160px] truncate text-xs text-muted">
-        {session.detail?.session.title ?? "会议"}
+        {session.detail?.session.title ?? t("meeting.pill.defaultTitle")}
       </span>
       <button
         type="button"
         onClick={() => navigate(`/meeting/${session.meetingId}`)}
         className="rounded-full border border-line bg-white px-3 py-1 text-xs font-medium text-fg transition hover:bg-surface"
       >
-        返回会议
+        {t("meeting.pill.back")}
       </button>
       <button
         type="button"
         onClick={session.stopRecording}
         className="rounded-full bg-rose-500 px-3 py-1 text-xs font-medium text-white transition hover:bg-rose-500/90"
       >
-        停止
+        {t("meeting.pill.stop")}
       </button>
     </div>
   );

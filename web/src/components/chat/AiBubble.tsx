@@ -7,6 +7,7 @@ import { ChatMessageList } from "./ChatMessageList";
 import { streamChat } from "./useChatStream";
 import { cn } from "@/lib/cn";
 import { getAssistantName } from "@/lib/assistantName";
+import { useT } from "@/i18n";
 
 // Floating AI surface with three states:
 //   1. closed  → only the bottom-right bubble is visible
@@ -27,6 +28,7 @@ const DRAG_THRESHOLD = 4;
 const BUBBLE_SIZE = 48;
 
 export function AiBubble() {
+  const t = useT();
   const isOpen = useChatStore((s) => s.isOpen);
   const isPinned = useChatStore((s) => s.isPinned);
   const setOpen = useChatStore((s) => s.setOpen);
@@ -241,7 +243,7 @@ export function AiBubble() {
           onPointerDown={onBubblePointerDown}
           onPointerMove={onBubblePointerMove}
           onPointerUp={onBubblePointerUp}
-          aria-label={isOpen ? `关闭 ${getAssistantName()}` : `打开 ${getAssistantName()}`}
+          aria-label={isOpen ? t("chat.bubble.close", { name: getAssistantName() }) : t("chat.bubble.open", { name: getAssistantName() })}
           aria-pressed={isOpen}
           style={dragStyle}
           className="fixed bottom-6 right-6 z-40 flex h-12 w-12 cursor-grab touch-none select-none items-center justify-center rounded-full bg-primary text-primary-fg shadow-pop transition hover:scale-105 active:scale-95 active:cursor-grabbing"
@@ -285,25 +287,25 @@ export function AiBubble() {
                 // hides the in-progress assistant bubble during the
                 // same window, so the user sees pulsing dots + this hint
                 // until the answer drops in fully formed.
-                <span className="text-xs font-normal text-muted">正在思考中…</span>
+                <span className="text-xs font-normal text-muted">{t("chat.bubble.thinking")}</span>
               ) : activeArticleId ? (
                 // Dynamic context hint — tells the user the chat is
                 // currently scoped to the article they're reading, so
                 // questions like "总结这篇" reliably ground on it.
                 <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-medium text-primary">
-                  本文
+                  {t("chat.bubble.thisDoc")}
                 </span>
               ) : (
-                <span className="text-xs font-normal text-muted">已发布文档</span>
+                <span className="text-xs font-normal text-muted">{t("chat.bubble.published")}</span>
               )}
             </div>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setPinned(!isPinned)}
-                aria-label={isPinned ? "取消固定" : "固定到右侧"}
+                aria-label={isPinned ? t("chat.bubble.unpin") : t("chat.bubble.pin")}
                 aria-pressed={isPinned}
-                title={isPinned ? "取消固定" : "固定到右侧"}
+                title={isPinned ? t("chat.bubble.unpin") : t("chat.bubble.pin")}
                 className={cn(
                   "flex h-8 w-8 items-center justify-center rounded-lg transition",
                   isPinned ? "bg-accent-soft text-primary" : "text-muted hover:bg-surface hover:text-fg",
@@ -314,7 +316,7 @@ export function AiBubble() {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                aria-label="关闭"
+                aria-label={t("common.close")}
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition hover:bg-surface hover:text-fg"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

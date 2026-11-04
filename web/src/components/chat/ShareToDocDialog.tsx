@@ -5,8 +5,9 @@ import { toast } from "@/components/Toaster";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/stores/auth";
 import { useWorkspaceTree } from "@/stores/workspaceTree";
-import { CHAT_CARD_USER_LABEL, chatCardAssistantLabel } from "./chatCardLabels";
+import { chatCardUserLabel, chatCardAssistantLabel } from "./chatCardLabels";
 import { getAssistantName } from "@/lib/assistantName";
+import { tr, useT } from "@/i18n";
 
 // Share selected chat messages into a brand-new knowledge-base document.
 // The doc body is built CLIENT-SIDE from the selected Q&A turns and saved
@@ -27,21 +28,21 @@ const ROOT = "__root__";
 // useChatCardEnhancer); the doc itself is created archived/read-only.
 // We include the question + answer text only (no raw 深度思考 trace).
 export function buildShareMarkdown(messages: ChatMessageRow[]): string {
-  const blocks: string[] = [`*摘自 ${getAssistantName()} 对话*`, ""];
+  const blocks: string[] = [tr("chat.share.excerptFrom", { name: getAssistantName() }), ""];
   for (const m of messages) {
-    const label = m.role === "user" ? CHAT_CARD_USER_LABEL : chatCardAssistantLabel();
+    const label = m.role === "user" ? chatCardUserLabel() : chatCardAssistantLabel();
     const images = m.images ?? [];
     const hasContent = m.content.trim().length > 0;
     blocks.push(`> **${label}**`, ">");
     // Attached images first (matches the chat UI's 图在上、文字在下). Each is a
     // quoted markdown image so it stays inside this card's single blockquote;
     // urls are the raw /uploads/<file> the row carries (stored as-is in the doc).
-    for (const url of images) blocks.push(`> ![图片](${url})`);
+    for (const url of images) blocks.push(`> ![${tr("chat.share.imageAlt")}](${url})`);
     if (images.length && hasContent) blocks.push(">");
     // Show body text when there is any — or the placeholder only when the card
     // would otherwise be empty (no text AND no images).
     if (hasContent || images.length === 0) {
-      const body = m.content.trim() || (m.role === "user" ? "_（空）_" : "_（无内容）_");
+      const body = m.content.trim() || (m.role === "user" ? tr("chat.share.emptyUser") : tr("chat.share.emptyAi"));
       const quotedBody = body
         .split("\n")
         .map((line) => (line.length ? `> ${line}` : ">"))
@@ -61,10 +62,11 @@ export function ShareToDocDialog({
   /** Called after the doc is created; receives the new article id. */
   onShared: (articleId: string) => void;
 }) {
+  const t = useT();
   const isAdmin = useAuth((s) => Boolean(s.user?.isAdmin));
   const requestRoleRefresh = useWorkspaceTree((s) => s.requestRoleRefresh);
 
-  const [title, setTitle] = useState(`${getAssistantName()} 对话摘录`);
+  const [title, setTitle] = useState(tr("chat.share.defaultTitle", { name: getAssistantName() }));
   const [roles, setRoles] = useState<WorkspaceRole[] | null>(null);
   const [roleSel, setRoleSel] = useState<string>(""); // role id | NEW
   const [newRoleName, setNewRoleName] = useState("");
@@ -87,7 +89,7 @@ export function ShareToDocDialog({
         setRoles(owned);
         setRoleSel(owned[0]?.id ?? (isAdmin ? NEW : ""));
       })
-      .catch((e) => { if (alive) { setRoles([]); toast.error(e instanceof ApiError ? e.message : "加载角色失败"); } });
+      .catch((e) => { if (alive) { setRoles([]); toast.error(e instanceof ApiError ? e.message : t("chat.shareDoc.loadRolesFailed")); } });
     return () => { alive = false; };
   }, [isAdmin]);
 
@@ -133,7 +135,7 @@ export function ShareToDocDialog({
       // 3) 从拼好的 markdown 创建文档(去状态后无归档/只读快照概念,即普通文档)。
       const res = await api.articles.create({ roleId, folderId, title: title.trim(), contentMarkdown: markdown });
       requestRoleRefresh(roleId); // nudge the left rail to show the new doc
-      toast.success("已保存为文档");
+      toast.success(t("chat.shareDoc.saved"));
       onShared(res.article.id);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : (e as Error).message);
@@ -150,88 +152,88 @@ export function ShareToDocDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-line px-5 py-3">
-          <div className="text-base font-semibold text-fg">分享到文档</div>
-          <div className="text-xs text-muted">已选 {messages.length} 条</div>
+          <div className="text-base font-semibold text-fg">{t("chat.shareDoc.title")}</div>
+          <div className="text-xs text-muted">{t("chat.shareDoc.selected", { n: messages.length })}</div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 text-sm">
           {noWritableRole ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-              你还没有可写入的角色，暂时无法保存对话。请联系管理员为你分配角色。
+              {t("chat.shareDoc.noRole")}
             </div>
           ) : (
             <div className="flex flex-col gap-4">
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted">文档标题</span>
+                <span className="text-xs text-muted">{t("chat.shareDoc.docTitle")}</span>
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   maxLength={255}
                   className="rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-primary"
-                  placeholder="给这份摘录起个标题"
+                  placeholder={t("chat.shareDoc.titlePlaceholder")}
                 />
               </label>
 
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted">保存到角色</span>
+                <span className="text-xs text-muted">{t("chat.shareDoc.saveToRole")}</span>
                 <select
                   value={roleSel}
                   onChange={(e) => setRoleSel(e.target.value)}
                   disabled={roles === null}
                   className="rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-primary"
                 >
-                  {roles === null && <option value="">加载中…</option>}
+                  {roles === null && <option value="">{t("common.loading")}</option>}
                   {(roles ?? []).map((r) => (
                     <option key={r.id} value={r.id}>👤 {r.name}</option>
                   ))}
-                  {isAdmin && <option value={NEW}>➕ 新建角色…</option>}
+                  {isAdmin && <option value={NEW}>{t("chat.shareDoc.newRoleOption")}</option>}
                 </select>
               </label>
 
               {roleSel === NEW && (
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs text-muted">新角色名称</span>
+                  <span className="text-xs text-muted">{t("chat.shareDoc.newRoleName")}</span>
                   <input
                     value={newRoleName}
                     onChange={(e) => setNewRoleName(e.target.value)}
                     maxLength={50}
                     className="rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-primary"
-                    placeholder="例如：市场部"
+                    placeholder={t("chat.shareDoc.newRolePlaceholder")}
                   />
                 </label>
               )}
 
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted">保存到目录</span>
+                <span className="text-xs text-muted">{t("chat.shareDoc.saveToFolder")}</span>
                 <select
                   value={folderSel}
                   onChange={(e) => setFolderSel(e.target.value)}
                   disabled={loadingFolders}
                   className="rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-primary"
                 >
-                  <option value={ROOT}>📂 角色根目录（不放入目录）</option>
+                  <option value={ROOT}>{t("chat.shareDoc.rootOption")}</option>
                   {(folders ?? []).map((f) => (
                     <option key={f.id} value={f.id}>📁 {f.name}</option>
                   ))}
-                  <option value={NEW}>➕ 新建目录…</option>
+                  <option value={NEW}>{t("chat.shareDoc.newFolderOption")}</option>
                 </select>
               </label>
 
               {folderSel === NEW && (
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs text-muted">新目录名称</span>
+                  <span className="text-xs text-muted">{t("chat.shareDoc.newFolderName")}</span>
                   <input
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
                     maxLength={50}
                     className="rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-primary"
-                    placeholder="例如：会议记录"
+                    placeholder={t("chat.shareDoc.newFolderPlaceholder")}
                   />
                 </label>
               )}
 
               <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted">预览</span>
+                <span className="text-xs text-muted">{t("chat.shareDoc.preview")}</span>
                 <div className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-line bg-surface px-3 py-2 text-xs leading-relaxed text-fg/80">
                   {markdown}
                 </div>
@@ -246,7 +248,7 @@ export function ShareToDocDialog({
             onClick={onClose}
             className="rounded-lg border border-line bg-white px-4 py-1.5 text-sm transition hover:bg-surface"
           >
-            取消
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -257,7 +259,7 @@ export function ShareToDocDialog({
               "enabled:hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50",
             )}
           >
-            {submitting ? "保存中…" : "归档为文档"}
+            {submitting ? t("common.saving") : t("chat.shareDoc.submit")}
           </button>
         </div>
       </div>

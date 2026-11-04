@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { ExpertSummary } from "@/lib/api";
 import { ExpertSelectorBar } from "./ExpertSelectorBar";
+import { setCurrentLang } from "@/i18n/lang";
 
 const EXPERTS: ExpertSummary[] = [
   { roleId: "r1", name: "产品", color: null, instruction: "", avatarUrl: null, webSearch: false, canEdit: true },
@@ -60,5 +61,19 @@ describe("ExpertSelectorBar", () => {
     render(<ExpertSelectorBar experts={EXPERTS} value={[]} onChange={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /选择专家/ }));
     expect(screen.queryByRole("button", { name: /设定/ })).toBeNull();
+  });
+});
+
+describe("ExpertSelectorBar (English)", () => {
+  it("renders English labels and the expert suffix", () => {
+    setCurrentLang("en");
+    try {
+      render(<ExpertSelectorBar experts={EXPERTS} value={[]} onChange={() => {}} />);
+      fireEvent.click(screen.getByRole("button", { name: /Choose an expert/ }));
+      expect(screen.getByPlaceholderText("Search experts…")).toBeTruthy();
+      expect(screen.getByText("技术 expert")).toBeTruthy();
+    } finally {
+      setCurrentLang("zh");
+    }
   });
 });

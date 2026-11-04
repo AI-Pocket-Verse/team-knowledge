@@ -9,6 +9,7 @@ import { BackButton } from "@/components/ui/BackButton";
 import { cn } from "@/lib/cn";
 import { resolveRoleColor } from "@/lib/roleColors";
 import { getAssistantName } from "@/lib/assistantName";
+import { useT } from "@/i18n";
 
 // Open to any logged-in user (incl. role-less). Visibility (public/private)
 // controls who can see the meeting, not who can create it. assistant's retrieval
@@ -23,6 +24,7 @@ import { getAssistantName } from "@/lib/assistantName";
 // The form's config defaults are the product defaults — adjustable
 // inline once the live room exists.
 export function MeetingCreatePage() {
+  const t = useT();
   const navigate = useNavigate();
 
   const [roles, setRoles] = useState<{ id: string; name: string; color: string | null }[] | null>(null);
@@ -80,7 +82,7 @@ export function MeetingCreatePage() {
   async function submit() {
     const trimmed = title.trim();
     if (!trimmed) {
-      toast.error("请填写会议主题");
+      toast.error(t("meeting.create.needTitle"));
       return;
     }
     setSubmitting(true);
@@ -98,7 +100,7 @@ export function MeetingCreatePage() {
       // Best-effort clipboard copy. Some browsers reject clipboard
       // writes outside user-gesture stacks even though we ARE in one;
       // we ignore the error so navigation still happens.
-      try { await navigator.clipboard.writeText(url); toast.success("已复制邀请链接，粘贴到群里分享"); } catch { /* ignore */ }
+      try { await navigator.clipboard.writeText(url); toast.success(t("meeting.create.linkCopied")); } catch { /* ignore */ }
       navigate(`/meeting/${sessionId}`);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
@@ -116,27 +118,27 @@ export function MeetingCreatePage() {
       <div className="rounded-xl border border-line bg-white p-6 shadow-glass">
         {/* 返回图标放标题左侧(与自动化二级页面统一) */}
         <div className="flex items-center gap-3">
-          <BackButton to="/meeting" label="返回会议中心" />
-          <h1 className="text-lg font-semibold text-fg">创建新会议</h1>
+          <BackButton to="/meeting" label={t("meeting.create.back")} />
+          <h1 className="text-lg font-semibold text-fg">{t("meeting.create.title")}</h1>
         </div>
 
         <div className="mt-5 flex flex-col gap-5">
-          <Field label="会议主题" required>
+          <Field label={t("meeting.create.topic")} required>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={120}
-              placeholder="例如：V2 支付需求评审"
+              placeholder={t("meeting.create.topicPlaceholder")}
               className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-fg outline-none focus:border-primary"
             />
           </Field>
 
-          <Field label="可见性">
+          <Field label={t("meeting.create.visibility")}>
             <div className="flex flex-col gap-2">
               {([
-                { v: "public" as const, label: "公开", desc: "所有成员都能看到并旁观" },
-                { v: "private" as const, label: "私密", desc: "仅你可见" },
+                { v: "public" as const, label: t("meeting.create.public"), desc: t("meeting.create.publicDesc") },
+                { v: "private" as const, label: t("meeting.create.private"), desc: t("meeting.create.privateDesc") },
               ]).map((o) => (
                 <label key={o.v} className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm transition hover:bg-surface">
                   <input
@@ -152,11 +154,11 @@ export function MeetingCreatePage() {
             </div>
           </Field>
 
-          <Field label={`${getAssistantName()} 检索范围（角色，可选）`}>
+          <Field label={t("meeting.create.scope", { name: getAssistantName() })}>
             {rolesError && <div className="text-sm text-rose-600">{rolesError}</div>}
             {!roles && !rolesError && <DelayedLoader />}
             {roles && roles.length === 0 && (
-              <div className="text-sm text-muted">尚未创建任何角色。请到「管理后台 → 角色」先创建角色。</div>
+              <div className="text-sm text-muted">{t("meeting.create.noRoles")}</div>
             )}
             {roles && roles.length > 0 && (
               <ul className="flex flex-col gap-1">
@@ -189,13 +191,13 @@ export function MeetingCreatePage() {
               </ul>
             )}
             <p className="mt-1 text-xs text-muted">
-              {getAssistantName()} 检索时会取「这些角色」∩「提问者权限」的交集，绝不越权。
-              不选 = 仅检索公开文档。
+              {t("meeting.create.scopeHint1", { name: getAssistantName() })}
+              {t("meeting.create.scopeHint2")}
             </p>
           </Field>
 
           <div className="rounded-lg border border-line bg-surface px-4 py-3">
-            <div className="mb-2 text-sm font-medium text-fg">选项</div>
+            <div className="mb-2 text-sm font-medium text-fg">{t("meeting.create.options")}</div>
             <ul className="flex flex-col gap-2 text-sm">
               <li>
                 <label className="flex cursor-pointer items-center gap-2">
@@ -205,7 +207,7 @@ export function MeetingCreatePage() {
                     onChange={(e) => patchConfig({ recording: e.target.checked })}
                     className="h-4 w-4 accent-primary"
                   />
-                  <span>录音存档（会议结束后可下载回放）</span>
+                  <span>{t("meeting.create.optRecording")}</span>
                 </label>
               </li>
               <li>
@@ -216,7 +218,7 @@ export function MeetingCreatePage() {
                     onChange={(e) => patchConfig({ tts: e.target.checked })}
                     className="h-4 w-4 accent-primary"
                   />
-                  <span>{getAssistantName()} 语音朗读 （TTS，通过主持人设备外放）</span>
+                  <span>{t("meeting.create.optTts", { name: getAssistantName() })}</span>
                 </label>
               </li>
               <li>
@@ -227,7 +229,7 @@ export function MeetingCreatePage() {
                     onChange={(e) => patchConfig({ triggerKeyword: e.target.checked })}
                     className="h-4 w-4 accent-primary"
                   />
-                  <span>关键词触发（检测到引用“以前的方案”时介入）</span>
+                  <span>{t("meeting.create.optKeyword")}</span>
                 </label>
               </li>
               <li>
@@ -238,7 +240,7 @@ export function MeetingCreatePage() {
                     onChange={(e) => patchConfig({ triggerSilence: e.target.checked })}
                     className="h-4 w-4 accent-primary"
                   />
-                  <span>静默触发（冷场时主动总结）</span>
+                  <span>{t("meeting.create.optSilence")}</span>
                 </label>
               </li>
               <li>
@@ -249,38 +251,38 @@ export function MeetingCreatePage() {
                     onChange={(e) => patchConfig({ triggerProactive: e.target.checked })}
                     className="h-4 w-4 accent-primary"
                   />
-                  <span>主动参与（讨论进行中，结合知识库主动评论）</span>
+                  <span>{t("meeting.create.optProactive")}</span>
                 </label>
               </li>
               <li className="flex flex-col gap-2">
-                <span>评论频次：</span>
+                <span>{t("meeting.create.freq")}</span>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-muted">每</span>
+                  <span className="text-sm text-muted">{t("meeting.create.freqEvery")}</span>
                   <Wheel
-                    ariaLabel="分钟"
+                    ariaLabel={t("meeting.create.freqMinutes")}
                     items={MINUTE_OPTIONS}
                     value={config.freqLimitMinutes}
                     onChange={(v) => patchConfig({ freqLimitMinutes: v })}
                   />
-                  <span className="text-sm text-muted">分钟最多</span>
+                  <span className="text-sm text-muted">{t("meeting.create.freqAtMost")}</span>
                   <Wheel
-                    ariaLabel="条数"
+                    ariaLabel={t("meeting.create.freqCount")}
                     items={MESSAGE_OPTIONS}
                     value={config.freqLimitMessages}
                     onChange={(v) => patchConfig({ freqLimitMessages: v })}
                   />
-                  <span className="text-sm text-muted">条</span>
+                  <span className="text-sm text-muted">{t("meeting.create.freqUnit")}</span>
                 </div>
               </li>
               <li className="flex items-center gap-2">
-                <span>时长提示：</span>
+                <span>{t("meeting.create.duration")}</span>
                 <select
                   value={config.durationHintHours}
                   onChange={(e) => patchConfig({ durationHintHours: Number(e.target.value) })}
                   className="rounded-lg border border-line bg-white px-2 py-1 text-sm text-fg outline-none focus:border-primary"
                 >
                   {[1, 2, 4, 8].map((n) => (
-                    <option key={n} value={n}>{n} 小时后弹「继续吗」</option>
+                    <option key={n} value={n}>{t("meeting.create.durationOption", { n })}</option>
                   ))}
                 </select>
               </li>
@@ -292,7 +294,7 @@ export function MeetingCreatePage() {
               to="/meeting"
               className="rounded-lg border border-line bg-white px-4 py-2 text-sm text-fg transition hover:bg-surface"
             >
-              取消
+              {t("common.cancel")}
             </Link>
             <button
               type="button"
@@ -300,7 +302,7 @@ export function MeetingCreatePage() {
               disabled={submitting || title.trim().length === 0}
               className="rounded-lg bg-rose-500 px-4 py-2 text-sm font-medium text-white shadow-glass transition enabled:hover:bg-rose-500/90 enabled:active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {submitting ? "创建中…" : "🔴 开始会议"}
+              {submitting ? t("meeting.create.creating") : t("meeting.create.start")}
             </button>
           </div>
         </div>

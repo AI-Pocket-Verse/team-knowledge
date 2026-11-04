@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { uploadSrc, type ExpertSummary } from "@/lib/api";
 import { CollapseChevron } from "@/components/ui/CollapseChevron";
+import { useT } from "@/i18n";
 
 // 马卡龙色系(柔和底 + 同色深字 + 同色描边),按角色稳定取色,各角色头像颜色不同。
 const MACARON: { bg: string; fg: string; bd: string }[] = [
@@ -51,6 +52,7 @@ export function ExpertSelectorBar({ experts, value, onChange }: {
   value: string[];
   onChange: (next: string[]) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -85,12 +87,12 @@ export function ExpertSelectorBar({ experts, value, onChange }: {
           <span key={id} className="inline-flex h-8 max-w-[220px] items-center gap-1.5 rounded-full border border-primary/40 bg-white pl-1 pr-1">
             <Avatar name={e.name} keyId={e.roleId} avatarUrl={e.avatarUrl} size={26} />
             <span className="flex min-w-0 flex-col leading-tight">
-              <span className="truncate text-[12px] font-semibold text-fg">{e.name}专家</span>
+              <span className="truncate text-[12px] font-semibold text-fg">{t("chat.expertBar.suffix", { name: e.name })}</span>
               {desc && <span className="truncate text-[10px] text-muted">{desc}</span>}
             </span>
             <button
               type="button"
-              aria-label="选择专家"
+              aria-label={t("chat.expertBar.pick")}
               onClick={() => setOpen((v) => !v)}
               className="flex h-5 w-5 shrink-0 items-center justify-center self-center rounded text-muted hover:text-fg"
             >
@@ -104,11 +106,11 @@ export function ExpertSelectorBar({ experts, value, onChange }: {
       {value.length === 0 && (
         <button
           type="button"
-          aria-label="选择专家"
+          aria-label={t("chat.expertBar.pick")}
           onClick={() => setOpen((v) => !v)}
           className="inline-flex h-8 items-center gap-1 rounded-full border border-primary bg-accent-soft px-3 text-xs text-primary transition hover:opacity-90"
         >
-          ＠ 选择专家 <CollapseChevron open={open} className="h-3.5 w-3.5" />
+          {t("chat.expertBar.pickButton")} <CollapseChevron open={open} className="h-3.5 w-3.5" />
         </button>
       )}
 
@@ -119,11 +121,11 @@ export function ExpertSelectorBar({ experts, value, onChange }: {
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="搜专家名…"
+            placeholder={t("chat.expertBar.searchPlaceholder")}
             className="mb-1.5 w-full rounded-lg border border-line px-2.5 py-1.5 text-xs outline-none focus:border-primary"
           />
           {filtered.length === 0 ? (
-            <p className="px-2 py-3 text-center text-xs text-muted">没有可用的专家</p>
+            <p className="px-2 py-3 text-center text-xs text-muted">{t("chat.expertBar.empty")}</p>
           ) : (
             <div className="max-h-64 overflow-y-auto">
               {filtered.map((e) => {
@@ -138,7 +140,7 @@ export function ExpertSelectorBar({ experts, value, onChange }: {
                   >
                     <Avatar name={e.name} keyId={e.roleId} avatarUrl={e.avatarUrl} size={32} />
                     <span className="flex min-w-0 flex-col leading-tight">
-                      <span className="truncate text-sm font-medium text-fg">{e.name}专家</span>
+                      <span className="truncate text-sm font-medium text-fg">{t("chat.expertBar.suffix", { name: e.name })}</span>
                       {desc && <span className="truncate text-[11px] text-muted">{desc}</span>}
                     </span>
                     <span className={`ml-auto flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[11px] ${on ? "bg-primary text-white" : "border border-line text-transparent"}`}>✓</span>
