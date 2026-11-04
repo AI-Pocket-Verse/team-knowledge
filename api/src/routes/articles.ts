@@ -1,4 +1,4 @@
-import { L } from "../utils/lang.js";
+import { L, requestLang, type Lang } from "../utils/lang.js";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
@@ -34,8 +34,8 @@ import { openSse, abortOnClientClose } from "../utils/sse.js";
 // allow it); the storage layer is the single point that decides the
 // human-readable replacement so every other consumer (list views,
 // search, export, version snapshots) sees a non-empty title.
-const UNTITLED = "未命名文档";
-const normalizeTitle = (raw: string) => (raw.trim() === "" ? UNTITLED : raw);
+// 没填标题时存的默认标题，按创建人的界面语言写；前端 web/src/pages/ArticlePage.tsx 两种写法都认作「未填」。
+const normalizeTitle = (raw: string, lang: Lang) => (raw.trim() === "" ? L(lang, "未命名文档", "Untitled document") : raw);
 
 // List-shaped article — contentMarkdown is intentionally NOT loaded
 // here. Pulling full bodies for every row would put MB of markdown
@@ -688,7 +688,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const { roleId, folderId: inputFolderId, contentMarkdown } = parsed.data;
-    const title = normalizeTitle(parsed.data.title);
+    const title = normalizeTitle(parsed.data.title, requestLang(req));
 
     const role = await prisma.role.findUnique({ where: { id: roleId } });
     if (!role) return reply.code(404).send({ error: "not_found", message: L(req, "角色不存在", "Role not found") });
@@ -824,7 +824,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
     // Rename to "未命名文档" when the caller explicitly clears the
     // title (sends ""). `undefined` means "untouched" and keeps the
     // existing value — don't conflate the two.
-    const newTitle = data.title !== undefined ? normalizeTitle(data.title) : existing.title;
+    const newTitle = data.title !== undefined ? normalizeTitle(data.title, requestLang(req)) : existing.title;
     const newBody = data.contentMarkdown ?? existing.contentMarkdown;
 
     // 去状态后:不再有发布/归档流转,版本一律记为普通编辑(kind="edit")。

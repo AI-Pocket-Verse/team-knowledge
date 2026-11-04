@@ -27,7 +27,6 @@ const bodySchema = z.object({
   unsupportedMode: z.enum(["placeholder", "drop"]),
 });
 
-const UNTITLED = "未命名文档";
 // Cap rows when rendering a bitable as a static GFM table — a doc with a huge
 // linked base shouldn't pull thousands of rows into the markdown.
 const MAX_TABLE_ROWS = 200;
@@ -163,7 +162,7 @@ export async function feishuImportRoutes(app: FastifyInstance): Promise<void> {
           }
         },
       });
-      const title = (meta.title?.trim() || UNTITLED).slice(0, 255);
+      const title = (meta.title?.trim() || L(req, "未命名文档", "Untitled document")).slice(0, 255);
 
       const sortAgg = await prisma.article.aggregate({
         where: folderId ? { folderId } : { folderId: null, roleId },

@@ -1654,3 +1654,21 @@ describe("POST /api/articles/:id/review/apply", () => {
     await app.close();
   });
 });
+
+describe("默认标题随创建人的界面语言", () => {
+  beforeEach(async () => { await resetDb(); });
+
+  it("没填标题时，中文界面存「未命名文档」，英文界面存 Untitled document", async () => {
+    await seedAdmin();
+    const role = await prisma.role.create({ data: { name: "产品" } });
+    const app = await buildServer(AUTH);
+    const cookie = authCookie("admin");
+    const zh = await app.inject({ method: "POST", url: "/api/articles", headers: { cookie }, payload: { title: "  ", contentMarkdown: "x", roleId: role.id } });
+    const en = await app.inject({ method: "POST", url: "/api/articles", headers: { cookie, "x-lang": "en" }, payload: { title: "", contentMarkdown: "x", roleId: role.id } });
+    expect(zh.statusCode, zh.body).toBeLessThan(300);
+    expect(en.statusCode, en.body).toBeLessThan(300);
+    expect(zh.json().article.title).toBe("未命名文档");
+    expect(en.json().article.title).toBe("Untitled document");
+    await app.close();
+  });
+});

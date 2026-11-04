@@ -31,8 +31,9 @@ import { useT } from "@/i18n";
 // Server-side sentinel for "no title typed yet" (see normalizeTitle in
 // api/src/routes/articles.ts). Map it to an empty input so the editor
 // shows a placeholder rather than literal text the user must delete.
-const UNTITLED = "未命名文档";
-const fromServer = (t: string) => (t === UNTITLED ? "" : t);
+// 服务端按创建人的界面语言写默认标题，两种写法都认。
+const UNTITLED = new Set(["未命名文档", "Untitled document"]);
+const fromServer = (t: string) => (UNTITLED.has(t) ? "" : t);
 
 // 统一文档页(看即可改):打开即只读浏览;有 canEdit 的人点正文/标题(懒锁)进入
 // 编辑,改动经 useAutosave 防抖自动保存。无权限的人恒只读。并发沿用单写软锁。
