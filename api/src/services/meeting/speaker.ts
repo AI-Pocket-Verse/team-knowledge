@@ -6,6 +6,8 @@ import { getProvider } from "../llm/registry.js";
 import { getTtsProvider } from "../tts/registry.js";
 import { ttsSynthesisSemaphore } from "../../utils/concurrency.js";
 import { ASSISTANT_NAME } from "../../utils/assistant.js";
+import { appLang } from "../../utils/lang.js";
+import { outputLanguageInstruction } from "../llm/language.js";
 
 // ─── assistant speaker ────────────────────────────────────────────
 // Given a trigger, generate the chime-in comment, persist it, and
@@ -136,7 +138,7 @@ function buildAssistantPrompt(input: SpeakInput, docs: { title: string; body: st
   if (input.question) parts.push(`${ASSISTANT_QUESTION_HEADER}\n${input.question}`);
 
   return {
-    systemPrompt: ASSISTANT_SYSTEM_PROMPT,
+    systemPrompt: ASSISTANT_SYSTEM_PROMPT + outputLanguageInstruction(appLang()),
     userMessage: parts.join("\n\n"),
   };
 }

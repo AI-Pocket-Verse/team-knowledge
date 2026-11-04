@@ -5,6 +5,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("../../env.js", () => ({
   AUTH_API_BASE: "http://auth.invalid/api",
   env: {
+    APP_LANGUAGE: "zh",
     INTERNAL_API_TOKEN: "t",
     WEB_PUBLIC_URL: "http://gw.invalid/kb",
     FEISHU_CARD_USE_APPLINK: false,

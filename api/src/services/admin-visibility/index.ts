@@ -5,6 +5,7 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { getSetting, setSetting } from "../settings.js";
 import { requireUser } from "../../utils/guards.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
 
 export type PageVisibility = "admin" | "all";
 export interface EligiblePage { key: string; label: string; }
@@ -15,6 +16,16 @@ export const ELIGIBLE_PAGES: EligiblePage[] = [
   { key: "weekly-report", label: "周报" },
   { key: "web-notify", label: "Web 通知" },
 ];
+const ELIGIBLE_LABELS_EN: Record<string, string> = {
+  "article-review": "Doc check",
+  "group-qa": "Group Q&A log",
+  "weekly-report": "Weekly report",
+  "web-notify": "Web notifications",
+};
+/** 按语言返回可放开页面清单(中文即 ELIGIBLE_PAGES 原样)。 */
+export function eligiblePages(lang: Lang = appLang()): EligiblePage[] {
+  return lang === "en" ? ELIGIBLE_PAGES.map((p) => ({ ...p, label: ELIGIBLE_LABELS_EN[p.key] ?? p.label })) : ELIGIBLE_PAGES;
+}
 const ELIGIBLE_KEYS = new Set(ELIGIBLE_PAGES.map((p) => p.key));
 const KEY = "admin.page-visibility";
 
@@ -52,6 +63,6 @@ export async function requireAdminOrOpenPage(req: FastifyRequest, reply: Fastify
   if (!user) return null;
   if (user.isAdmin) return user;
   if (await isOpenToAll(pageKey)) return user;
-  reply.code(403).send({ error: "forbidden", message: "无权访问该页面" });
+  reply.code(403).send({ error: "forbidden", message: L(req, "无权访问该页面", "You do not have access to this page") });
   return null;
 }

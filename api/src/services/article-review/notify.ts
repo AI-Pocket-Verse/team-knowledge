@@ -4,8 +4,9 @@
 import { prisma } from "../../db.js";
 import { kickDispatch } from "../../utils/notify/dispatcher.js";
 import { trackBestEffort } from "../../utils/guards.js";
-import { REVIEW_CATEGORY_LABEL, type HashedReviewFinding } from "./findings.js";
+import { REVIEW_CATEGORY_LABEL, REVIEW_CATEGORY_LABEL_EN, type HashedReviewFinding } from "./findings.js";
 import { ASSISTANT_NAME } from "../../utils/assistant.js";
+import { L, appLang } from "../../utils/lang.js";
 
 /** 最后编辑者 id:最近一条带作者的「人工编辑」ArticleVersion;无则回退创建者;再无则 null。
  *  排除 ai-fix(一键优化应用)与 restore(版本回滚)—— 否则刚点「应用」的人会被当成
@@ -23,8 +24,10 @@ export async function resolveLastEditorId(articleId: string): Promise<string | n
 
 /** 通知摘要:「N 处问题:类别1、类别2…」(最多列 3 类)。 */
 export function reviewSummary(findings: HashedReviewFinding[]): string {
-  const cats = [...new Set(findings.map((f) => REVIEW_CATEGORY_LABEL[f.category]))].slice(0, 3);
-  return `${findings.length} 处问题:${cats.join("、")}`;
+  const lang = appLang();
+  const labels = lang === "en" ? REVIEW_CATEGORY_LABEL_EN : REVIEW_CATEGORY_LABEL;
+  const cats = [...new Set(findings.map((f) => labels[f.category]))].slice(0, 3);
+  return L(lang, `${findings.length} 处问题:${cats.join("、")}`, `${findings.length} ${findings.length === 1 ? "issue" : "issues"}: ${cats.join(", ")}`);
 }
 
 export async function emitReviewNotification(input: {
@@ -48,7 +51,7 @@ export async function emitReviewNotification(input: {
       actorId: null,
       type: "article_review_issue",
       articleId: input.articleId,
-      payload: JSON.stringify({ actorName: `${ASSISTANT_NAME} 体检`, articleTitle: input.articleTitle, excerpt: reviewSummary(input.findings) }),
+      payload: JSON.stringify({ actorName: L(appLang(), `${ASSISTANT_NAME} 体检`, `${ASSISTANT_NAME} Check`), articleTitle: input.articleTitle, excerpt: reviewSummary(input.findings) }),
       dedupeKey,
       feishuState,
     },

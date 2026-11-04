@@ -2,6 +2,7 @@
 // 来源 + 一行操作(👎 没帮助 / 可选 查看文档)。键限定 config/elements 以过 feishu-sso 端
 // validCard(1.0)校验。用户/LLM 文本一律过 delinkLarkMd,杜绝拼出可点链接 / @所有人。
 import { delinkLarkMd } from "../../utils/notify/card.js";
+import { L, appLang } from "../../utils/lang.js";
 
 // 进 lark_md 的不可信文本(群里原话 / 发送人名 / LLM 答案 / 文档标题)统一净化:
 // delinkLarkMd 去方括号(挡 [文字](URL) 链接),再把尖括号换全角,挡 <at id=all>/<font>
@@ -41,19 +42,19 @@ export function buildGroupAnswerCard(a: GroupAnswerCardArgs): unknown {
     { tag: "div", text: { tag: "lark_md", content: safeMd(a.answer) } },
   ];
   if (a.sourceTitle) {
-    elements.push({ tag: "div", text: { tag: "lark_md", content: `<font color='grey'>来源:《${safeMd(a.sourceTitle)}》</font>` } });
+    elements.push({ tag: "div", text: { tag: "lark_md", content: L(appLang(), `<font color='grey'>来源:《${safeMd(a.sourceTitle)}》</font>`, `<font color='grey'>Source: "${safeMd(a.sourceTitle)}"</font>`) } });
   }
   if (a.model) {
-    elements.push({ tag: "div", text: { tag: "lark_md", content: `<font color='grey'>模型:${safeMd(a.model)}</font>` } });
+    elements.push({ tag: "div", text: { tag: "lark_md", content: L(appLang(), `<font color='grey'>模型:${safeMd(a.model)}</font>`, `<font color='grey'>Model: ${safeMd(a.model)}</font>`) } });
   }
   const actions: Array<Record<string, unknown>> = [
-    { tag: "button", text: { tag: "plain_text", content: "👍 有帮助" }, type: "default", value: { k: "group_qa_up", h: a.hash } },
-    { tag: "button", text: { tag: "plain_text", content: "👎 没帮助" }, type: "default", value: { k: "group_qa_down", h: a.hash } },
+    { tag: "button", text: { tag: "plain_text", content: L(appLang(), "👍 有帮助", "👍 Helpful") }, type: "default", value: { k: "group_qa_up", h: a.hash } },
+    { tag: "button", text: { tag: "plain_text", content: L(appLang(), "👎 没帮助", "👎 Not helpful") }, type: "default", value: { k: "group_qa_down", h: a.hash } },
   ];
   if (a.sourceArticleId && a.webBase) {
     actions.push({
       tag: "button",
-      text: { tag: "plain_text", content: "查看文档" },
+      text: { tag: "plain_text", content: L(appLang(), "查看文档", "View doc") },
       type: "default",
       url: `${a.webBase.replace(/\/$/, "")}/d/${a.sourceArticleId}`,
     });

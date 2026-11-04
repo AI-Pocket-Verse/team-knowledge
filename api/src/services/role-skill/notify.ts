@@ -12,6 +12,7 @@ import { feishuGateway } from "../../utils/feishuGateway.js";
 import { applinkWrap, delinkLarkMd } from "../../utils/notify/card.js";
 import { targetsIfEnabled } from "../notify-config/index.js";
 import { summarizeSkillDiff } from "./skill-diff.js";
+import { L, appLang } from "../../utils/lang.js";
 
 /** 角色主页深链(/r/:roleId),含 /team-knowledge base;可选包成飞书 applink。 */
 function roleDeepLink(roleId: string): string {
@@ -63,22 +64,24 @@ export function fmtBeijing(d: Date): string {
 
 // 「本次更新」段:首次生成 / 一句话变更摘要(对比 skill.md 新旧两版得出)。
 function changesContent(changeSummary: string | null): string {
-  if (!changeSummary) return "**本次更新：**首次生成";
-  return `**本次更新**\n${changeSummary}`;
+  const lang = appLang();
+  if (!changeSummary) return L(lang, "**本次更新：**首次生成", "**What changed:** First generation");
+  return L(lang, `**本次更新**\n${changeSummary}`, `**What changed**\n${changeSummary}`);
 }
 
 // 键限定 config/header/elements,通过 feishu-sso 端 validCard 校验。
 export function buildSkillUpdatedCard(args: SkillCardArgs): unknown {
   // 文案标点统一全角(:()),与产品文案规范一致。
+  const lang = appLang();
   const lines = [
-    `**角色：**${delinkLarkMd(args.roleName)}`,
-    `**收录文档：**${args.docCount} 篇`,
-    args.model ? `**生成模型：**${args.model}` : null,
-    `**生成时间：**${fmtBeijing(args.generatedAt)}`,
+    L(lang, `**角色：**${delinkLarkMd(args.roleName)}`, `**Role:** ${delinkLarkMd(args.roleName)}`),
+    L(lang, `**收录文档：**${args.docCount} 篇`, `**Docs included:** ${args.docCount}`),
+    args.model ? L(lang, `**生成模型：**${args.model}`, `**Model:** ${args.model}`) : null,
+    L(lang, `**生成时间：**${fmtBeijing(args.generatedAt)}`, `**Generated at:** ${fmtBeijing(args.generatedAt)}`),
   ].filter(Boolean);
   return {
     config: { wide_screen_mode: true },
-    header: { title: { tag: "plain_text", content: "📘 角色 Skill 已更新" }, template: "blue" },
+    header: { title: { tag: "plain_text", content: L(lang, "📘 角色 Skill 已更新", "📘 Role skill updated") }, template: "blue" },
     elements: [
       { tag: "div", text: { tag: "lark_md", content: lines.join("\n") } },
       { tag: "hr" },
@@ -88,7 +91,7 @@ export function buildSkillUpdatedCard(args: SkillCardArgs): unknown {
         actions: [
           {
             tag: "button",
-            text: { tag: "plain_text", content: "查看角色" },
+            text: { tag: "plain_text", content: L(lang, "查看角色", "View role") },
             type: "primary",
             url: roleDeepLink(args.roleId),
           },
@@ -115,7 +118,7 @@ export async function notifySkillUpdated(
     const firstGen = !args.prevContent?.trim();
     const changeSummary = firstGen
       ? null
-      : (await summarize(args.prevContent!, args.newContent)) ?? "本次有更新(变更摘要暂不可用)";
+      : (await summarize(args.prevContent!, args.newContent)) ?? L(appLang(), "本次有更新(变更摘要暂不可用)", "Updated (change summary unavailable)");
     const card = buildSkillUpdatedCard({
       roleId: args.roleId,
       roleName: args.roleName,

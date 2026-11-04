@@ -8,6 +8,8 @@ import { getProvider } from "../llm/registry.js";
 import { chatSemaphore } from "../../utils/concurrency.js";
 import type { GroupMsg } from "./buffer.js";
 import { ASSISTANT_NAME } from "../../utils/assistant.js";
+import { appLang } from "../../utils/lang.js";
+import { outputLanguageInstruction } from "../llm/language.js";
 
 export interface DecideResult {
   answer: string;
@@ -85,7 +87,7 @@ export async function decideAndAnswer(args: { recent: GroupMsg[]; question: stri
   try {
     const provider = await getProvider();
     const iter = provider.chat(
-      { systemPrompt: buildSystem(answerCap, aggressiveness), history: [], userMessage: buildUserMessage(args.recent, question, hits) },
+      { systemPrompt: buildSystem(answerCap, aggressiveness) + outputLanguageInstruction(appLang()), history: [], userMessage: buildUserMessage(args.recent, question, hits) },
       args.signal,
     );
     let full = "";

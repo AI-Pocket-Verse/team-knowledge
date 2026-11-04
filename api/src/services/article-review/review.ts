@@ -10,7 +10,8 @@ import { chatSemaphore } from "../../utils/concurrency.js";
 import { search } from "../retrieval/fts5.js";
 import { parseReviewFindings, hashReviewFindings, filterBySeverity, type HashedReviewFinding } from "./findings.js";
 import { lintHeadingFormat } from "./formatLint.js";
-import { ARTICLE_REVIEW_SYSTEM, buildReviewUserMessage } from "./prompt.js";
+import { appLang, type Lang } from "../../utils/lang.js";
+import { reviewSystem, buildReviewUserMessage } from "./prompt.js";
 import { getDismissedHashes } from "./dismiss.js";
 import { getMinSeverity } from "./config.js";
 import { resolveLastEditorId, emitReviewNotification, clearReviewNotifications } from "./notify.js";
@@ -133,9 +134,10 @@ export interface ReviewOutcome {
 /** 校验一篇。返回 null = 跳过(不存在/空内容/LLM 失败,状态不变,留待下轮)。 */
 export async function reviewArticle(
   articleId: string,
-  opts: { notify?: boolean; runLlm?: RunReviewLlm } = {},
+  opts: { notify?: boolean; runLlm?: RunReviewLlm; lang?: Lang } = {},
 ): Promise<ReviewOutcome | null> {
   const runLlm = opts.runLlm ?? callReviewLlm;
+  const lang = opts.lang ?? appLang();
   const art = await prisma.article.findUnique({
     where: { id: articleId },
     select: { id: true, title: true, contentMarkdown: true, roleId: true, deletedAt: true, updatedAt: true },
@@ -160,10 +162,10 @@ export async function reviewArticle(
   // (D)两遍取交集压抖动:复检 LLM 无记忆且采样有方差,同一内容两次会报出不同小问题。
   // 跑两遍、只保留两遍 hash 都出现的问题,去掉一次性噪声。第一遍失败 → 整体跳过(留待下轮);
   // 第二遍失败 → 退化为只用第一遍结果(不因省成本而漏报,也不因抖动而阻塞)。
-  const text1 = await runLlm(ARTICLE_REVIEW_SYSTEM, userMsg);
+  const text1 = await runLlm(reviewSystem(lang), userMsg);
   if (text1 === null) return null; // LLM 失败:状态不变,下轮重试
   const pass1 = hashReviewFindings(parseReviewFindings(text1));
-  const text2 = await runLlm(ARTICLE_REVIEW_SYSTEM, userMsg);
+  const text2 = await runLlm(reviewSystem(lang), userMsg);
   let merged: HashedReviewFinding[];
   if (text2 === null) {
     merged = pass1; // 第二遍不可用 → 用第一遍
@@ -175,7 +177,7 @@ export async function reviewArticle(
   // 合并「确定性格式预检」(不依赖 LLM 是否点名):标题残留 ** 等格式符号 / 标题层级跳级,
   // 必报。按 hash 去重并入 LLM 结果(预检在前,确保稳定保留)。
   const byHash = new Map<string, HashedReviewFinding>();
-  for (const f of [...hashReviewFindings(lintHeadingFormat(art.contentMarkdown)), ...merged]) {
+  for (const f of [...hashReviewFindings(lintHeadingFormat(art.contentMarkdown, lang)), ...merged]) {
     if (!byHash.has(f.hash)) byHash.set(f.hash, f);
   }
   merged = [...byHash.values()];

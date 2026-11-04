@@ -1,3 +1,4 @@
+import { L, appLang } from "../utils/lang.js";
 // 火山引擎语音服务(STT / TTS)的鉴权请求头。
 // 依据官方文档「大模型流式语音识别 API」(https://www.volcengine.com/docs/6561/1354869)与
 // 「双向流式语音合成」(https://www.volcengine.com/docs/6561/1329505)：
@@ -12,7 +13,7 @@ export interface VolcAuthCreds {
 
 export function volcAuthHeaders(creds: VolcAuthCreds, resourceId: string): Record<string, string> {
   if (creds.apiKey) return { "X-Api-Key": creds.apiKey, "X-Api-Resource-Id": resourceId };
-  if (!creds.appId || !creds.accessToken) throw new Error("火山凭据缺少 API Key 或 APP ID + Access Token");
+  if (!creds.appId || !creds.accessToken) throw new Error(L(appLang(), "火山凭据缺少 API Key 或 APP ID + Access Token", "Volcengine credentials are missing an API key or APP ID + Access Token"));
   return {
     "X-Api-App-Key": creds.appId,
     "X-Api-Access-Key": creds.accessToken,

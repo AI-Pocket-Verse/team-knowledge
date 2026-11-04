@@ -2,6 +2,9 @@ import type { WeeklyReportSnapshot } from "@team-knowledge/shared";
 import { stripCnTz } from "../../utils/beijingWeek.js";
 import { esc, approxWidth, wrapText, linScale, donutSlicePath, text, rect } from "./helpers.js";
 import { ASSISTANT_NAME } from "../../utils/assistant.js";
+import { L, appLang } from "../../utils/lang.js";
+
+const t = (zh: string, en: string): string => L(appLang(), zh, en);
 
 const W = 900;
 const PAD = 24;
@@ -12,23 +15,23 @@ interface Block { markup: string; height: number; }
 
 // ── 折线系列(对应 trends 字段)──
 const TREND_SERIES = [
-  { key: "docCreate", label: "新建", color: "#3370FF" },
-  { key: "docEdit", label: "修改", color: "#00B42A" },
-  { key: "chat", label: "提问", color: "#FF7D00" },
-  { key: "comment", label: "评论", color: "#F53F3F" },
-  { key: "like", label: "点赞", color: "#7B61FF" },
-  { key: "view", label: "查看", color: "#0FC6C2" },
-  { key: "activeUsers", label: "活跃用户", color: "#86909C" },
+  { key: "docCreate", label: t("新建", "New"), color: "#3370FF" },
+  { key: "docEdit", label: t("修改", "Edited"), color: "#00B42A" },
+  { key: "chat", label: t("提问", "Questions"), color: "#FF7D00" },
+  { key: "comment", label: t("评论", "Comments"), color: "#F53F3F" },
+  { key: "like", label: t("点赞", "Likes"), color: "#7B61FF" },
+  { key: "view", label: t("查看", "Views"), color: "#0FC6C2" },
+  { key: "activeUsers", label: t("活跃用户", "Active users"), color: "#86909C" },
 ] as const;
 
-function fmtHours(min: number): string { return `${(min / 60).toFixed(1)} 小时`; }
+function fmtHours(min: number): string { return t(`${(min / 60).toFixed(1)} 小时`, `${(min / 60).toFixed(1)} h`); }
 const num = (t: WeeklyReportSnapshot["trends"][number], key: string): number =>
   (t as unknown as Record<string, number>)[key] ?? 0;
 
 function header(s: WeeklyReportSnapshot, y: number): Block {
   const m = [
-    text(`知识库周报 · ${stripCnTz(s.weekLabel)}`, PAD, y + 26, { size: 20, weight: 600 }),
-    text("按北京时间自然周(周一–周日)统计", PAD, y + 48, { size: 12, color: "#86909c" }),
+    text(t(`知识库周报 · ${stripCnTz(s.weekLabel)}`, `Knowledge Base Weekly Report · ${stripCnTz(s.weekLabel)}`), PAD, y + 26, { size: 20, weight: 600 }),
+    text(t("按北京时间自然周(周一–周日)统计", "Calendar weeks in Beijing time (Mon-Sun)"), PAD, y + 48, { size: 12, color: "#86909c" }),
   ].join("");
   return { markup: m, height: 60 };
 }
@@ -48,19 +51,19 @@ function summaryBlock(s: WeeklyReportSnapshot, y: number): Block {
 function overviewCards(s: WeeklyReportSnapshot, y: number): Block {
   const o = s.overview;
   const cards = [
-    { label: "活跃用户", value: String(o.activeUsers) },
-    { label: "在线总时长", value: fmtHours(o.totalDurationMin) },
-    { label: "新建文档", value: String(o.docCreate) },
-    { label: "修改文档", value: String(o.docEdit) },
-    { label: `向 ${ASSISTANT_NAME} 提问`, value: String(o.chat) },
-    { label: "评论", value: String(o.comment) },
-    { label: "点赞", value: String(o.like) },
-    { label: "查看文档", value: String(o.view) },
+    { label: t("活跃用户", "Active users"), value: String(o.activeUsers) },
+    { label: t("在线总时长", "Total time online"), value: fmtHours(o.totalDurationMin) },
+    { label: t("新建文档", "Docs created"), value: String(o.docCreate) },
+    { label: t("修改文档", "Docs edited"), value: String(o.docEdit) },
+    { label: t(`向 ${ASSISTANT_NAME} 提问`, `Questions to ${ASSISTANT_NAME}`), value: String(o.chat) },
+    { label: t("评论", "Comments"), value: String(o.comment) },
+    { label: t("点赞", "Likes"), value: String(o.like) },
+    { label: t("查看文档", "Doc views"), value: String(o.view) },
   ];
   const cols = 4, gap = 12;
   const cw = (CW - gap * (cols - 1)) / cols;
   const ch = 72;
-  const parts: string[] = [text("本周概览", PAD, y + 4, { size: 15, weight: 600 })];
+  const parts: string[] = [text(t("本周概览", "This week at a glance"), PAD, y + 4, { size: 15, weight: 600 })];
   cards.forEach((c, i) => {
     const cx = PAD + (i % cols) * (cw + gap);
     const cy = y + 16 + Math.floor(i / cols) * (ch + gap);
@@ -80,7 +83,7 @@ function lineChart(s: WeeklyReportSnapshot, y: number): Block {
   const maxV = Math.max(1, ...s.trends.flatMap((t) => TREND_SERIES.map((ser) => num(t, ser.key))));
   const sy = linScale(maxV, yBot - yTop);
   const xAt = (i: number) => x0 + (days.length <= 1 ? 0 : (i / (days.length - 1)) * (x1 - x0));
-  const parts: string[] = [text("每日活动趋势", PAD, y + 16, { size: 15, weight: 600 })];
+  const parts: string[] = [text(t("每日活动趋势", "Daily activity"), PAD, y + 16, { size: 15, weight: 600 })];
   parts.push(`<line x1="${x0}" y1="${yBot}" x2="${x1}" y2="${yBot}" stroke="#eef1f5" />`);
   parts.push(text("0", x0 - 8, yBot + 4, { size: 10, color: "#c9cdd4", anchor: "end" }));
   parts.push(text(String(maxV), x0 - 8, yTop + 4, { size: 10, color: "#c9cdd4", anchor: "end" }));
@@ -104,10 +107,10 @@ function donutChart(s: WeeklyReportSnapshot, y: number): Block {
   const slices = s.composition.filter((c) => c.count > 0);
   const total = slices.reduce((n, c) => n + c.count, 0);
   if (total === 0) {
-    return { markup: text("行为构成", PAD, y + 16, { size: 15, weight: 600 }) + text("本周暂无行为数据", PAD, y + 44, { size: 12, color: "#86909c" }), height: titleH + 40 };
+    return { markup: text(t("行为构成", "Activity mix"), PAD, y + 16, { size: 15, weight: 600 }) + text(t("本周暂无行为数据", "No activity data this week"), PAD, y + 44, { size: 12, color: "#86909c" }), height: titleH + 40 };
   }
   const cx = PAD + 90, cy = y + titleH + 100, rO = 80, rI = 44;
-  const parts: string[] = [text("行为构成", PAD, y + 16, { size: 15, weight: 600 })];
+  const parts: string[] = [text(t("行为构成", "Activity mix"), PAD, y + 16, { size: 15, weight: 600 })];
   if (slices.length === 1) {
     // 单一类别 = 整圈:0°→360° 弧首尾点重合会退化成空,改画两个同心圆成环。
     parts.push(`<circle cx="${cx}" cy="${cy}" r="${rO}" fill="${PALETTE[0]}" />`);
@@ -134,13 +137,13 @@ function barChart(s: WeeklyReportSnapshot, y: number): Block {
   const titleH = 24;
   const rows = s.topContributors;
   if (rows.length === 0) {
-    return { markup: text("贡献度 Top", PAD, y + 16, { size: 15, weight: 600 }) + text("本周暂无贡献数据", PAD, y + 44, { size: 12, color: "#86909c" }), height: titleH + 40 };
+    return { markup: text(t("贡献度 Top", "Top contributors"), PAD, y + 16, { size: 15, weight: 600 }) + text(t("本周暂无贡献数据", "No contribution data this week"), PAD, y + 44, { size: 12, color: "#86909c" }), height: titleH + 40 };
   }
   const labelW = 110, barX = PAD + labelW, barMaxW = CW - labelW - 60;
   const maxV = Math.max(1, ...rows.map((r) => r.contribution));
   const sx = linScale(maxV, barMaxW);
   const rh = 26, gap = 8;
-  const parts: string[] = [text("贡献度 Top", PAD, y + 16, { size: 15, weight: 600 })];
+  const parts: string[] = [text(t("贡献度 Top", "Top contributors"), PAD, y + 16, { size: 15, weight: 600 })];
   rows.forEach((r, i) => {
     const ry = y + titleH + 6 + i * (rh + gap);
     parts.push(text(r.name.length > 7 ? r.name.slice(0, 7) + "…" : r.name, PAD + labelW - 8, ry + rh / 2 + 4, { size: 12, anchor: "end" }));
@@ -154,26 +157,26 @@ function barChart(s: WeeklyReportSnapshot, y: number): Block {
 function userTable(s: WeeklyReportSnapshot, y: number): Block {
   const titleH = 24;
   if (s.users.length === 0) {
-    return { markup: text("用户使用明细", PAD, y + 16, { size: 15, weight: 600 }) + text("本周暂无用户活动", PAD, y + 44, { size: 12, color: "#86909c" }), height: titleH + 40 };
+    return { markup: text(t("用户使用明细", "Usage by user"), PAD, y + 16, { size: 15, weight: 600 }) + text(t("本周暂无用户活动", "No user activity this week"), PAD, y + 44, { size: 12, color: "#86909c" }), height: titleH + 40 };
   }
   type Row = WeeklyReportSnapshot["users"][number];
   const cols: Array<{ h: string; w: number; get: (u: Row, i: number) => string; anchor: "start" | "end" }> = [
     { h: "#", w: 32, get: (_u, i) => String(i + 1), anchor: "start" },
-    { h: "用户", w: 120, get: (u) => (u.name.length > 8 ? u.name.slice(0, 8) + "…" : u.name), anchor: "start" },
-    { h: "贡献度", w: 70, get: (u) => String(u.contribution), anchor: "end" },
-    { h: "在线时长", w: 84, get: (u) => fmtHours(u.durationMin), anchor: "end" },
-    { h: "活跃天", w: 60, get: (u) => String(u.activeDays), anchor: "end" },
-    { h: "新建", w: 56, get: (u) => String(u.docCreate), anchor: "end" },
-    { h: "修改", w: 56, get: (u) => String(u.docEdit), anchor: "end" },
-    { h: "提问", w: 56, get: (u) => String(u.chat), anchor: "end" },
-    { h: "评论", w: 56, get: (u) => String(u.comment), anchor: "end" },
-    { h: "点赞", w: 56, get: (u) => String(u.like), anchor: "end" },
-    { h: "查看", w: 56, get: (u) => String(u.view), anchor: "end" },
-    { h: "操作", w: 56, get: (u) => String(u.ops), anchor: "end" },
+    { h: t("用户", "User"), w: 120, get: (u) => (u.name.length > 8 ? u.name.slice(0, 8) + "…" : u.name), anchor: "start" },
+    { h: t("贡献度", "Score"), w: 70, get: (u) => String(u.contribution), anchor: "end" },
+    { h: t("在线时长", "Time online"), w: 84, get: (u) => fmtHours(u.durationMin), anchor: "end" },
+    { h: t("活跃天", "Active days"), w: 60, get: (u) => String(u.activeDays), anchor: "end" },
+    { h: t("新建", "New"), w: 56, get: (u) => String(u.docCreate), anchor: "end" },
+    { h: t("修改", "Edited"), w: 56, get: (u) => String(u.docEdit), anchor: "end" },
+    { h: t("提问", "Questions"), w: 56, get: (u) => String(u.chat), anchor: "end" },
+    { h: t("评论", "Comments"), w: 56, get: (u) => String(u.comment), anchor: "end" },
+    { h: t("点赞", "Likes"), w: 56, get: (u) => String(u.like), anchor: "end" },
+    { h: t("查看", "Views"), w: 56, get: (u) => String(u.view), anchor: "end" },
+    { h: t("操作", "Actions"), w: 56, get: (u) => String(u.ops), anchor: "end" },
   ];
   const rh = 28;
   const xOf = (ci: number) => PAD + cols.slice(0, ci).reduce((n, c) => n + c.w, 0);
-  const parts: string[] = [text("用户使用明细", PAD, y + 16, { size: 15, weight: 600 })];
+  const parts: string[] = [text(t("用户使用明细", "Usage by user"), PAD, y + 16, { size: 15, weight: 600 })];
   const headY = y + titleH + 6;
   parts.push(rect(PAD, headY, CW, rh, { fill: "#fafbfc" }));
   cols.forEach((c, ci) => {
@@ -195,8 +198,8 @@ function emptyReport(s: WeeklyReportSnapshot): string {
   const h = 160;
   const body = [
     rect(0, 0, W, h, { fill: "#ffffff" }),
-    text(`知识库周报 · ${stripCnTz(s.weekLabel)}`, PAD, 44, { size: 20, weight: 600 }),
-    text("本周暂无活动记录。", PAD, 88, { size: 14, color: "#4e5969" }),
+    text(t(`知识库周报 · ${stripCnTz(s.weekLabel)}`, `Knowledge Base Weekly Report · ${stripCnTz(s.weekLabel)}`), PAD, 44, { size: 20, weight: 600 }),
+    text(t("本周暂无活动记录。", "No activity recorded this week."), PAD, 88, { size: 14, color: "#4e5969" }),
   ].join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}">${body}</svg>`;
 }

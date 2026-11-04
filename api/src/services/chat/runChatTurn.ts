@@ -21,6 +21,7 @@ import { mirrorWebTurnToFeishu } from "./feishu-mirror.js";
 import { resolveChatImages } from "../uploads/image-store.js";
 import { extractSnippet } from "../retrieval/snippet.js";
 import { touchConversation } from "./conversations.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
 
 // Mirror the BODY_CAP in fts5.ts (20K chars). Centralizing the constant
 // across modules would create an import cycle for one number; the value
@@ -31,8 +32,8 @@ const BODY_CAP = 20_000;
 /** Thrown when the global chat semaphore can't be acquired within the timeout.
  *  The web route maps this to a pre-stream HTTP 429 (no SSE opened yet). */
 export class ChatBusyError extends Error {
-  constructor() {
-    super("AI 当前繁忙，请稍后再试");
+  constructor(lang: Lang = appLang()) {
+    super(L(lang, "AI 当前繁忙，请稍后再试", "The AI is busy right now. Please try again later."));
     this.name = "ChatBusyError";
   }
 }
@@ -282,6 +283,8 @@ export type ChatTurnChunk =
   | ChatChunk;
 
 export interface RunChatTurnArgs {
+  /** 界面语言(路由传 requestLang(req);缺省 appLang())。决定回答语言与提示文案。 */
+  lang?: Lang;
   user: { id: string; isAdmin: boolean; chatPreference?: string | null };
   /** 本轮所属会话 id。调用方负责解析(web 路由按 body / 飞书走专用会话)并校验归属。 */
   conversationId: string;
@@ -316,7 +319,7 @@ export async function runChatTurn(args: RunChatTurnArgs): Promise<void> {
     try {
       release = await chatSemaphore.acquire(30_000);
     } catch {
-      throw new ChatBusyError();
+      throw new ChatBusyError(args.lang);
     }
     // Inner controller forwards the caller's signal (req close) AND lets us
     // abort the spawned LLM child on a prep failure.
@@ -379,7 +382,7 @@ export async function runChatTurn(args: RunChatTurnArgs): Promise<void> {
           userId: user.id, isAdmin: user.isAdmin, chatPreference: user.chatPreference ?? undefined,
           question: promptText,
           resolvedMentions: { hits: mentionHits, snapshot: mentionSnapshot, skillBlocks: mentionSkills },
-          history, summary: conv.summary ?? undefined, activeArticle, conversationId: conv.id,
+          history, summary: conv.summary ?? undefined, activeArticle, conversationId: conv.id, lang: args.lang,
         });
         return { prepared };
       })();
@@ -412,7 +415,7 @@ export async function runChatTurn(args: RunChatTurnArgs): Promise<void> {
         persisted = true;
         if (assistantText.length === 0) return;
         let body = assistantText;
-        if (body.length > 10_000) body = body.slice(0, 10_000) + "…（已截断）";
+        if (body.length > 10_000) body = body.slice(0, 10_000) + L(args.lang ?? appLang(), "…（已截断）", "… (truncated)");
         if (suffix) body = body + suffix;
         await prisma.chatMessage.create({
           data: {

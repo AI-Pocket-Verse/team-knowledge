@@ -12,6 +12,7 @@ import { notifyAuthorSemaphore, runExclusive } from "../../utils/concurrency.js"
 import { getOrCreateFeishuConversation } from "../chat/conversations.js";
 import { publishChatUpdate } from "../chat/chat-events.js";
 import { ASSISTANT_NAME } from "../../utils/assistant.js";
+import { L, appLang } from "../../utils/lang.js";
 
 export interface NotifyViaAssistantArgs {
   userId: string;
@@ -30,6 +31,10 @@ const NOTIFY_SYSTEM_PROMPT =
   `你是 ${ASSISTANT_NAME},团队知识库助手。把给定的「通知意图」和「上下文」改写成一条简短、` +
   "自然、友好的中文通知,直接面向用户本人。不超过 2 句话,不要寒暄客套、不要加" +
   "标题或 markdown 语法,只输出通知正文本身。";
+
+const NOTIFY_SYSTEM_PROMPT_EN =
+  `You are ${ASSISTANT_NAME}, the team knowledge base assistant. Rewrite the given [notification intent] and [context] into a short, natural, friendly notification addressed directly to the user. ` +
+  "At most 2 sentences, no pleasantries, no title or markdown. Output only the notification text itself.";
 
 // 一次性 LLM 补全:intent/context → 一段通知文案。繁忙/超时/出错都降级为 intent
 // 文本(背景通知不应因 LLM 抖动而丢失)。
@@ -50,7 +55,7 @@ async function authorNotification(
   try {
     const provider = await getProvider();
     const userMessage = `[通知意图]\n${intent}${context ? `\n\n[上下文]\n${context}` : ""}`;
-    for await (const chunk of provider.chat({ systemPrompt: NOTIFY_SYSTEM_PROMPT, history: [], userMessage }, ac.signal)) {
+    for await (const chunk of provider.chat({ systemPrompt: L(appLang(), NOTIFY_SYSTEM_PROMPT, NOTIFY_SYSTEM_PROMPT_EN), history: [], userMessage }, ac.signal)) {
       if (chunk.type === "token") out += chunk.text;
       else if (chunk.type === "error") {
         log?.error?.({ message: chunk.message }, "assistant notify authoring failed");
@@ -89,7 +94,7 @@ function buildAssistantNotifyCard(text: string, link?: { text: string; url: stri
   }
   return {
     config: { wide_screen_mode: true },
-    header: { title: { tag: "plain_text", content: `${ASSISTANT_NAME} 提醒` } },
+    header: { title: { tag: "plain_text", content: L(appLang(), `${ASSISTANT_NAME} 提醒`, `${ASSISTANT_NAME} reminder`) } },
     elements,
   };
 }

@@ -11,6 +11,8 @@ import { fetchCommits, GithubError } from "../github/client.js";
 import { fetchCommitsSsh } from "../github/ssh.js";
 import { getProvider } from "../llm/registry.js";
 import { chatSemaphore } from "../../utils/concurrency.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
+import { outputLanguageInstruction } from "../llm/language.js";
 
 const REVIEW_SYSTEM =
   "你是研发周报助手。根据下面各仓库本周的提交标题,用简体中文写 2-4 句话概括本周主要做了什么,并点出可量化的实质提升(如修复了什么、上线了什么功能、性能/稳定性改进)。" +
@@ -57,7 +59,7 @@ export async function llmReview(repos: RepoChange[]): Promise<string | null> {
   try {
     const provider = await getProvider();
     let text = "";
-    for await (const chunk of provider.chat({ systemPrompt: REVIEW_SYSTEM, history: [], userMessage: `本周提交:\n${lines.join("\n")}` }, ac.signal)) {
+    for await (const chunk of provider.chat({ systemPrompt: REVIEW_SYSTEM + outputLanguageInstruction(appLang()), history: [], userMessage: `本周提交:\n${lines.join("\n")}` }, ac.signal)) {
       if (chunk.type === "token") text += chunk.text;
       else if (chunk.type === "error") throw new Error(chunk.message);
     }

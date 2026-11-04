@@ -13,6 +13,7 @@ import type { AdminDashboardActivity, DashboardStreamActivity } from "@team-know
 import type { SseWriter } from "../utils/sse.js";
 import { prisma } from "../db.js";
 import { loadActivityEvents, redactPrivateTitle, type ActivityEvent } from "./activity.js";
+import { L, appLang } from "../utils/lang.js";
 
 export const POLL_MS = 3000;
 // How far back each poll scans for "new" events. Generous enough to tolerate a
@@ -62,7 +63,7 @@ export async function tick(): Promise<void> {
       const items: AdminDashboardActivity[] = fresh.map((e) => ({
         id: e.id,
         userId: e.uid as string,
-        userName: names.get(e.uid as string) ?? "（已删除）",
+        userName: names.get(e.uid as string) ?? L(appLang(), "（已删除）", "(Deleted)"),
         type: e.type,
         title: e.title,
         at: e.at.toISOString(),

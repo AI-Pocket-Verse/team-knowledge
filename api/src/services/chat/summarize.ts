@@ -1,6 +1,8 @@
 import { prisma } from "../../db.js";
 import { getSummaryProvider } from "../llm/summary-provider.js";
 import { chatSemaphore } from "../../utils/concurrency.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
+import { outputLanguageInstruction } from "../llm/language.js";
 
 // Rolling-summary refresh policy:
 //   - We refresh when at least `REFRESH_THRESHOLD` brand-new messages
@@ -191,7 +193,7 @@ async function doRefresh(conversationId: string, opts: MaybeRefreshOpts): Promis
     let llmFailed = false;
     try {
       for await (const chunk of provider.chat({
-        systemPrompt: SUMMARY_SYSTEM_PROMPT,
+        systemPrompt: SUMMARY_SYSTEM_PROMPT + outputLanguageInstruction(appLang()),
         history: [],
         userMessage,
       }, ac.signal)) {

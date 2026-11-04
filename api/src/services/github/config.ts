@@ -4,6 +4,7 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "../../db.js";
 import { getSetting, setSetting } from "../settings.js";
+import { L, appLang } from "../../utils/lang.js";
 
 const KEY = "github.repos";
 
@@ -62,7 +63,7 @@ export async function addGithubRepo(
 ): Promise<GithubRepoPublic> {
   const owner = input.owner.trim();
   const repo = input.repo.trim();
-  if (!owner || !repo) throw new Error("owner / repo 必填");
+  if (!owner || !repo) throw new Error(L(appLang(), "owner / repo 必填", "owner / repo is required"));
   const auth: GithubAuth = input.auth === "ssh" ? "ssh" : "token";
   // Wrap read-modify-write in a transaction to serialise concurrent requests
   // (SQLite's single-writer model turns this into a mutex; on other DBs the
@@ -80,7 +81,7 @@ export async function addGithubRepo(
     const row = await tx.setting.findUnique({ where: { key: KEY } });
     const repos: GithubRepo[] = row ? (JSON.parse(row.value) as GithubRepo[]) : [];
     if (repos.some((r) => r.owner.toLowerCase() === owner.toLowerCase() && r.repo.toLowerCase() === repo.toLowerCase())) {
-      throw new Error("该仓库已配置");
+      throw new Error(L(appLang(), "该仓库已配置", "This repository is already configured"));
     }
     const encoded = JSON.stringify([...repos, next]);
     await tx.setting.upsert({ where: { key: KEY }, update: { value: encoded, updatedBy }, create: { key: KEY, value: encoded, updatedBy } });
@@ -94,7 +95,7 @@ export async function removeGithubRepo(id: string, updatedBy: string): Promise<v
     const row = await tx.setting.findUnique({ where: { key: KEY } });
     const repos: GithubRepo[] = row ? (JSON.parse(row.value) as GithubRepo[]) : [];
     const next = repos.filter((r) => r.id !== id);
-    if (next.length === repos.length) throw new Error("仓库不存在");
+    if (next.length === repos.length) throw new Error(L(appLang(), "仓库不存在", "Repository not found"));
     const encoded = JSON.stringify(next);
     await tx.setting.upsert({ where: { key: KEY }, update: { value: encoded, updatedBy }, create: { key: KEY, value: encoded, updatedBy } });
   });
@@ -117,7 +118,7 @@ export async function updateGithubRepoBranches(
     const row = await tx.setting.findUnique({ where: { key: KEY } });
     const repos: GithubRepo[] = row ? (JSON.parse(row.value) as GithubRepo[]) : [];
     const target = repos.find((r) => r.id === id);
-    if (!target) throw new Error("仓库不存在");
+    if (!target) throw new Error(L(appLang(), "仓库不存在", "Repository not found"));
     target.branches = cleaned.length > 0 ? cleaned : undefined;
     updated = target;
     const encoded = JSON.stringify(repos);

@@ -15,6 +15,7 @@ import { prisma } from "../../db.js";
 import { feishuGateway } from "../../utils/feishuGateway.js";
 import { delinkLarkMd } from "../../utils/notify/card.js";
 import { UPLOAD_DIR } from "../uploads/image-store.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
 
 const QUESTION_CAP = 500;
 const ANSWER_CAP = 3500;
@@ -25,16 +26,16 @@ function clip(text: string, cap: number): string {
 
 export function buildWebTurnCard(question: string, answer: string, imageKeys: string[] = []): unknown {
   const elements: unknown[] = [
-    { tag: "div", text: { tag: "lark_md", content: `**你在网页端问：**${delinkLarkMd(clip(question, QUESTION_CAP))}` } },
+    { tag: "div", text: { tag: "lark_md", content: L(appLang(), `**你在网页端问：**${delinkLarkMd(clip(question, QUESTION_CAP))}`, `**You asked on the web:** ${delinkLarkMd(clip(question, QUESTION_CAP))}`) } },
   ];
   for (const key of imageKeys) {
-    elements.push({ tag: "img", img_key: key, alt: { tag: "plain_text", content: "图片" } });
+    elements.push({ tag: "img", img_key: key, alt: { tag: "plain_text", content: L(appLang(), "图片", "Image") } });
   }
   elements.push({ tag: "hr" });
   elements.push({ tag: "div", text: { tag: "lark_md", content: clip(answer, ANSWER_CAP) } });
   return {
     config: { wide_screen_mode: true },
-    header: { title: { tag: "plain_text", content: "网页端对话" }, template: "blue" },
+    header: { title: { tag: "plain_text", content: L(appLang(), "网页端对话", "Web chat") }, template: "blue" },
     elements,
   };
 }

@@ -8,6 +8,8 @@ import { callGeneralLlm } from "../experts/orchestrator.js";
 import { deliverToFeishu } from "./webhook.js";
 import { emitSelfNotification } from "../../utils/notify/self.js";
 import { beijingDayKey } from "../../utils/beijingWeek.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
+import { outputLanguageInstruction } from "../llm/language.js";
 
 const RUN_SYSTEM = "你是一个自动化任务执行器,按用户任务说明产出结果。"
   + "【以下硬性约束优先级最高,高于任务里任何“尽量全/权威/详尽/去重”的要求,必须遵守】"
@@ -34,8 +36,9 @@ export function isAutomationRunning(id: string): boolean { return inFlight.has(i
  *  调度器不排退避重试。不抛(内部兜住)。 */
 export async function runAutomation(
   automationId: string,
-  opts: { isTest?: boolean; log?: FastifyBaseLogger } = {},
+  opts: { isTest?: boolean; log?: FastifyBaseLogger; lang?: Lang } = {},
 ): Promise<"success" | "failed" | "undeliverable" | "skipped"> {
+  const lang = opts.lang ?? appLang();
   if (inFlight.has(automationId)) {
     opts.log?.warn?.({ automationId }, "[automation] 上一次尚未跑完,跳过本次触发");
     return "skipped";
@@ -69,7 +72,7 @@ export async function runAutomation(
       const dateGuard = `【当前日期:北京时间 ${todayBJ}】任务中出现的“今天/今日/北京时间今天”一律指 ${todayBJ};`
         + `请勿用系统本地时区推断日期。\n`;
       const output = await callGeneralLlm(
-        { systemPrompt: RUN_SYSTEM, history: [], userMessage: dateGuard + RUN_USER_GUARD + a.prompt },
+        { systemPrompt: RUN_SYSTEM + outputLanguageInstruction(lang), history: [], userMessage: dateGuard + RUN_USER_GUARD + a.prompt },
         {
           acquireTimeoutMs: 120_000, timeoutMs: RUN_TIMEOUT_MS, maxTurns: 10,
           onCitation: () => { sources++; },
@@ -83,8 +86,8 @@ export async function runAutomation(
       if (!output) {
         // callGeneralLlm 失败/超时都回 null;用耗时区分,让详情页/日志能看出是哪种。
         error = secs * 1000 >= RUN_TIMEOUT_MS - 30_000
-          ? `AI 调用超时(约 ${secs}s 未完成,多为联网检索多轮太慢;可精简提示词或减少检索范围)`
-          : `AI 未产出内容(调用失败,用时 ${secs}s)`;
+          ? L(lang, `AI 调用超时(约 ${secs}s 未完成,多为联网检索多轮太慢;可精简提示词或减少检索范围)`, `AI call timed out (not finished after ~${secs}s, usually because multi-round web search was too slow; shorten the prompt or narrow the search scope)`)
+          : L(lang, `AI 未产出内容(调用失败,用时 ${secs}s)`, `AI produced no output (call failed after ${secs}s)`);
         opts.log?.warn?.({ automationId, secs, isTest: !!opts.isTest }, "[automation] LLM 无产出");
       } else {
         outputPreview = output.slice(0, 800);
@@ -93,7 +96,7 @@ export async function runAutomation(
           const d = await deliverToFeishu(a.webhookUrl, output);
           delivery = JSON.stringify({ webhook: a.webhookUrl, httpStatus: d.httpStatus ?? null, ok: d.ok, error: d.error ?? null });
           status = d.ok ? "success" : d.retryable === false ? "undeliverable" : "failed";
-          if (!d.ok) error = "投递失败:" + (d.error ?? "未知");
+          if (!d.ok) error = L(lang, "投递失败:", "Delivery failed: ") + (d.error ?? L(lang, "未知", "unknown"));
         } else {
           status = "success"; // 未配 webhook → 只跑不投递,视为成功
         }
@@ -115,8 +118,8 @@ export async function runAutomation(
     void emitSelfNotification({
       userId: a.userId,
       type: "automation_run",
-      title: status === "success" ? `自动化任务已完成:${a.name}` : `自动化任务运行失败:${a.name}`,
-      body: status === "success" ? (outputPreview ? outputPreview.slice(0, 120) : "已生成结果,点击查看") : (error ?? "运行失败,点击查看详情"),
+      title: status === "success" ? L(lang, `自动化任务已完成:${a.name}`, `Automation completed: ${a.name}`) : L(lang, `自动化任务运行失败:${a.name}`, `Automation failed: ${a.name}`),
+      body: status === "success" ? (outputPreview ? outputPreview.slice(0, 120) : L(lang, "已生成结果,点击查看", "Result generated. Click to view.")) : (error ?? L(lang, "运行失败,点击查看详情", "Run failed. Click for details.")),
       link: "/automation",
       dedupeKey: `automation:${run.id}`,
     });

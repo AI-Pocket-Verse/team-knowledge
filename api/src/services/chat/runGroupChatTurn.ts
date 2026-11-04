@@ -11,6 +11,7 @@ import { buildChatPrompt } from "../prompt/build.js";
 import { getProvider } from "../llm/registry.js";
 import { chatSemaphore } from "../../utils/concurrency.js";
 import type { ChatTurnChunk } from "./runChatTurn.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
 
 export interface RunGroupChatTurnArgs {
   text: string;
@@ -29,7 +30,7 @@ export async function runGroupChatTurn(args: RunGroupChatTurnArgs): Promise<void
   try {
     release = await chatSemaphore.acquire(30_000);
   } catch {
-    onChunk({ type: "error", message: "AI 当前繁忙，请稍后再试" });
+    onChunk({ type: "error", message: L(appLang(), "AI 当前繁忙，请稍后再试", "The AI is busy right now. Please try again later.") });
     return;
   }
 

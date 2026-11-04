@@ -11,6 +11,7 @@ import { trackBestEffort } from "../../utils/guards.js";
 import { getReminderEnabled, getReminderSettings } from "./config.js";
 import { resolveLastEditorId } from "./notify.js";
 import { ASSISTANT_NAME } from "../../utils/assistant.js";
+import { L, appLang } from "../../utils/lang.js";
 
 const BEIJING_OFFSET_MS = 8 * 3_600_000;
 const WINDOW_MIN = 10; // 命中窗口:[目标时刻, +10min),容忍进程延迟/重启
@@ -56,15 +57,16 @@ export async function sendReviewReminders(dateStr: string, log?: FastifyBaseLogg
     if (await prisma.notification.findFirst({ where: { dedupeKey }, select: { id: true } })) continue;
     const pref = await prisma.notificationPref.findUnique({ where: { userId: recipientId } });
     const feishuState = pref && !pref.feishuEnabled ? "skipped" : "pending";
-    const head = docs.slice(0, 5).map((d) => `《${d.title}》(${d.count}处)`).join("、");
-    const excerpt = docs.length > 5 ? `${head} 等 ${docs.length} 篇` : head;
+    const lang = appLang();
+    const head = docs.slice(0, 5).map((d) => L(lang, `《${d.title}》(${d.count}处)`, `"${d.title}" (${d.count})`)).join(L(lang, "、", ", "));
+    const excerpt = docs.length > 5 ? L(lang, `${head} 等 ${docs.length} 篇`, `${head} and ${docs.length - 5} more`) : head;
     await prisma.notification.create({
       data: {
         recipientId,
         actorId: null,
         type: "article_review_reminder",
         articleId: docs[0].id, // 卡片「查看文档」按钮跳转的代表文档
-        payload: JSON.stringify({ actorName: `${ASSISTANT_NAME} 体检`, articleTitle: `你有 ${docs.length} 篇文档待优化`, excerpt }),
+        payload: JSON.stringify({ actorName: L(lang, `${ASSISTANT_NAME} 体检`, `${ASSISTANT_NAME} Check`), articleTitle: L(lang, `你有 ${docs.length} 篇文档待优化`, `You have ${docs.length} ${docs.length === 1 ? "doc" : "docs"} to improve`), excerpt }),
         dedupeKey,
         feishuState,
       },

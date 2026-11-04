@@ -6,6 +6,8 @@ import { chatSemaphore } from "../../utils/concurrency.js";
 import { notifyMeetingMinutes, claimMinutesNotified } from "./notify.js";
 import { emitSelfNotification } from "../../utils/notify/self.js";
 import { ASSISTANT_NAME } from "../../utils/assistant.js";
+import { L, appLang } from "../../utils/lang.js";
+import { outputLanguageInstruction } from "../llm/language.js";
 
 // ─── Meeting summary generator ────────────────────────────
 // Pulls a finalized meeting's transcripts + assistant comments out
@@ -22,6 +24,7 @@ import { ASSISTANT_NAME } from "../../utils/assistant.js";
 // partial failure leaves the field null so the UI shows
 // "generating..." rather than half-rendered junk.
 
+// 英文时纪要分节标题也按目标语言输出(见 outputLanguageInstruction),这里提示词保持中文。
 const SUMMARY_SYSTEM_PROMPT = `你是会议记录助手。基于一场会议的实时转录 + AI 评论,产出一份结构清晰的中文 Markdown 纪要。
 
 要求:
@@ -49,6 +52,11 @@ const MAX_GENERATION_TIMEOUT_MS = 60_000;
 // instead of short-circuiting on "summary already exists".
 export const EMPTY_MEETING_SUMMARY =
   `## 决策点\n无\n\n## 待办事项\n无\n\n## 未解问题\n无\n\n## 引用文档\n无\n\n_(本场会议未捕获到任何转录或 ${ASSISTANT_NAME} 评论。)_`;
+const EMPTY_MEETING_SUMMARY_EN =
+  `## Decisions\nNone\n\n## Action items\nNone\n\n## Open questions\nNone\n\n## Referenced docs\nNone\n\n_(No transcript or ${ASSISTANT_NAME} comments were captured for this meeting.)_`;
+// 占位按部署语言写入;识别时中英两种都认(部署语言切换后旧占位仍可被重新生成覆盖)。
+const emptyMeetingSummary = () => L(appLang(), EMPTY_MEETING_SUMMARY, EMPTY_MEETING_SUMMARY_EN);
+export const isEmptyMeetingSummary = (s: string) => s === EMPTY_MEETING_SUMMARY || s === EMPTY_MEETING_SUMMARY_EN;
 
 export interface GenerateSummaryResult {
   summaryMarkdown: string | null;
@@ -71,7 +79,7 @@ export async function generateMeetingSummary(
   // permanently blocking regeneration would strand a meeting whose recording
   // could later be re-transcribed. Treat it as "not yet summarized" so a re-run
   // (auto or manual) can replace it once there's real material.
-  if (session.summaryMarkdown && session.summaryMarkdown !== EMPTY_MEETING_SUMMARY) {
+  if (session.summaryMarkdown && !isEmptyMeetingSummary(session.summaryMarkdown)) {
     return { summaryMarkdown: session.summaryMarkdown, reason: "already_generated" };
   }
   // Only summarize ended meetings — running summaries on a live
@@ -100,7 +108,7 @@ export async function generateMeetingSummary(
     // forever. CAS-guarded so a concurrent writer doesn't get clobbered. If the
     // placeholder is already there (a prior empty run), re-persisting it is a
     // no-op via the CAS, so the meeting stays in a regenerate-able empty state.
-    return await casPersistOrReuse(sessionId, EMPTY_MEETING_SUMMARY, "empty_meeting", log);
+    return await casPersistOrReuse(sessionId, emptyMeetingSummary(), "empty_meeting", log);
   }
 
   // Build the transcript blob, dropping the head so the most
@@ -151,7 +159,7 @@ ${commentBlob}
   let summary = "";
   try {
     const provider = await getProvider();
-    for await (const chunk of provider.chat({ systemPrompt: SUMMARY_SYSTEM_PROMPT, history: [], userMessage }, ac.signal)) {
+    for await (const chunk of provider.chat({ systemPrompt: SUMMARY_SYSTEM_PROMPT + outputLanguageInstruction(appLang()), history: [], userMessage }, ac.signal)) {
       if (chunk.type === "token") summary += chunk.text;
       else if (chunk.type === "error") throw new Error(chunk.message);
     }
@@ -186,8 +194,8 @@ ${commentBlob}
     void emitSelfNotification({
       userId: session.createdById,
       type: "meeting_minutes",
-      title: `会议纪要已生成:${session.title}`,
-      body: "点击查看会议纪要",
+      title: L(appLang(), `会议纪要已生成:${session.title}`, `Meeting minutes ready: ${session.title}`),
+      body: L(appLang(), "点击查看会议纪要", "Click to view the meeting minutes"),
       link: `/meeting/${session.id}`,
       dedupeKey: `meeting:${session.id}`,
     });
@@ -224,9 +232,9 @@ async function casPersistOrReuse(
     // genuine prior summary is never clobbered. Skip the redundant self-write
     // when the candidate IS the placeholder and it's already persisted — that
     // would otherwise match-and-rewrite the same bytes on every empty re-run.
-    const overwritable = candidate === EMPTY_MEETING_SUMMARY
+    const overwritable = isEmptyMeetingSummary(candidate)
       ? [{ summaryMarkdown: null }]
-      : [{ summaryMarkdown: null }, { summaryMarkdown: EMPTY_MEETING_SUMMARY }];
+      : [{ summaryMarkdown: null }, { summaryMarkdown: EMPTY_MEETING_SUMMARY }, { summaryMarkdown: EMPTY_MEETING_SUMMARY_EN }];
     const updated = await prisma.meetingSession.updateMany({
       where: { id: sessionId, OR: overwritable },
       data: { summaryMarkdown: candidate },

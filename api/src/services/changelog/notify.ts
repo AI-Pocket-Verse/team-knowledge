@@ -16,11 +16,14 @@ import { feishuGateway } from "../../utils/feishuGateway.js";
 import { applinkWrap } from "../../utils/notify/card.js";
 import { getSetting, setSetting } from "../settings.js";
 import { targetsIfEnabled } from "../notify-config/index.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
+import { changelogItems } from "@team-knowledge/shared";
 
 const SETTING_KEY = "changelog.lastNotifiedVersion";
 const MAX_VERSIONS = 5; // 一张卡片最多列几个版本,防止积压太多时卡片过长
 
 const KIND_LABEL: Record<ChangelogKind, string> = { major: "大版本", minor: "功能", patch: "修复" };
+const KIND_LABEL_EN: Record<ChangelogKind, string> = { major: "Major", minor: "Feature", patch: "Fix" };
 
 /** 取「比上次播报新」的版本条目(changelog 新在前)。无基线/基线不在表中 → 只取
  *  最新 1 条(不回放历史);基线即最新 → 空数组。纯函数,便于单测。 */
@@ -35,30 +38,33 @@ export function pickNewEntries(changelog: ChangelogEntry[], lastNotified: string
 /** 组装「知识库已更新」卡片:逐版本列出内容摘要 + 「查看更新日志」按钮(→ /about)。
  *  键限定 config/header/elements 以通过 feishu-sso 端 validCard 校验。 */
 export function buildChangelogCard(entries: ChangelogEntry[]): unknown {
+  const lang = appLang();
   const shown = entries.slice(0, MAX_VERSIONS);
   const elements: unknown[] = [];
   shown.forEach((e, i) => {
     if (i > 0) elements.push({ tag: "hr" });
-    const head = `**v${e.version}（${KIND_LABEL[e.kind]}）**${e.date ? `　${e.date}` : ""}`;
-    const items = e.items.map((it) => `· ${it}`).join("\n");
+    const head = lang === "en"
+      ? `**v${e.version} (${KIND_LABEL_EN[e.kind]})**${e.date ? `  ${e.date}` : ""}`
+      : `**v${e.version}（${KIND_LABEL[e.kind]}）**${e.date ? `　${e.date}` : ""}`;
+    const items = changelogItems(e, lang).map((it) => `· ${it}`).join("\n");
     elements.push({ tag: "div", text: { tag: "lark_md", content: `${head}\n${items}` } });
   });
   if (entries.length > shown.length) {
-    elements.push({ tag: "div", text: { tag: "lark_md", content: `…另有 ${entries.length - shown.length} 个版本,详见更新日志` } });
+    elements.push({ tag: "div", text: { tag: "lark_md", content: L(lang, `…另有 ${entries.length - shown.length} 个版本,详见更新日志`, `… and ${entries.length - shown.length} more ${entries.length - shown.length === 1 ? "version" : "versions"}, see the changelog`) } });
   }
   elements.push({
     tag: "action",
     actions: [
       {
         tag: "button",
-        text: { tag: "plain_text", content: "查看更新日志" },
+        text: { tag: "plain_text", content: L(lang, "查看更新日志", "View changelog") },
         type: "primary",
         url: applinkWrap(`${env.WEB_PUBLIC_URL.replace(/\/$/, "")}/about`, env.FEISHU_CARD_USE_APPLINK),
       },
     ],
   });
   // entries 为空在线上路径不可达(调用方已 guard),但兜底别渲染出悬空的「· v」。
-  const title = shown[0] ? `🚀 团队知识库已更新 · v${shown[0].version}` : `🚀 团队知识库已更新`;
+  const title = shown[0] ? L(lang, `🚀 团队知识库已更新 · v${shown[0].version}`, `🚀 Team knowledge base updated · v${shown[0].version}`) : L(lang, `🚀 团队知识库已更新`, `🚀 Team knowledge base updated`);
   return {
     config: { wide_screen_mode: true },
     header: { title: { tag: "plain_text", content: title }, template: "blue" },

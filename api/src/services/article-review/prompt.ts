@@ -1,6 +1,8 @@
 // 单篇校验 / 一键优化的提示词。校验比每日体检更全面(逻辑/表述/格式/缺失过时/跨文档),
 // 但仍要求「只报真正的问题,避免吹毛求疵」。
 import type { HashedReviewFinding } from "./findings.js";
+import { outputLanguageInstruction } from "../llm/language.js";
+import type { Lang } from "../../utils/lang.js";
 
 export const ARTICLE_REVIEW_SYSTEM = `你是团队知识库的「入库前置质检」助手。下面给你【一篇待校验文档】的标题与全文,可能附带【其它相关文档】的摘要做对比。请通读后找出问题,分五类:
 - logic 逻辑矛盾:文档内部自相矛盾、步骤错乱、结论与前提冲突;
@@ -12,6 +14,11 @@ export const ARTICLE_REVIEW_SYSTEM = `你是团队知识库的「入库前置质
 严格【只输出 JSON】,不要任何解释文字、不要 markdown 代码块,结构:
 {"findings":[{"category":"logic|clarity|format|completeness|consistency","severity":"high|med|low","problem":"具体问题","suggestion":"修改建议"}]}
 没有任何问题就输出 {"findings":[]}。`;
+
+/** 校验提示词 + 输出语言指令(中文下与原常量完全一致)。 */
+export function reviewSystem(lang: Lang): string {
+  return ARTICLE_REVIEW_SYSTEM + outputLanguageInstruction(lang);
+}
 
 export function buildReviewUserMessage(
   doc: { title: string; body: string },
@@ -42,6 +49,10 @@ export const OPTIMIZE_SYSTEM = `你是团队知识库的文档编辑助手。下
 - 严格【只输出 JSON】,不要任何解释、不要代码块包裹,结构:
 {"edits":[{"find":"原文片段","replace":"修正后片段"}]}
 没有需要改动的就输出 {"edits":[]}。`;
+
+export function optimizeSystem(lang: Lang): string {
+  return OPTIMIZE_SYSTEM + outputLanguageInstruction(lang);
+}
 
 export function buildOptimizeUserMessage(
   doc: { title: string; body: string },
