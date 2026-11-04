@@ -1,0 +1,14 @@
+{
+  "extends": "@team-knowledge/tsconfig/web.json",
+  "compilerOptions": {
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    // 这两项更严格的检查尚未在本项目开启（开启后需要修一批既有写法）。
+    "noUncheckedIndexedAccess": false,
+    "noImplicitOverride": false
+  },
+  "include": ["src"]
+}

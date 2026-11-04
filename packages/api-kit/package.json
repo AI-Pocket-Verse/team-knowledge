@@ -1,0 +1,31 @@
+{
+  "name": "@team-knowledge/api-kit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@team-knowledge/logger": "workspace:*",
+    "@team-knowledge/shared-types": "workspace:*",
+    "fastify-plugin": "^5.1.0"
+  },
+  "peerDependencies": {
+    "fastify": "^5.0.0"
+  },
+  "devDependencies": {
+    "@team-knowledge/tsconfig": "workspace:*",
+    "@types/node": "^20.14.10",
+    "fastify": "^5.12.8",
+    "typescript": "5.4.5"
+  }
+}

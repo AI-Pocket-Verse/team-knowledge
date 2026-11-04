@@ -1,0 +1,592 @@
+.tm-editor {
+  border-radius: inherit;
+  /* Do NOT set overflow-x:hidden here — CSS spec promotes the sibling
+     overflow-y to `auto`, which turns .tm-editor into a scroll
+     container (even though it never actually scrolls). The outline
+     scrollspy + back-to-top button both attach to the nearest
+     `overflow-y:auto` ancestor and would then bind to .tm-editor and
+     stop receiving real scroll events. Page-wide horizontal scroll is
+     already clipped by `<main>`'s `overflow-x-hidden`; per-block
+     overflow (code fences, tables) handles itself below. */
+}
+
+/* Long URLs and inline tokens wrap instead of forcing a horizontal
+   scrollbar on the article column. `anywhere` is OK in modern Chromium
+   / Safari / Firefox; falls back to break-word on older engines. */
+.tm-editor .ProseMirror {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Markdown tables can be arbitrarily wide. Give each table its own
+   horizontal scroller so the surrounding article stays full-width and
+   never triggers a page-level horizontal scroll. */
+.tm-editor .ProseMirror table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Crepe's reset paints .milkdown with `background: var(--crepe-color-background)`
+   (white). That box has no border-radius, so its white square pokes out past
+   the wrapper card's rounded-xl corners. Make it transparent and let the
+   wrapper card's bg-white show through — same visual fill, no square. We
+   tried overflow:hidden and clip-path on .tm-editor for this earlier; both
+   caused real bugs (floating-ui clipping-ancestor and toolbar cut-off
+   respectively), so the right fix is to remove the offending paint rather
+   than clip it. */
+.tm-editor .milkdown {
+  background: transparent;
+  /* Initial spacing between the title above and the toolbar — lives here (on
+     the toolbar's container), NOT as the toolbar's own margin-top. A margin on
+     a `position: sticky` element leaves that gap ABOVE it once stuck, so the
+     bar wouldn't pin flush to the top of the scroll area (<main>). As padding
+     here it only offsets the un-scrolled layout; once the bar sticks this
+     padding has scrolled off and the bar pins flush to <main>'s top. */
+  padding-top: 24px;
+}
+
+/* ProseMirror's padding-left must hold Crepe's block-edit gutter handle
+   (the "+ / ::" icons). Crepe configures getOffset: () => 16 with
+   placement "left" — that means the handle's right edge sits 16px LEFT of
+   the block's left edge. The handle itself is two 32px icons + a 2px gap
+   = ~66px wide. Total left space required ≈ 16 + 66 = 82px; we use 96px
+   for a small visual margin. */
+.tm-editor .ProseMirror {
+  background: transparent;
+  color: #51565d; /* 飞书正文色 = --N650(标准档正文 .ace-line) */
+  font-size: 16px; /* 飞书标准档正文(.normal-font-size .text-editor) */
+  line-height: 1.75; /* 飞书正文行高 */
+  padding: 24px 16px 24px 0; /* 右内边距收窄,正文往两边扩展 */
+  min-height: 60vh;
+  outline: none;
+}
+
+/* The handle uses `transition: all 0.2s`, so on hover/double-click it
+   visibly slides between blocks. The motion in the gutter — right next to
+   the text — reads as "text jitter" in peripheral vision. Snap instead. */
+/* Hide Crepe's block-edit gutter (drag handle + "+" add button) on
+   the left of every block. Removed per product spec — the doc body
+   sits at x=0 with no gutter chrome. Keep the original rules below
+   in case we re-enable it later; `display: none` overrides them. */
+.tm-editor .milkdown-block-handle {
+  display: none !important;
+}
+.tm-editor .milkdown-block-handle.original-hidden {
+  transition: none;
+}
+
+/* Block gutter affordance: we only keep the `+` button (first
+   .operation-item) and ONLY on empty rows — gives a one-click
+   "insert here" target without crowding non-empty rows. The 6-dot
+   drag handle (second .operation-item) is hidden in every state
+   because its click-to-show-formatting-bubble integration never
+   worked reliably (browser focus race with the bubble's
+   `view.hasFocus()` check), and the gesture overlaps with selecting
+   text manually + typing `/` — which both already work fine. The
+   `tm-block-empty` class is toggled by a small TS plugin in
+   MilkdownEditor.tsx based on what's under the mouse. */
+.tm-editor .milkdown-block-handle:not(.tm-block-empty) > .operation-item:first-child {
+  display: none;
+}
+.tm-editor .milkdown-block-handle > .operation-item:not(:first-child) {
+  display: none;
+}
+
+/* Crepe's Cursor feature inserts a `<div class="prosemirror-virtual-cursor">`
+   as a block child of .ProseMirror when the selection collapses to a caret,
+   then removes it when the selection has a non-zero range. The div is 18px
+   tall and IN-FLOW by default, so it pushes the first paragraph down 18px
+   while a caret is present and up 18px when the user selects text — the
+   exact "text jumps up on selection" symptom. Float it out of the layout
+   so it can paint as a caret without affecting block positions. */
+.tm-editor .prosemirror-virtual-cursor {
+  position: absolute;
+  pointer-events: none;
+  /* The cursor is `Decoration.widget(0, …)` — rendered as the FIRST child of
+     .ProseMirror (position:absolute, z-index:auto). Crepe makes blockquote
+     `position: relative` with an OPAQUE background (#f7f8fa); since both are
+     positioned with auto z-index, paint order is DOM order — the cursor (first
+     child) paints UNDER the later blockquote, whose background then hides it.
+     Symptom: caret invisible inside a quote (yet typing still works, because
+     the native selection is fine and only `caret-color: transparent` relies on
+     this virtual caret). Lift the caret above any positioned block background
+     so it stays visible in blockquotes / other styled blocks. */
+  z-index: 2;
+}
+
+.tm-editor .ProseMirror > :first-child {
+  margin-top: 0;
+}
+/* prosemirror-virtual-cursor renders `Decoration.widget(0, …)` — a widget at
+   doc position 0 — whenever the selection is an empty text selection (true on
+   first mount, even read-only). That widget is inserted as the FIRST child of
+   .ProseMirror, pushing the REAL first block to :nth-child(2) so the rule above
+   no longer zeroes ITS margin-top — the first block keeps its full top margin
+   (e.g. an H1's 24px) and you see a phantom blank line above the document.
+   Two DOM shapes for the SAME widget, depending on lifecycle:
+     - `.ProseMirror-widget` (bare): on first mount the plugin's updateCursor()
+       can't measure a caret rect yet (no focus/layout), so it early-returns
+       BEFORE stamping the class — the widget stays an in-flow bare div. This is
+       the "blank line on first open, gone after I click/move" bug.
+     - `.prosemirror-virtual-cursor` (stamped): once a caret rect exists the
+       plugin sets the class + absolute positioning; this is the original
+       "content jumps up by ~one heading's margin on double-click" case.
+   Zero the top margin of whatever follows either form so the first block sits
+   flush regardless of the caret/widget state → no jump, no phantom line. */
+.tm-editor .ProseMirror > .prosemirror-virtual-cursor:first-child + *,
+.tm-editor .ProseMirror > .ProseMirror-widget:first-child + * {
+  margin-top: 0;
+}
+.tm-editor .ProseMirror > :last-child {
+  margin-bottom: 0;
+}
+
+.tm-editor .ProseMirror ::selection {
+  background: rgb(96 165 250 / 0.35);
+}
+
+/* Heading scale. Crepe's reset ships very large headings (h1 42px / h2 36px /
+   h3 32px …) that read as oversized in our quiet editor — shrink the whole
+   ramp to a Notion/Feishu-like size (h1/h2 most). These selectors match
+   Crepe's `.milkdown .ProseMirror hN` specificity and load after it, so they
+   win; the `!important`-free overrides keep font-size + line-height + margin. */
+/* 标题标度:与飞书 docx 完全一致(标准档 base 16)。字号/行高/上下间距均取自
+   飞书 .docx-headingN-block;字重 500、字间距 -0.02em 取自 .heading-content。 */
+.tm-editor .ProseMirror h1 { font-size: 26px; line-height: 36px; font-weight: 500; margin: 26px 0 10px; }
+.tm-editor .ProseMirror h2 { font-size: 22px; line-height: 30px; font-weight: 500; margin: 22px 0 8px; }
+.tm-editor .ProseMirror h3 { font-size: 20px; line-height: 28px; font-weight: 500; margin: 20px 0 8px; }
+.tm-editor .ProseMirror h4 { font-size: 18px; line-height: 25px; font-weight: 500; margin: 18px 0 8px; }
+.tm-editor .ProseMirror h5 { font-size: 16px; line-height: 24px; font-weight: 500; margin: 18px 0 8px; }
+.tm-editor .ProseMirror h6 { font-size: 16px; line-height: 22px; font-weight: 500; margin: 16px 0 8px; }
+/* 飞书标题色更深(--N900)+ 紧字距,与偏灰的正文形成层级。 */
+.tm-editor .ProseMirror :is(h1, h2, h3, h4, h5, h6) {
+  color: #1f2329;
+  letter-spacing: -0.02em;
+}
+
+/* Outline TOC clicks call scrollIntoView({block: "start"}) which lands the
+   heading flush at the top of the scroll container — i.e. tucked right
+   under the sticky workspace header (h-16 = 64px). The 88px scroll-margin
+   adds breathing room so the targeted heading is comfortably visible
+   instead of hiding behind the header. Applies to every heading level
+   because the TOC links to any of h1-h6. */
+.tm-editor .ProseMirror h1,
+.tm-editor .ProseMirror h2,
+.tm-editor .ProseMirror h3,
+.tm-editor .ProseMirror h4,
+.tm-editor .ProseMirror h5,
+.tm-editor .ProseMirror h6 {
+  scroll-margin-top: 88px;
+}
+
+/* 行内代码 —— 与飞书一致:Source Code Pro 等宽字、14px。盒子样式(灰底/深字/圆角)
+   在下方更具体的 `:not(pre) > code` 规则里给(那条优先级更高)。 */
+.tm-editor .ProseMirror code {
+  font-family: "Source Code Pro", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft Yahei", monospace;
+  font-size: 14px;
+}
+
+/* Code block (Crepe 的 CodeMirror,不是 <pre>)。浅色卡片背景做区分 + 浅蓝选区
+   (杜绝默认深色/黑色选中)+ Copy「已复制」态。上一版误改了 .ProseMirror pre 且把
+   .milkdown-code-block 背景改透明丢了区分度,这里回到浅色系。 */
+.tm-editor .milkdown-code-block,
+.tm-editor .milkdown-code-block .cm-editor,
+.tm-editor .milkdown-code-block .cm-gutters {
+  background: #f4f6fb;
+}
+.tm-editor .milkdown-code-block {
+  border: 1px solid #e6eaf2;
+  border-radius: 10px;
+  margin: 14px 0;
+}
+/* 代码正文基础色加深(默认主题偏浅灰,浅色卡片底上对比度不足)。只动
+   未着色文本的基色;语法高亮 token 各有自己的颜色,不受影响。 */
+.tm-editor .milkdown-code-block .cm-content,
+.tm-editor .milkdown-code-block .cm-editor {
+  color: #1f2329;
+  /* 与飞书代码块一致:Source Code Pro 等宽字、行高 22px、14px。 */
+  font-family: "Source Code Pro", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft Yahei", monospace;
+  font-size: 14px;
+  line-height: 22px;
+}
+/* 选区统一浅蓝:盖住 native ::selection 与 CodeMirror drawSelection 两种实现。 */
+.tm-editor .milkdown-code-block .cm-content ::selection,
+.tm-editor .milkdown-code-block .cm-line::selection,
+.tm-editor .milkdown-code-block .cm-line ::selection {
+  background: rgb(96 165 250 / 0.30);
+}
+.tm-editor .milkdown-code-block .cm-selectionLayer .cm-selectionBackground,
+.tm-editor .milkdown-code-block .cm-focused .cm-selectionLayer .cm-selectionBackground {
+  background: rgb(96 165 250 / 0.30) !important;
+}
+/* 行号 gutter:浅底 + 灰字,去掉默认深色/黑色的 active-line gutter 高亮(就是代码块
+   左侧「1」那个黑块)。!important 盖过 CodeMirror 主题。 */
+.tm-editor .milkdown-code-block .cm-gutters {
+  background: #f4f6fb !important;
+  border: none !important;
+  color: #aab1bd;
+}
+.tm-editor .milkdown-code-block .cm-gutterElement { color: #aab1bd; }
+/* 当前行不做任何高亮:CodeMirror 默认给光标所在行(cm-activeLine)和对应
+   行号(cm-activeLineGutter)加背景/换色,代码块里看起来像「每行有底色 +
+   行号高亮」。全部压平,与普通行一致。 */
+.tm-editor .milkdown-code-block .cm-activeLine {
+  background: transparent !important;
+}
+.tm-editor .milkdown-code-block .cm-activeLineGutter {
+  background: transparent !important;
+  color: #aab1bd;
+}
+/* Copy 按钮「已复制」态:点击后 MilkdownEditor 给按钮加 data-tm-copied(1.5s),
+   原「Copy」文本用 font-size:0 + 透明隐掉,::after 显「已复制」+ 绿色底。 */
+.tm-editor .milkdown-code-block .tools-button-group button[data-tm-copied] {
+  background: #d8f5e2;
+  color: transparent;
+  font-size: 0;
+  opacity: 1;
+}
+.tm-editor .milkdown-code-block .tools-button-group button[data-tm-copied] svg { display: none; }
+.tm-editor .milkdown-code-block .tools-button-group button[data-tm-copied]::after {
+  content: "已复制";
+  color: #16a34a;
+  font-size: 12px;
+  font-weight: 600;
+}
+/* 万一某处代码渲染成原生 <pre>(非 CodeMirror),也走浅色,别再深色。 */
+.tm-editor .ProseMirror pre {
+  background: #f4f6fb;
+  color: #1f2330;
+  border: 1px solid #e6eaf2;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 14px 0;
+  overflow-x: auto;
+  font-size: 0.86em;
+  line-height: 1.65;
+}
+.tm-editor .ProseMirror pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.tm-editor .ProseMirror img {
+  max-width: 100%;
+  border-radius: 6px;
+  border: 1px solid #eeebf7;
+}
+
+/* Crepe's image-block ships a 4px-tall, opacity-0-until-hover resize
+   handle that users almost never find. Bump it to 6px, give it the
+   brand violet so it reads as an actionable affordance, and show a
+   faint baseline state so the handle hints at its existence before
+   the user hovers. Read-only mode (article reader) hides it entirely
+   since drag-to-resize wouldn't persist anywhere. */
+.tm-editor .milkdown-image-block .image-wrapper .image-resize-handle {
+  height: 6px;
+  bottom: -3px;
+  max-width: 200px;
+  background: var(--color-primary, #3370ff);
+  opacity: 0.35;
+  border-radius: 999px;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.tm-editor .milkdown-image-block:hover > .image-wrapper .image-resize-handle,
+.tm-editor .milkdown-image-block.selected > .image-wrapper .image-resize-handle {
+  opacity: 1;
+  transform: translateX(-50%) scaleY(1.15);
+}
+.tm-editor[data-readonly="true"] .milkdown-image-block .image-resize-handle {
+  display: none;
+}
+
+.tm-editor .ProseMirror a {
+  color: #3370ff; /* 飞书链接蓝 */
+  text-decoration: none;
+}
+.tm-editor .ProseMirror a:hover {
+  text-decoration: underline;
+}
+
+/* 上传的文档 = 原子卡片节点(.tm-file-chip,见 fileAttachment.ts）。整体作为
+   一个不可编辑单元:📎 图标 + 文件名.后缀(主色)+ 大小(灰色副标题),点击
+   在新标签页预览/下载(见 MilkdownEditor 的 handleClick),删除必然整块。
+   仍是 <a href="/uploads/*">,故也命中上面通用链接样式,这里更具体地覆盖。 */
+.tm-editor .ProseMirror a.tm-file-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  max-width: 100%;
+  /* 与前后文字/光标保持 10px 间距,卡片不贴着光标。 */
+  margin: 0 10px;
+  padding: 2px 9px;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  background: #f7f8fa;
+  color: #1f2329;
+  font-size: 0.92em;
+  line-height: 1.7;
+  text-decoration: none;
+  vertical-align: baseline;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.tm-editor .ProseMirror a.tm-file-chip:hover {
+  background: #eef1f6;
+  border-color: #3370ff;
+  text-decoration: none;
+}
+/* 选中态(NodeSelection):原子节点被整体选中时给出明显反馈,提示「删除即整块」。 */
+.tm-editor .ProseMirror a.tm-file-chip.ProseMirror-selectednode {
+  outline: 2px solid #3370ff;
+  outline-offset: 1px;
+  background: #eef1f6;
+}
+.tm-editor .ProseMirror a.tm-file-chip .tm-file-chip-icon {
+  flex: none;
+}
+.tm-editor .ProseMirror a.tm-file-chip .tm-file-chip-name {
+  min-width: 0; /* 允许 flex 子项收缩,长文件名才能触发省略号 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tm-editor .ProseMirror a.tm-file-chip .tm-file-chip-size {
+  flex: none;
+  color: #8a9099;
+  font-size: 0.86em;
+}
+/* 悬浮出现的「×」删除按钮:默认隐藏,hover 卡片时显示;点它整块删除
+   (见 MilkdownEditor 的 handleClick)。 */
+.tm-editor .ProseMirror a.tm-file-chip .tm-file-chip-remove {
+  flex: none;
+  display: none;
+  align-self: center;
+  margin-left: 2px;
+  width: 15px;
+  height: 15px;
+  line-height: 14px;
+  text-align: center;
+  border-radius: 50%;
+  color: #8a9099;
+  font-size: 13px;
+  cursor: pointer;
+}
+.tm-editor .ProseMirror a.tm-file-chip:hover .tm-file-chip-remove {
+  display: inline-block;
+}
+.tm-editor .ProseMirror a.tm-file-chip .tm-file-chip-remove:hover {
+  background: #e5e7eb;
+  color: #d92d20;
+}
+/* 只读态不可删,永不显示 ×(放在 hover 规则之后以覆盖之)。 */
+.tm-editor[data-readonly="true"] .ProseMirror a.tm-file-chip .tm-file-chip-remove {
+  display: none;
+}
+
+.tm-editor[data-readonly="true"] .ProseMirror {
+  cursor: default;
+}
+
+/* Brief background flash applied by the TOC's jumpToHeading() so the
+   reader sees where they landed after a smooth scroll. Auto-fades; the
+   class is removed by JS after ~1.2s but we keep the transition here so
+   the cleanup is also animated. */
+.tm-editor .ProseMirror .tm-toc-flash {
+  background: rgb(96 165 250 / 0.18);
+  transition: background 0.6s ease;
+  border-radius: 4px;
+}
+
+/* Immersive TopBar (Crepe `Feature.TopBar`). Stock styling paints a
+   white surface + 1px-solid bottom border + 12px left padding — too
+   card-like for our quiet editor. We:
+   - Space the toolbar 24px below the title (via padding-top on .milkdown
+     above, NOT a margin on the sticky bar — see below) so it visually
+     centers between the title and the first paragraph instead of butting
+     up against the title.
+   - Keep an OPAQUE white surface (= the article card's bg-white). The
+     toolbar is `position: sticky; top: 0` (Crepe), so a transparent fill
+     let the document text scroll THROUGH it — white keeps it readable while
+     still matching the card so there's no visible nested box.
+   - Replace the hard bottom border with a violet hairline matching
+     `--color-primary` at 8% alpha so it reads as a subtle divider.
+   - Pull padding-left to 0 so item rows align with the ProseMirror
+     content column (which also sits at padding-left: 0).
+   - Trim min-height (44 → 40px) and shrink each button (32 → 28px)
+     so the toolbar feels like a single quiet row, not a chrome bar. */
+.tm-editor .milkdown-top-bar {
+  /* No margin-top here on purpose: a margin on a position:sticky box leaves a
+     gap above it once stuck, so the bar wouldn't pin flush. The title↔toolbar
+     spacing lives as padding-top on .milkdown (above). */
+  /* Pin flush to the top of the document area when scrolling. The scroll
+     container is <main>, which has `py-8` (2rem) top padding; a sticky top:0
+     child pins 2rem BELOW main's inner edge, leaving a gap where the scrolling
+     body text shows above the bar. Pull the sticky stop up by that 2rem so the
+     bar pins right under the workspace header. (Vendor top-bar.css sets top:0;
+     this same-specificity rule loaded later overrides it.) */
+  top: -2rem;
+  /* Stay above the virtual caret. The caret (.prosemirror-virtual-cursor) is
+     z-index:2 so it can paint over opaque block backgrounds (blockquote); but
+     .ProseMirror isn't a stacking context, so without an explicit z-index here
+     a caret line scrolling behind this sticky bar would bleed over it. Keep it
+     below Crepe's z-10 chrome (slash menu / block handle) so those still win. */
+  z-index: 3;
+  /* Opaque — the bar is position:sticky, so a transparent fill would let the
+     document text scroll through it. White matches the article card. */
+  background: #ffffff;
+  border-bottom: 1px solid rgb(51 112 255 / 0.08);
+  padding: 0;
+  min-height: 40px;
+}
+.tm-editor .milkdown-top-bar .top-bar-item {
+  width: 28px;
+  height: 28px;
+  margin: 4px 2px;
+}
+.tm-editor .milkdown-top-bar .top-bar-item svg {
+  width: 18px;
+  height: 18px;
+}
+.tm-editor .milkdown-top-bar .top-bar-heading-button {
+  height: 28px;
+  display: flex;
+  align-items: center;
+}
+/* Vertically center the heading selector and align it with the 28px format
+   buttons (which have 4px vertical margin) so the H1-H6 label row sits on the
+   same baseline as the rest of the toolbar instead of riding 2px high/low. */
+.tm-editor .milkdown-top-bar .top-bar-heading-selector {
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+}
+
+/* Code-block language picker. Crepe positions the dropdown with a one-shot
+   floating-ui computePosition() that, in our nested layout, lands it at the
+   viewport's top-left — overlapping the page logo ("团队知识库") — instead of
+   under the trigger button. Make .tools the offset parent and pin the dropdown
+   directly below it. `!important` is required to beat the stray inline left/top
+   that floating-ui writes on .language-picker. */
+.tm-editor .milkdown-code-block .tools {
+  position: relative;
+}
+.tm-editor .milkdown-code-block .language-picker {
+  position: absolute !important;
+  top: 100% !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+}
+
+/* (Issue 4) Chat-export cards. buildShareMarkdown writes each selected
+   message as a blockquote whose first line is the role label; the read
+   view's useChatCardEnhancer tags those blockquotes (tm-chat-card +
+   --user / --ai) and injects the .tm-chat-card__copy button. These
+   rules turn Crepe's default blockquote (a left accent rule) into a
+   self-contained card. */
+.tm-editor .ProseMirror blockquote.tm-chat-card {
+  position: relative;
+  border: 1px solid #eeebf7;
+  border-radius: 12px;
+  background: #faf9fe;
+  padding: 12px 44px 12px 16px; /* right pad clears the 复制 button */
+  margin: 12px 0;
+}
+.tm-editor .ProseMirror blockquote.tm-chat-card--user {
+  background: rgb(96 165 250 / 0.1);
+  border-color: rgb(96 165 250 / 0.3);
+}
+.tm-editor .ProseMirror blockquote.tm-chat-card > :first-child {
+  margin-top: 0;
+}
+.tm-editor .ProseMirror blockquote.tm-chat-card > :last-child {
+  margin-bottom: 0;
+}
+/* Role-label line (🙋 用户 / 🤖 assistant) — a quiet caption above the body. */
+.tm-editor .ProseMirror blockquote.tm-chat-card .tm-chat-card__label {
+  font-size: 0.8em;
+  font-weight: 600;
+  color: #6b6480;
+  margin-bottom: 6px;
+}
+.tm-chat-card__copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #6b6480;
+  background: #fff;
+  border: 1px solid #eeebf7;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.tm-chat-card__copy:hover {
+  color: var(--color-primary, #3370ff);
+  background: #f4f1fb;
+}
+
+/* ── 飞书 markdown 排版基准(正文级元素)─────────────────────────────
+   文章详情与编辑器共用 .tm-editor .ProseMirror。chat-card 的 blockquote
+   变体更具体(.tm-chat-card），不受下面通用 blockquote 影响。 */
+/* 引用 —— 与飞书一致:无底色,仅 2px 左竖条 + 弱化文字(16px/26px/400)。 */
+.tm-editor .ProseMirror blockquote:not(.tm-chat-card) {
+  border-left: 2px solid #bbbfc4;
+  background: none;
+  color: #646a73;
+  padding: 0 0 0 12px;
+  margin: 12px 0;
+  border-radius: 0;
+  font-size: 16px;
+  line-height: 26px;
+  font-weight: 400;
+}
+/* 去掉 Crepe 给 blockquote 注入的 ::before 强调条(4px)—— 我们的引用已用 border-left
+   单条;留着会和 border-left 叠成「两条竖线」。chat 卡片用边框盒,也不需要它。 */
+.tm-editor .ProseMirror blockquote::before {
+  display: none;
+}
+.tm-editor .ProseMirror :not(pre) > code {
+  background: rgba(0, 0, 0, 0.06); /* 飞书 --color-inline-code-background */
+  color: #222; /* 飞书 --color-text-primary(行内代码)*/
+  border: none;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 14px;
+}
+.tm-editor .ProseMirror ul,
+.tm-editor .ProseMirror ol {
+  padding-left: 24px;
+  margin: 8px 0;
+}
+.tm-editor .ProseMirror li {
+  margin: 4px 0;
+}
+.tm-editor .ProseMirror hr {
+  border: none;
+  border-top: 1px solid #dee0e3;
+  margin: 20px 0;
+}
+.tm-editor .ProseMirror table th,
+.tm-editor .ProseMirror table td {
+  border: 1px solid #dee0e3;
+  padding: 6px 12px;
+  font-size: 14px; /* 飞书表格单元格字号(小于正文)*/
+  line-height: 23px;
+}
+.tm-editor .ProseMirror table th {
+  background: #f7f8fa;
+  font-weight: 600;
+}

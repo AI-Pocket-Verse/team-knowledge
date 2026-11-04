@@ -1,0 +1,867 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String           @id @default(cuid())
+  // Stable identity from the platform SSO (@team-knowledge/auth-client-api):
+  // the Feishu `open_id` (NOT auth's volatile cuid `User.id`, which is
+  // regenerated on any auth-DB reset/relocation and would fork the same
+  // account into a new local user). Anchored to open_id so the same Feishu
+  // account always maps to the same row. Legacy cuid-keyed rows are adopted
+  // onto their open_id in-place on next login (see requireUser).
+  // JIT-provisioned on first authenticated request; never carries roles —
+  // team-knowledge owns its own authorization model (isAdmin + UserRole + ACL).
+  ssoId              String           @unique
+  // Email surfaced by the SSO identity (may be null — Feishu can omit it).
+  // Used only for the bootstrap-admin allowlist (ADMIN_EMAILS) + display.
+  email              String?
+  displayName        String
+  // Optional /uploads/<hash> URL to the user's avatar image.
+  // Null = use the default initial-circle placeholder in UI.
+  avatarUrl          String?
+  isAdmin            Boolean          @default(false)
+  isActive           Boolean          @default(true)
+  /// Free-text user preference fed into every chat turn's system
+  /// prompt as a `[用户偏好]` block. Lets users persist tone /
+  /// formatting requests (e.g. "回答简洁,不要客套") without
+  /// re-asking each turn. 200-char cap enforced at the API layer
+  /// (zod schema in `me.ts`); null = no preference.
+  chatPreference     String?
+  // Last time this user made an authenticated request. Updated (throttled
+  // to ≤ once / 10 min) in requireUser; powers the admin dashboard's
+  // "最近活跃 / 今日活跃" without a per-request write storm.
+  lastSeenAt         DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  roles              UserRole[]
+  activeDays         UserActiveDay[]
+  foldersCreated     Folder[]
+  articlesCreated    Article[]
+  articleVersions    ArticleVersion[]
+  bookmarks          Bookmark[]
+  uploads            Upload[]
+  likes              Like[]
+  comments           Comment[]
+  commentLikes       CommentLike[]
+  // 总台("") + 各角色专家会话各一份(每用户×每角色)。原为 1:1,现为一对多。
+  conversations      Conversation[]
+  // Articles this user has been granted edit access to by the author
+  // or an admin. Inverse side of `ArticleEditor.user`.
+  articleEditorships ArticleEditor[]
+  // Per-article view records this user has accrued. Inverse side of
+  // `ArticleView.user`. Powers the "谁看过" list + the user's own PV
+  // de-dup window. Cascade-deletes with the user.
+  articleViews       ArticleView[]
+  // assistant meetings this user has hosted (admin-only feature; field
+  // is harmlessly empty for non-admins). Cascade-deletes if the user
+  // is removed — same posture as their authored articles.
+  meetingsHosted     MeetingSession[]
+  // Articles this user currently holds the soft edit-lock on. Inverse
+  // side of `Article.editingBy`. The FK is SetNull, so removing the
+  // user just clears any lock they held rather than blocking deletion.
+  editingArticles    Article[]        @relation("ArticleEditing")
+  // Engagement notifications received / triggered by this user (point 2 of the
+  // 2026-06-06 notifications spec). Recipient side cascade-deletes; actor side
+  // SetNull (a deleted actor leaves the notification readable).
+  notifications      Notification[]   @relation("NotifRecipient")
+  notifiedActions    Notification[]   @relation("NotifActor")
+  notificationPref   NotificationPref?
+  commentMentions    CommentMention[]
+  // 文档边栏角色的「个人置顶」记录。用户删除时级联清理(不留孤儿置顶)。
+  rolePins           UserRolePin[]
+  // 自动化(定时 AI 任务)。归属个人;用户删除时级联清理。
+  automations        Automation[]
+}
+
+model Role {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  description String?
+  color       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  userRoles   UserRole[]
+  folders     Folder[]
+  // Articles that hang directly under the role (no folder wrap).
+  // A doc can live at either:
+  //   - inside a Folder (Article.folderId set), or
+  //   - directly under a Role (Article.folderId null, Article.roleId set)
+  // This inverse relation is needed for the latter; Folder-scoped
+  // articles still resolve their role via folder.roleId.
+  articles    Article[]
+  // AI-generated, read-only skill.md distilled from this role's PUBLISHED
+  // docs. Regenerated (debounced) when those docs change. See RoleSkill.
+  roleSkill   RoleSkill?
+  // 该角色的「专家」配置(人设/负责人/来源开关)。1:1,角色即专家。
+  expert      RoleExpert?
+  // 每个用户在文档边栏对该角色的「个人置顶」记录(每人各自,互不影响)。
+  rolePins    UserRolePin[]
+}
+
+// 文档边栏角色的【个人置顶】:每个用户把常用角色置顶到自己的边栏顶部,互不影响。
+// 存在 = 已置顶;删除 = 取消置顶。角色删除级联清理。
+model UserRolePin {
+  userId   String
+  roleId   String
+  pinnedAt DateTime @default(now())
+  role     Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([userId])
+}
+
+// 自动化(定时 AI 任务):一段提示词 + 调度,到点由系统以 owner 身份跑一次 web-enabled LLM,
+// 产出后(可选)POST 到 webhookUrl(仅飞书/Lark 白名单域)。归属个人。
+model Automation {
+  id             String    @id @default(cuid())
+  userId         String
+  name           String
+  prompt         String
+  /// 飞书机器人 webhook(可选)。留空 = 只跑不投递。投递前校验域白名单(open.feishu.cn / open.larksuite.com)。
+  webhookUrl     String?
+  /// 调度类型:'cron'(周期)| 'interval'(按间隔)| 'once'(单次)。
+  scheduleKind   String
+  /// 调度参数 JSON。cron:{weekdays:number[1..7],hour,minute} | interval:{everyMs} | once:{atMs}。
+  scheduleConfig String
+  /// 生效日期区间(epoch-ms,可选)。仅在 [from,to] 内触发;留空=始终生效。
+  effectiveFrom  DateTime?
+  effectiveTo    DateTime?
+  /// 暂停 = false;不再被调度但保留。
+  enabled        Boolean   @default(true)
+  /// 下次触发时刻(落库→重启安全)。null = 不再调度(单次已跑/无有效下次)。
+  nextRunAt      DateTime?
+  runCount       Int       @default(0)
+  lastRunStatus  String?   // 'success' | 'failed'
+  /// 定时执行连续失败的重试计数(指数退避,最多 5 次);成功/重排后归零。仅定时执行使用,测试运行不计。
+  retryCount     Int       @default(0)
+  /// 置顶时刻(用户在「已完成」分组里置顶该任务)。非空 = 已置顶,按此降序浮到最前;null = 未置顶。
+  pinnedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs           AutomationRun[]
+
+  @@index([userId])
+  @@index([enabled, nextRunAt]) // 调度扫描:enabled && nextRunAt<=now
+}
+
+// 自动化的一次运行记录(含测试运行)。用于「已完成」列表与排查。
+model AutomationRun {
+  id            String     @id @default(cuid())
+  automationId  String
+  startedAt     DateTime   @default(now())
+  finishedAt    DateTime?
+  status        String     // 'running' | 'success' | 'failed'
+  isTest        Boolean    @default(false)
+  /// 产出摘要(前若干字,供列表/排查)。
+  outputPreview String?
+  /// 完整产出(只读阅读页展示;落库上限约 20000 字)。
+  output        String?
+  /// 投递结果 JSON:{ webhook, httpStatus, ok, error }。null = 未配置 webhook 或未投递。
+  delivery      String?
+  error         String?
+  automation    Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  @@index([automationId, startedAt])
+}
+
+// 每个角色一个「专家 agent」的可配置设定(管理员可编辑)。1:1 与 Role。
+// instruction = 专家设定(system prompt 文本);sources = 可用来源开关 JSON;
+// ownerUserId = 升级时找的负责人。无行时取默认(enabled、默认来源、无负责人)。
+model RoleExpert {
+  roleId      String   @id
+  instruction String   @default("")
+  ownerUserId String?
+  avatarUrl   String?  // 专家头像(/uploads/<file>);空 = 用角色名首字渐变占位
+  sources     String   @default("{\"kbDocs\":true,\"crossModule\":true,\"webSearch\":false,\"consult\":true}")
+  enabled     Boolean  @default(true)
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+  role        Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+}
+
+// 人工升级单。专家卡住/需拍板时创建,发飞书卡片给角色负责人;
+// 负责人回流后置 resolved(状态机幂等:仅 pending → 终态)。
+model Escalation {
+  id              String    @id @default(cuid())
+  conversationId  String
+  roleId          String
+  background      String    // 卡在哪
+  question        String    // 需要你定什么
+  options         String    @default("[]")      // 候选 JSON: string[]
+  status          String    @default("pending") // pending|resolved|timeout|declined
+  assigneeUserId  String?
+  resolution      String?
+  resolvedById    String?                       // 谁拍的板(负责人或管理员),审计用
+  assignedById    String?                       // 最近一次「转交」的操作者(追溯用);系统初始指派给提问者时为 null
+  feishuMessageId String?
+  createdAt       DateTime  @default(now())
+  resolvedAt      DateTime?
+
+  @@index([assigneeUserId, status])
+  @@index([conversationId])
+}
+
+// One AI-curated skill.md per Role (1:1). The file is a Claude Agent Skill
+// (frontmatter + body) distilled from the role's PUBLISHED articles; it is
+// read-only in the UI (copy / download only) and regenerated on a debounced
+// schedule when the role or its published docs change.
+// See services/role-skill/*.
+model RoleSkill {
+  roleId      String    @id
+  content     String    @default("") // full skill.md (frontmatter + body)
+  name        String    @default("") // frontmatter.name (for listing/preview)
+  description String    @default("") // frontmatter.description
+  // empty | stale | generating | fresh | failed
+  status      String    @default("empty")
+  // SHA-256 of the inputs (role name/desc + each published doc's
+  // id|updatedAt|title). Skips a no-op regen when unchanged.
+  sourceHash  String    @default("")
+  docCount    Int       @default(0) // published docs included
+  truncated   Int       @default(0) // docs trimmed to title+head for budget
+  staleSince  DateTime? // when it became stale — drives the debounce window
+  generatedAt DateTime?
+  model       String? // provider that produced it (claude | codex)
+  error       String? // last failure message
+  attempts    Int       @default(0) // consecutive failures (retry cap)
+  updatedAt   DateTime  @updatedAt
+
+  role        Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@index([status, staleSince])
+}
+
+model UserRole {
+  userId    String
+  roleId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model Folder {
+  id           String    @id @default(cuid())
+  name         String
+  description  String?
+  roleId       String
+  visibility   String    @default("public")
+  templateType String    @default("article-list")
+  createdById  String?
+  // Drag-reorder position among siblings (other folders in the same
+  // role). Lower number = earlier in the rail. Defaults to 0 — new
+  // folders get pushed to the bottom (route handler bumps to max+1
+  // on create).
+  sortOrder    Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  // Soft-delete (recycle bin). deletedAt null = live; non-null = in the
+  // per-user bin. deletedById is the user who deleted it (plain scalar,
+  // NO User FK — keeps the bin self-contained). Deleting a folder
+  // cascade-soft-deletes its child articles with a SHARED timestamp so
+  // restore can re-unite them as a unit (see routes/recycle-bin.ts).
+  deletedAt    DateTime?
+  deletedById  String?
+  // Self-relation for 2-level nesting. null = top-level folder; non-null =
+  // a subfolder of that top-level folder. Depth is capped at 2 in the route
+  // handler (a folder whose parentId is set cannot itself be a parent).
+  // onDelete: SetNull is a backstop — if a parent row is ever hard-deleted
+  // without going through our explicit cascade, the child is promoted to
+  // top-level rather than vanishing (matches the recycle-bin restore rule).
+  parentId     String?
+  role         Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdBy    User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  parent       Folder?   @relation("FolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children     Folder[]  @relation("FolderTree")
+  articles     Article[]
+
+  // Sibling-scoped unique name (same name allowed under different parents).
+  // NOTE: SQLite treats each NULL parentId as DISTINCT, so this constraint
+  // does NOT dedupe top-level folders — sibling uniqueness is enforced in the
+  // route handlers (folders.ts create/patch, recycle-bin restore). This index
+  // is a reliable guard only for subfolders (non-null parentId) + a race
+  // backstop.
+  @@unique([roleId, parentId, name])
+  @@index([roleId])
+  @@index([parentId])
+  @@index([deletedById, deletedAt])
+}
+
+model Article {
+  id              String             @id @default(cuid())
+  title           String
+  contentMarkdown String
+  // A doc lives under a Role (always) and OPTIONALLY inside a
+  // Folder. When folderId is null the doc is "role-direct" — it
+  // shows as a leaf at the role level in the sidebar tree.
+  // Deleting a folder sets folderId=null on its articles (the
+  // SetNull behavior on the FK below) so the docs survive folder
+  // deletion automatically; the route handler decides whether to
+  // cascade-delete or "move to role-direct" before issuing the
+  // folder delete.
+  folderId        String?
+  // Required even when folderId is set — denormalized so role-direct
+  // queries don't need a join through folder. Backfilled in the
+  // folders/docs migration; new rows are written with roleId always
+  // present.
+  roleId          String
+  createdById     String?
+  // Drag-reorder position among siblings (other articles at the same
+  // level: same folder, or same role-direct level).
+  sortOrder       Int                @default(0)
+  // Soft-delete (recycle bin). deletedAt null = live; non-null = binned.
+  // deletedById = who deleted it (plain scalar, NO User FK). When a doc
+  // is cascade-deleted with its folder, both share one deletedAt instant
+  // so folder-restore can find exactly the docs that went down with it.
+  deletedAt       DateTime?
+  deletedById     String?
+  // Soft edit-lock. While someone is editing the doc, editingById holds
+  // their user id and editingAt the last heartbeat. A lock is ACTIVE only
+  // while editingAt is within LOCK_TTL_MS of now (see routes/articles.ts);
+  // an older stamp is treated as free so a crashed editor never wedges the
+  // doc. The FK is SetNull so deleting the holder just frees the lock.
+  editingById     String?
+  editingAt       DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  // ── AI 入库前置校验(article-review)──────────────────────────
+  // 文档静置 10 分钟后单篇 AI 校验的结果。写入一律走 $executeRaw,绝不经
+  // prisma.update —— 那会 bump @updatedAt,既自触发再扫描又会误伤保存冲突检测。
+  // none 未检 | pending 待检 | ok 无问题 | issues 有问题 | dismissed 已忽略
+  reviewStatus    String             @default("none")
+  // JSON: HashedReviewFinding[](仅 issues 时非空)。详情接口仅对有编辑权限者返回。
+  reviewFindings  String?
+  // 上次 review 时 title+contentMarkdown 的内容 hash(contentHash())。
+  // 扫描器据「reviewedAt < updatedAt 或 hash 变」判定需复检。
+  reviewedHash    String?
+  reviewedAt      DateTime?
+  // 【已弃用】曾用于「连续 AI 优化轮数」收敛上限;现改为「一键优化即标记已校验(置 ok、
+  // 不立即复检),其后任意内容改动都会触发复检」。不再读写此列。保留以避免一次性
+  // DROP COLUMN 迁移;后续清理时再删。
+  reviewAutoRounds Int               @default(0)
+
+  folder          Folder?            @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  editingBy       User?              @relation("ArticleEditing", fields: [editingById], references: [id], onDelete: SetNull)
+  role            Role               @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdBy       User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  versions        ArticleVersion[]
+  bookmarks       Bookmark[]
+  outboundRefs    ArticleReference[] @relation("FromArticle")
+  inboundRefs     ArticleReference[] @relation("ToArticle")
+  uploads         Upload[]
+  likes           Like[]
+  comments        Comment[]
+  // Per-article ACL: users the author / admin explicitly granted
+  // edit access to. Independent of folder-level permissions —
+  // collaborators don't need to be in the article's folder's role.
+  editors         ArticleEditor[]
+  // Per-(article, viewer) read-tracking rows. Powers the doc-detail
+  // dialog's PV / 独立访客 / 谁看过. Recorded best-effort on the detail
+  // GET; de-duped per viewer per 30 min. Cascade-deletes with the doc.
+  views           ArticleView[]
+  // Engagement notifications referencing this doc — cascade away on hard delete.
+  notifications   Notification[]
+
+  @@index([folderId])
+  @@index([roleId])
+  @@index([deletedById, deletedAt])
+  // PERF: createdById is scanned by the createdBy SetNull on user-delete
+  // and by author-scoped article filters (folder-list visibility). editingById
+  // is scanned by the editingBy SetNull on user-delete (clearing held locks).
+  @@index([createdById])
+  @@index([editingById])
+  // PERF: 扫描器按 reviewStatus 选「issues」做后台统计 / 边栏徽标兜底查询。
+  @@index([reviewStatus])
+  // PERF: article-review 扫描器每 2 分钟按 updatedAt 过滤(<= 静置阈值)+ 排序选候选。
+  @@index([updatedAt])
+}
+
+model ArticleVersion {
+  id              String   @id @default(cuid())
+  articleId       String
+  title           String
+  contentMarkdown String
+  // Why this version was written, for the activity feed's finer granularity:
+  // "edit" (default) | "restore" (rolled back) | "import" | "ai-fix" (一键优化应用).
+  // 去状态后不再有 publish/archive。Mapped to doc_* activity types in services/activity.ts.
+  kind            String   @default("edit")
+  authorId        String?
+  createdAt       DateTime @default(now())
+
+  article         Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author          User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([articleId, createdAt])
+  // PERF: scanned by the author SetNull on user-delete.
+  @@index([authorId])
+}
+
+model Bookmark {
+  userId    String
+  articleId String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, articleId])
+}
+
+// Per-article editor grant. Adds a user to the canEdit set for a
+// SPECIFIC article without changing folder / role permissions. Only
+// the article's author and admins can mutate this table; collaborators
+// themselves cannot re-grant (enforced at the route handler, not the
+// schema). `grantedBy` is nullable so a granter being deleted later
+// doesn't cascade-clear the grant itself.
+model ArticleEditor {
+  articleId String
+  userId    String
+  grantedAt DateTime @default(now())
+  grantedBy String?
+
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, userId])
+  @@index([userId])
+}
+
+// One row per (article, viewer). Tracks document read activity for the
+// doc-detail dialog: PV = SUM(viewCount), 独立访客 = COUNT(rows), and the
+// "谁看过" list (author / admin / collaborator only). Recorded best-effort,
+// fire-and-forget on the detail GET (mirrors recordActivity in guards.ts)
+// AFTER the canView check — never blocks/fails the request. De-duped per
+// viewer per 30 min: first view creates the row (viewCount 1); a view
+// ≥30 min after lastViewedAt bumps viewCount + lastViewedAt; otherwise
+// no-op. Recorded for ALL viewers, the author included.
+model ArticleView {
+  articleId     String
+  userId        String
+  firstViewedAt DateTime @default(now())
+  lastViewedAt  DateTime @default(now())
+  viewCount     Int      @default(1)
+  article       Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, userId])
+  @@index([articleId, lastViewedAt])
+}
+
+// Tracks every image (or other binary) uploaded via POST /api/uploads/*.
+// Used by GET /uploads/:filename to apply the same permission model as the
+// article that embeds the image — without this table, anyone who guesses a
+// filename can fetch the bytes via cookie auth alone.
+model Upload {
+  id           String   @id @default(cuid())
+  filename     String   @unique
+  // The user-facing name of the file at upload time (e.g. "report.pdf").
+  // Optional: image uploads predating this field don't have one. Used to
+  // set `Content-Disposition: attachment; filename=...` on download so
+  // the saved file keeps its original name rather than the storage hash.
+  originalName String?
+  mimeType     String
+  bytes        Int
+  uploadedById String
+  articleId    String?
+  createdAt    DateTime @default(now())
+
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  article      Article? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+
+  @@index([articleId])
+  // PERF: scanned by the uploadedBy Cascade on user-delete.
+  @@index([uploadedById])
+}
+
+model ArticleReference {
+  fromArticleId String
+  toArticleId   String
+  createdAt     DateTime @default(now())
+
+  fromArticle   Article  @relation("FromArticle", fields: [fromArticleId], references: [id], onDelete: Cascade)
+  toArticle     Article  @relation("ToArticle",   fields: [toArticleId],   references: [id], onDelete: Cascade)
+
+  @@id([fromArticleId, toArticleId])
+  @@index([toArticleId])
+}
+
+// User likes an article. Composite PK prevents double-likes from the
+// same user; cascading deletes mean removing a user or article also
+// removes their likes (so likeCount is always accurate).
+model Like {
+  userId    String
+  articleId String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, articleId])
+  @@index([articleId])
+}
+
+// Comments on an article. One level of nesting via `parentId` (a
+// reply links to the comment it answers; deleting the parent cascades
+// through every reply). authorId is nullable so hard-deleting a user
+// only erases their identity, not the historical thread. Body is
+// plain text (markdown not parsed — frontend escapes), up to 4KB
+// enforced server-side.
+model Comment {
+  id        String   @id @default(cuid())
+  articleId String
+  authorId  String?
+  body      String
+  parentId  String?
+  createdAt DateTime @default(now())
+
+  article   Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author    User?         @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]     @relation("CommentReplies")
+  likes     CommentLike[]
+  mentions  CommentMention[]
+  notifications Notification[]
+
+  @@index([articleId, createdAt])
+  @@index([parentId])
+  // PERF: scanned by the author SetNull on user-delete.
+  @@index([authorId])
+}
+
+// Per-user comment like. Composite PK prevents double-likes; cascades
+// from both sides clean themselves up on user/comment deletion.
+model CommentLike {
+  userId    String
+  commentId String
+  createdAt DateTime @default(now())
+
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, commentId])
+  @@index([commentId])
+}
+
+// A user @mentioned inside a comment body. Written when a comment is created
+// (parsed from `[@name](/u/<userId>)` markers); drives the comment_mention
+// notification. Cascades from both sides.
+model CommentMention {
+  commentId String
+  userId    String
+
+  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, userId])
+  @@index([userId])
+}
+
+// One rolling AI conversation per user (Plan 5). Created on first
+// /api/chat/conversation call; never deleted (DELETE wipes messages,
+// not the conversation row).
+model Conversation {
+  id        String   @id @default(cuid())
+  userId    String
+  // 历史兼容:roleId 保留作兼容字段,不再依赖其唯一性。新建会话一律 ""。
+  roleId    String   @default("")
+  // 会话标题:取首条用户消息截断;用户可重命名。null = 未命名(读取时按首条消息兜底)。
+  title     String?
+  // 单例哨兵:null = 普通多任务会话(同一用户可有任意多条,SQLite 视多个 NULL 为互异 →
+  // 不受唯一约束);"feishu" = 该用户飞书专用会话(被 @@unique([userId, singletonKey])
+  // 卡住 → 每用户恰一条)。
+  singletonKey  String?
+  // 最近一条消息时间,会话列表按它倒序;新建时为 null(列表读取时兜底用 createdAt)。
+  lastMessageAt DateTime?
+  // 用户「置顶」该会话的时刻;null=未置顶。列表里置顶会话排在(飞书之下、普通会话之上),
+  // 多个置顶按 pinnedAt 倒序(最近置顶在前)。
+  pinnedAt      DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+
+  /// Rolling LLM-generated summary of older turns. Refreshed
+  /// asynchronously every ~5 new messages; gets prepended to the
+  /// chat system prompt so the assistant has long-horizon memory
+  /// without ballooning history-token cost. Null until the first
+  /// summary run completes.
+  summary              String?
+  /// Id of the most recent ChatMessage whose content is already
+  /// captured in `summary`. We only need to feed messages NEWER
+  /// than this row to the next summary refresh — avoids
+  /// quadratic re-summarization. Null on a fresh conversation.
+  summaryUpToMessageId String?
+  /// Timestamp of the last successful summary refresh — purely
+  /// observability / debug; not used by the prompt logic.
+  summaryUpdatedAt     DateTime?
+
+  @@unique([userId, singletonKey])
+}
+
+// Persisted chat turn. Error events stream over SSE but are NOT
+// persisted here — the user can retry, and persisted errors would
+// clutter history.
+model ChatMessage {
+  id              String   @id @default(cuid())
+  conversationId  String
+  role            String   // 'user' | 'assistant'
+  content         String
+  citedArticleIds String?  // JSON-encoded array of article ids
+  /// JSON-encoded array of structured @-mentions attached to the
+  /// turn: [{ type: "doc"|"folder"|"role", id, label }]. Null on
+  /// assistant rows and on user rows that didn't use the @ chip
+  /// selector. Label is snapshotted at send-time so the chip still
+  /// renders correctly even after a rename / delete of the target.
+  mentions        String?
+  /// 该轮来源:web(网页)| feishu(飞书私聊)| notify(后台通知)。
+  /// 旧行为 null;便于排查与看板按来源区分。
+  source          String?
+  /// JSON-encoded array of image URLs(/uploads/<file>)attached to a USER
+  /// message(web 上传或飞书图片消息落盘)。Null = 纯文本(含全部旧行与
+  /// assistant 行)。字节在 DATA_DIR/uploads,Upload 表记录归属。
+  images          String?
+  /// 该 assistant 轮的「思考过程」叙述(可折叠展示,参考 Claude/GPT)。当前仅
+  /// 生图轮写入:正文 content 留空、只展示图,模型「讲思路」的文字存这里,刷新后
+  /// 仍可展开,且滚动摘要/多轮历史读 content || thinking 不丢上下文。Null = 无。
+  thinking        String?
+  createdAt       DateTime @default(now())
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+// One row per (user, local-day) the user made an authenticated request.
+// Lets the admin dashboard count daily-active users (incl. pure browsing,
+// which leaves no content row) cheaply — upserted, throttled, in requireUser.
+// `day` is the server-local calendar day as "YYYY-MM-DD".
+model UserActiveDay {
+  userId String
+  day    String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+  @@index([day])
+}
+
+// Runtime-mutable key/value settings. First citizen: "llm.provider".
+// Storing as JSON string so values can be scalars, objects, or arrays
+// without column-type fights.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
+// ───助手会议(语音助手) ──────────────────────────────────────
+// One row per meeting that an admin starts. The admin's browser is
+// the SOLE audio source; everyone else opens this URL read-only to
+// watch the live transcript + assistant's chimed-in comments.
+model MeetingSession {
+  id              String   @id @default(cuid())
+  title           String
+  // The admin who created and is hosting. Only this user (or any
+  // other admin) can DELETE (= end) the meeting.
+  createdById     String
+  // JSON array of role ids — assistant's retrieval will be scoped to
+  // docs under these roles (intersected with the asker's permissions
+  // at query time so we never leak). MAY be empty ("[]") — an empty
+  // scope means assistant retrieves only public docs (no extra role narrowing).
+  allowedRoleIds  String   // JSON-encoded string[]
+  // JSON object: { tts, recording, freqLimit, triggerSilence,
+  // triggerKeyword, durationHintHours, style }. Stored as JSON so
+  // adding a knob doesn't require a schema migration.
+  config          String   // JSON
+  // "active" while the meeting is running, "ended" once the admin
+  // stops it (or it auto-ends past the duration hint). Listed on the
+  // hub: active first, then recent.
+  status          String   @default("active")
+  // Audience scope. "public" = any logged-in user can see/join (read-only
+  // unless host); "private" = only the creator + admins. Default public so
+  // existing rows (pre-migration) keep today's org-wide visibility.
+  visibility      String   @default("public")  // "public" | "private"
+  // OSS URL of the full meeting recording, written when the meeting
+  // ends and the audio stream is finalized. Null until end (and on
+  // sessions where recording was disabled in config).
+  recordingUrl    String?
+  // Pre-computed Markdown summary written once at end. We do NOT
+  // store the summary on the live row — we generate when admin
+  // clicks 结束, then patch. Nullable while active or if generation
+  // failed (admin can retry).
+  summaryMarkdown String?
+  // 纪要群通知的一次性认领标记:首次成功生成纪要时置位并推送飞书群;此后手动
+  // 「重新生成」不再重复发群(updateMany where null 的 CAS,见 claimMinutesNotified)。
+  minutesNotifiedAt DateTime?
+  createdAt       DateTime @default(now())
+  endedAt         DateTime?
+  // Soft-delete (recycle bin). deletedAt null = live; non-null = binned.
+  // Only an "ended" meeting can be soft-deleted; permanent-delete from
+  // the bin runs the old hard-delete (unlink .wav/.mp3 + row delete).
+  // deletedById = who deleted it (plain scalar, NO User FK).
+  deletedAt       DateTime?
+  deletedById     String?
+
+  createdBy       User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  transcripts     MeetingTranscript[]
+  comments        MeetingComment[]
+
+  // Per-admin single-active constraint is enforced in the route
+  // (Prisma can't express "at most one row per createdById WHERE
+  // status='active'"). Both indexes speed up the hub and that check.
+  @@index([createdById, status])
+  @@index([status, createdAt])
+  @@index([visibility, status, createdAt])
+  @@index([deletedById, deletedAt])
+}
+
+// Raw transcription segments from the STT provider. Persisted
+// incrementally during the meeting (not buffered until end) so a
+// crash mid-meeting still preserves history, and so the hub can
+// surface partial transcripts if you refresh.
+model MeetingTranscript {
+  id          String   @id @default(cuid())
+  sessionId   String
+  // Plain text of one STT "final" segment. Partials are NOT stored —
+  // they're broadcast over WS only, then replaced by the final once
+  // the STT confirms. Keeps the table size sane.
+  text        String
+  // Offset from the meeting's createdAt in ms. Cheap chronological
+  // sort + display; lets us regenerate "MM:SS" timestamps without
+  // touching createdAt math.
+  startMs     Int
+  endMs       Int
+  // Optional speaker label from STT diarization (e.g. "speaker_0").
+  // First version uses single-mic, no separation → always null.
+  // Reserved here so future multi-mic upgrades don't need a migration.
+  speaker     String?
+  createdAt   DateTime @default(now())
+
+  session     MeetingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, startMs])
+}
+
+// Each chime-in from assistant (or a user's typed "ask assistant" question
+// + assistant's reply). Persisted so the summary view can render them
+// as a timeline AFTER the meeting ends. Also kept for the "📢 评论
+// 刚才" / "💬 问助手" admin features.
+model MeetingComment {
+  id              String   @id @default(cuid())
+  sessionId       String
+  // Why assistant spoke: explicit wake word, keyword detection, silence
+  // trigger, admin "📢 评论刚才" press, or user "💬 问助手" question.
+  triggerType     String   // 'explicit_wake' | 'keyword' | 'silence' | 'manual_button' | 'user_question'
+  // For user_question / manual_button: who triggered it (so we can
+  // both attribute in the UI and use that user's identity for retrieval).
+  triggeredByUserId String?
+  // The full Markdown of what assistant said. Rendered in the panel and
+  // included in the meeting summary timeline.
+  text            String
+  // JSON array of article ids assistant cited. Same shape as
+  // ChatMessage.citedArticleIds for consistency.
+  citedArticleIds String?  // JSON-encoded string[] | null
+  // OSS URL of the TTS audio for this comment (so re-loads of the
+  // page can replay). Null when TTS was off or generation failed.
+  ttsAudioUrl     String?
+  // Offset from meeting createdAt in ms — for sorting + timeline.
+  atMs            Int
+  createdAt       DateTime @default(now())
+
+  session         MeetingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, atMs])
+}
+
+// Per-recipient engagement notification (article liked / favorited / commented
+// / replied / mentioned). The row ALSO serves as the Feishu delivery outbox:
+// `feishuState` is tracked independently of in-app `readAt`, so the in-app
+// bell shows it immediately while a background dispatcher pushes the Feishu
+// card with retry/rate-limit. `payload` is a JSON-encoded render snapshot
+// (actor name / article title / comment excerpt) so list + card rendering need
+// no joins and don't drift if the source later changes.
+model Notification {
+  id          String    @id @default(cuid())
+  recipientId String
+  actorId     String?
+  type        String    // article_like | article_favorite | article_comment | comment_reply | comment_mention
+  articleId   String?
+  commentId   String?
+  payload     String    // JSON-encoded { actorName, articleTitle, excerpt? }
+  readAt      DateTime?
+  feishuState String    @default("pending") // pending | sent | skipped | failed
+  feishuMsgId String?
+  feishuTries Int       @default(0)
+  // 实际推送成功的时刻。每分钟限频窗口按它统计 —— createdAt 是「创建」时刻,
+  // 积压补发时(行都创建于 1 分钟前)按 createdAt 数恒为 0,限频会整体失效。
+  feishuSentAt DateTime?
+  dedupeKey   String?
+  createdAt   DateTime  @default(now())
+
+  recipient   User     @relation("NotifRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor       User?    @relation("NotifActor", fields: [actorId], references: [id], onDelete: SetNull)
+  // FK to the subject doc/comment so a HARD delete (recycle-bin purge / comment
+  // delete) cascades away the notification — no orphan rows / dead deep links.
+  article     Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  comment     Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, readAt, createdAt])
+  @@index([feishuState, createdAt])
+  @@index([dedupeKey, createdAt])
+}
+
+// Per-user notification preferences. Absent row = all defaults (everything on).
+model NotificationPref {
+  userId        String  @id
+  muteLikes     Boolean @default(false)
+  muteFavorites Boolean @default(false)
+  muteComments  Boolean @default(false)
+  feishuEnabled Boolean @default(true)
+  // Web(浏览器桌面)通知:自动化完成 / 会议纪要 /助手生图 三类「事件完成」通知。
+  // mute* = 该类彻底不产生通知(连站内铃铛都不写);webEnabled = 浏览器桌面弹窗总开关
+  // (关掉仍保留站内铃铛,只是不弹系统通知,语义对齐 feishuEnabled)。
+  muteAutomation Boolean @default(false)
+  muteMeeting    Boolean @default(false)
+  muteImage      Boolean @default(false)
+  webEnabled     Boolean @default(true)
+
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// 知识库周报快照(管理后台)。每周一 00:00(北京时间)定时生成「上一个完整的
+// 周一–周日」周报;weekKey = 该周周一的北京日期(YYYY-MM-DD),唯一 → 幂等。
+// snapshot 是整份周报的 JSON(概览 / 趋势 / 构成 / 用户明细 / 贡献榜 / 实时动态),
+// 沿用本仓库「JSON 存 TEXT」约定(见 Notification.payload / MeetingSession.config)。
+model WeeklyReport {
+  id          String   @id @default(cuid())
+  weekKey     String   @unique // 周一北京日期 YYYY-MM-DD
+  weekStart   DateTime // 周一 00:00 北京(以 UTC 瞬时存储)
+  weekEnd     DateTime // 下周一 00:00 北京(UTC 瞬时,右开区间)
+  snapshot    String   // JSON-encoded WeeklyReportSnapshot
+  generatedAt DateTime @default(now())
+
+  @@index([weekStart])
+}
+
+// 管理员维护的助手内容排除清单。被排除的角色/文件夹/文档,助手的 AI
+// (问答/会议/群聊答疑/文档体检)不再检索和分析。仅影响 AI,不影响用户访问。
+// 不设跨类型外键(targetId 指向 role/folder/article 之一);目标被删后留下的
+// 孤儿行无害——过滤时匹配不到,管理列表里 join 不到名字时也会被过滤掉。
+model AssistantExclusion {
+  id          String   @id @default(cuid())
+  targetType  String   // "role" | "folder" | "article"
+  targetId    String
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@unique([targetType, targetId])
+  @@index([targetType])
+}

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- favicon 由 BookFlipIcon 品牌方块衍生:SVG 优先,ico 多尺寸兜底 -->
+    <link rel="icon" type="image/x-icon" sizes="48x48 32x32 16x16" href="/favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>团队知识库</title>
+    <!-- prosemirror-view's reset must load BEFORE Crepe's theme so the
+         editor's `white-space: pre-wrap` (and friends) is in effect when
+         selection-triggered layout happens. -->
+    <link rel="stylesheet" href="/vendor/prosemirror-view.css" />
+    <!-- prosemirror-virtual-cursor's own reset (position:absolute,
+         transform, border-left) must load before Crepe's theme so the
+         virtual cursor renders as an out-of-flow caret. Without it the
+         element is in-flow and dblclick on a heading after a wrapIn
+         can briefly shift surrounding blocks. -->
+    <link rel="stylesheet" href="/vendor/prosemirror-virtual-cursor.css" />
+    <link rel="stylesheet" href="/vendor/crepe/nord.css" />
+    <link rel="stylesheet" href="/vendor/crepe/common/style.css" />
+    <style>
+      /* Boot splash — inline so it paints the instant the HTML arrives,
+         BEFORE the ~2MB JS bundle downloads. Tailwind's stylesheet is
+         injected by JS (main.tsx imports index.css), so `bg-bg` on <body>
+         does NOT apply yet during load — that blank gap is the white page
+         we're covering here. Everything below is self-contained (no
+         Tailwind, no JS): it must not depend on anything the bundle ships.
+
+         The splash lives INSIDE #root; React's createRoot() empties the
+         container on its first render(), so it's removed automatically the
+         moment the app mounts — no cleanup code needed.
+
+         The 0.25s fade-in delay means a fast/cached load (bundle ready
+         before the splash becomes visible) shows nothing jarring; the
+         splash only fades in if loading actually drags. */
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        background: #ffffff;
+        font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          "Microsoft YaHei", "Noto Sans SC", "Hiragino Sans GB", sans-serif;
+        opacity: 0;
+        animation: tm-splash-in 0.4s ease 0.25s forwards;
+      }
+      #app-splash .tm-logo {
+        width: 64px;
+        height: 64px;
+        border-radius: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #3370ff, #2563eb);
+        box-shadow: 0 10px 30px rgba(51, 112, 255, 0.28);
+        animation: tm-splash-float 1.6s ease-in-out infinite;
+      }
+      /* 翻书 logo（复刻左上角 BookFlipIcon / shell/BookFlipIcon.tsx）：
+         静态书 + 一张绕书脊翻转的右页。内联在此,不依赖 index.css(尚未加载)。 */
+      #app-splash .tm-book {
+        position: relative;
+        width: 34px;
+        height: 34px;
+      }
+      #app-splash .tm-book > svg,
+      #app-splash .tm-book .tm-book-persp {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      #app-splash .tm-book .tm-book-persp {
+        perspective: 64px;
+      }
+      #app-splash .tm-book-page {
+        width: 100%;
+        height: 100%;
+        transform-origin: 50% 50%;
+        backface-visibility: visible;
+        animation: tm-book-flip 5s ease-in-out infinite;
+      }
+      @keyframes tm-book-flip {
+        0%,
+        15% {
+          transform: rotateY(0deg);
+        }
+        50% {
+          transform: rotateY(-90deg);
+        }
+        85%,
+        100% {
+          transform: rotateY(-180deg);
+        }
+      }
+      #app-splash .tm-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: #1f2329;
+        letter-spacing: 0.5px;
+      }
+      #app-splash .tm-bar {
+        width: 180px;
+        height: 4px;
+        border-radius: 999px;
+        background: #dee0e3;
+        overflow: hidden;
+      }
+      #app-splash .tm-bar > i {
+        display: block;
+        width: 40%;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #3370ff, #60a5fa);
+        animation: tm-splash-bar 1.2s ease-in-out infinite;
+      }
+      #app-splash .tm-hint {
+        font-size: 12px;
+        color: #646a73;
+      }
+      @keyframes tm-splash-in {
+        to {
+          opacity: 1;
+        }
+      }
+      @keyframes tm-splash-float {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-6px);
+        }
+      }
+      /* Inner bar (40% of track) slides from fully hidden on the left to
+         fully hidden on the right: the track is 250% of the bar's own
+         width (100/40), so -100% → 250% sweeps it across once per cycle. */
+      @keyframes tm-splash-bar {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(250%);
+        }
+      }
+      /* Respect reduced-motion: drop the float/slide, keep a static
+         indeterminate fill so there's still a visible "loading" state. */
+      @media (prefers-reduced-motion: reduce) {
+        #app-splash {
+          animation: tm-splash-in 0.2s ease forwards;
+        }
+        #app-splash .tm-logo {
+          animation: none;
+        }
+        #app-splash .tm-book-page {
+          animation: none;
+        }
+        #app-splash .tm-bar > i {
+          width: 100%;
+          animation: none;
+          opacity: 0.6;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-bg text-fg">
+    <div id="root">
+      <div id="app-splash">
+        <div class="tm-logo">
+          <span class="tm-book">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 6.2C9.5 5.2 6 5 3.5 5.4L3.5 16.8C6 16.4 9.5 16.6 12 18Z" />
+              <path d="M12 6.2C14.5 5.2 18 5 20.5 5.4L20.5 16.8C18 16.4 14.5 16.6 12 18Z" />
+              <path d="M12 6.2V18" />
+            </svg>
+            <span class="tm-book-persp">
+              <svg class="tm-book-page" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 6.2C14.5 5.2 18 5 20.5 5.4L20.5 16.8C18 16.4 14.5 16.6 12 18Z" />
+              </svg>
+            </span>
+          </span>
+        </div>
+        <div class="tm-title">团队知识库</div>
+        <div class="tm-bar"><i></i></div>
+        <div class="tm-hint">正在加载…</div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

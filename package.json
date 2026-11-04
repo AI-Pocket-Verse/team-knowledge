@@ -1,0 +1,32 @@
+{
+  "name": "team-knowledge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Team knowledge base with an AI assistant: role/folder/document hierarchy, RAG chat with citations, meeting assistant, doc audits, role skills, automations, optional Feishu integration",
+  "license": "MIT",
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.19",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "bootstrap": "node -e \"const fs=require('fs');if(!fs.existsSync('api/.env.dev'))fs.copyFileSync('api/.env.example','api/.env.dev')\" && pnpm --filter @team-knowledge/api db:migrate && pnpm --filter @team-knowledge/api db:seed",
+    "dev": "pnpm --parallel --filter @team-knowledge/api --filter @team-knowledge/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "@remix-run/router": ">=1.23.2",
+      "micromatch": ">=4.0.8",
+      "dompurify": ">=3.4.11 <4",
+      "js-yaml": ">=4.2.0 <5",
+      "katex": ">=0.18.2 <1"
+    }
+  }
+}

@@ -1,0 +1,66 @@
+# 知识库内容与登录 cookie 必须走 HTTPS。证书可用 certbot 等工具签发，
+# 把 __SSL_CERT__ / __SSL_KEY__ 换成证书与私钥的实际路径。
+server {
+    listen 80;
+    server_name __SERVER_NAME__;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name __SERVER_NAME__;
+
+    ssl_certificate     __SSL_CERT__;
+    ssl_certificate_key __SSL_KEY__;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    # 安全响应头。前端没有内联脚本，CSP 只放行同源脚本；img-src 放行 https: 是为了飞书头像
+    # (启用登录后头像地址指向飞书 CDN)；blob: / data: 用于粘贴图片预览、分享图片与会议语音播放。
+    # location 里一旦写了自己的 add_header 就不再继承这里的，新增 location 时注意。
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Frame-Options           "DENY" always;
+    add_header X-Content-Type-Options    "nosniff" always;
+    add_header Referrer-Policy           "no-referrer" always;
+    add_header Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+
+    # Article saves can be ~20MB of markdown (zod-capped); allow headroom.
+    client_max_body_size 32M;
+
+    # Static frontend (built artifact)
+    root __INSTALL_DIR__/web/dist;
+    index index.html;
+
+    # 内部接口只给 feishu-sso 调用（走 127.0.0.1:4030 直连，不经过 nginx），对外一律 404。
+    # 它们只靠 INTERNAL_API_TOKEN 鉴权，不能暴露在公网域名下。^~ 优先于下面的正则 location。
+    location ^~ /api/internal/ {
+        return 404;
+    }
+
+    # API + auth-gated file streams proxy to Node. The meeting WebSocket rides
+    # under /api/, so the Upgrade/Connection headers must pass through.
+    location ~ ^/(api|uploads)/ {
+        proxy_pass http://127.0.0.1:4030;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        "upgrade";
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        # 覆盖而不是追加，客户端自带的 X-Forwarded-For 不会被信任（api 默认只信本机反代，见 TRUST_PROXY）。
+        proxy_set_header X-Forwarded-For   $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_buffering off;        # SSE (chat / one-click optimize)
+        proxy_read_timeout 3600s;   # long-lived meeting WebSocket
+    }
+
+    # 可选：接入飞书登录时，把 feishu-sso 的 nginx 片段放进这个 server 块
+    # include /etc/nginx/snippets/feishu-sso.conf;
+
+    # SPA fallback
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    access_log /var/log/nginx/team-knowledge.access.log;
+    error_log  /var/log/nginx/team-knowledge.error.log;
+}

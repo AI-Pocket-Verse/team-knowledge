@@ -1,0 +1,145 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body { @apply h-full; }
+  body { @apply bg-bg text-fg antialiased; font-feature-settings: "cv11"; }
+}
+
+@layer components {
+  /* `.glass` was previously a translucent blue-white wash. The new
+     palette is near-white with a hairline border so panels read as
+     solid, not glassy. Kept the class name to avoid touching dozens
+     of call sites; the visual is now a clean Notion-style surface. */
+  .glass {
+    @apply bg-white border border-line;
+  }
+  .glass-soft {
+    @apply bg-white/85 backdrop-blur-sm border border-line;
+  }
+  /* Card surface used on the feed and module/role pages. */
+  .card-surface {
+    @apply bg-white border border-line rounded-lg;
+  }
+}
+
+/* "AI is thinking" loader — three dots whose scale moves like a wave.
+   Each dot uses these continuous sinusoidal keyframes (small → big →
+   small over its full cycle, no idle plateau). ChatMessageList
+   staggers the dots with inline `animation-delay` (0 / 500 / 1000ms
+   over a 1.5s cycle) so neighbouring dots cross in the middle:
+   while dot 1 is mid-shrink, dot 2 is mid-grow — the peak travels
+   smoothly across the three positions instead of one dot finishing
+   before the next starts. Range 0.5 → 1.15 keeps even the smallest
+   dots clearly visible. */
+@keyframes tm-dot-pulse {
+  0%, 100% { transform: scale(0.5);  opacity: 0.5; }
+  50%      { transform: scale(1.15); opacity: 1;   }
+}
+.tm-dot-pulse {
+  animation: tm-dot-pulse 1.5s ease-in-out infinite both;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+/* Brand book mark — a page physically turns (see shell/BookFlipIcon.tsx).
+   The turning sheet is its own <svg> (a replaced element, so 3D transforms are
+   reliable cross-browser); its wrapper carries the `perspective`. Rotating it
+   rotateY(0 → -90° → -180°) swings the right page up off the book, edge-on at
+   the spine, then down onto the left — a real 3D flip. Perspective foreshortens
+   the sheet as it lifts, so its top AND bottom edges move (not just a flat
+   horizontal squash). Long flat holds at each end + one eased turn = a calm,
+   occasional flip. At 0° / -180° the sheet coincides with a static page, so the
+   loop's reset is invisible — it only reads as a distinct sheet mid-turn. */
+@keyframes tm-book-flip {
+  0%, 15%   { transform: rotateY(0deg); }
+  50%       { transform: rotateY(-90deg); }
+  85%, 100% { transform: rotateY(-180deg); }
+}
+.tm-book-page {
+  transform-origin: 50% 50%;
+  backface-visibility: visible;
+  animation: tm-book-flip 5s ease-in-out infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tm-book-page { animation: none; }
+}
+
+/* One-shot section entrance for the 数据看板 (see components/dashboard/Reveal).
+   `both` fill-mode holds the hidden start frame through the stagger delay so a
+   delayed section doesn't flash in at full opacity before its turn. Plays once
+   on mount — SSE refetches update children in place without remounting, so it
+   never replays. */
+@keyframes tm-reveal {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.tm-reveal {
+  animation: tm-reveal 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tm-reveal { animation: none; }
+}
+
+/* Chat composer (contentEditable) — placeholder text shows when the
+   editor is truly empty. `:empty` matches when the host has no child
+   nodes; some browsers leave a stray `<br>` after delete-all which
+   would defeat this, so the React side also nukes it back to "" on
+   clear (see ChatComposer.tsx `clear()`). data-placeholder lets each
+   instance customize its own text. */
+.tm-chat-editor:empty::before {
+  content: attr(data-placeholder);
+  color: rgb(107 114 128 / 0.45);
+  pointer-events: none;
+}
+
+/* @-mention chip embedded inline in the contentEditable composer.
+   `contenteditable="false"` on the span makes it atomic — backspace
+   removes the whole chip in one keystroke, click selects the entire
+   chip as one unit (via `user-select: all`), caret never enters its
+   interior. The styling reads as a pill with a soft violet wash so
+   it's visually distinct from typed text.
+   Sized one notch bigger than body text + a touch more padding so
+   the chip reads as a deliberate "object" the user can grab. */
+.tm-mention-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  margin: 0 2px;
+  border-radius: 999px;
+  background: rgb(51 112 255 / 0.12);
+  color: rgb(30 58 138);
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  user-select: all;
+  -webkit-user-select: all;
+  cursor: pointer;
+}
+.tm-mention-chip:hover {
+  background: rgb(51 112 255 / 0.18);
+}
+/* `tm-mention-chip-selected` is toggled by ChatComposer's
+   selectionchange listener when the chip is fully inside the
+   browser's selection (i.e. the user clicked it or shift-selected
+   across it). We restyle the ENTIRE chip — pill background plus a
+   subtle violet ring — so the visual "this is selected" maps onto
+   the whole rounded object, not just the inner glyphs.
+   We override the `::selection` text background to transparent in
+   this state so the two highlight layers don't double up into a
+   muddy color. */
+.tm-mention-chip-selected {
+  background: rgb(51 112 255 / 0.35);
+  box-shadow: 0 0 0 2px rgb(51 112 255 / 0.4);
+  color: rgb(30 58 138);
+}
+.tm-mention-chip-selected::selection,
+.tm-mention-chip-selected *::selection {
+  background: transparent;
+  color: inherit;
+}

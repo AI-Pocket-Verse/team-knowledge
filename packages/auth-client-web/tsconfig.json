@@ -1,0 +1,5 @@
+{
+  "extends": "@team-knowledge/tsconfig/lib.json",
+  "include": ["src"],
+  "compilerOptions": { "noEmit": true, "composite": false }
+}

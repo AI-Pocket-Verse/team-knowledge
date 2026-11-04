@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+*.tsbuildinfo
+coverage/
+
+# Env — only the .example template is committed
+.env
+.env.*
+!.env.example
+
+# Runtime data (SQLite, uploads, outputs, backups)
+api/data/
+api/prisma/*.db
+api/prisma/*.db-journal
+api/prisma/*.db-wal
+api/prisma/*.db-shm
+api/test.db*
+# 测试运行时的数据目录(globalTeardown 会清掉，测试中断时可能残留)
+api/data-test/
+# 数据库备份(默认在 DATA_DIR/backups 下；DATA_DIR 误指到仓库内时也不入库)
+backups/
+.restoring
+*.db.gz
+
+# Generated Prisma client (`pnpm install` regenerates it)
+api/generated/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Private notes, scratch files, internal workflow docs
+.private/
+.tmp/
+goals/
+process/
+ROADMAP.md
+
+# AI tool instructions and local config (not part of the open-source repo)
+AGENTS.md
+CLAUDE.md
+.claude/
+.codex/
+.cursor/
+.mcp.json
+.playwright-mcp/
+
+# Logs and certificates / keys
+*.log
+*.pem
+*.key
+*.p12
+
+
+# Generated vendor CSS for the editor (web/scripts/copy-vendor.mjs)
+web/public/vendor/
+# Local DB snapshots made by deploy/ scripts
+api/.backups/

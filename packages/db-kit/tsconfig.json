@@ -1,0 +1,5 @@
+{
+  "extends": "@team-knowledge/tsconfig/api.json",
+  "include": ["src"],
+  "compilerOptions": { "noEmit": true }
+}
