@@ -19,6 +19,7 @@ import { toast } from "@/components/Toaster";
 import { dialog } from "@/components/Dialog";
 import type { ArticleSearchHit } from "@team-knowledge/shared";
 import "./milkdown.css";
+import { tr, type MessageKey } from "@/i18n";
 
 // Lazy-loaded mermaid renderer for ```mermaid code blocks (Feishu whiteboards
 // drawn with diagram syntax import as mermaid; any mermaid block renders too).
@@ -79,13 +80,13 @@ const ICON_MATH = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24
 // 三项仅在对应 feature 开启时出现——本编辑器三者都开,故固定 15 项;若将来
 // 禁用某个 feature 导致按钮数量对不上,applyTopBarTitles 会整体跳过(宁可
 // 没 tooltip 也不贴错名)。
-const TOP_BAR_ITEM_TITLES: readonly string[] = [
-  "粗体", "斜体", "删除线", "行内代码",
-  "无序列表", "有序列表", "任务列表",
-  "链接", "图片", "表格",
-  "代码块", "公式",
-  "引用", "分割线",
-  "上传文件",
+const TOP_BAR_ITEM_TITLES: readonly MessageKey[] = [
+  "article.editor.topbar.bold", "article.editor.topbar.italic", "article.editor.topbar.strike", "article.editor.topbar.code",
+  "article.editor.topbar.bullet", "article.editor.topbar.ordered", "article.editor.topbar.task",
+  "article.editor.topbar.link", "article.editor.topbar.image", "article.editor.topbar.table",
+  "article.editor.topbar.codeBlock", "article.editor.topbar.math",
+  "article.editor.topbar.quote", "article.editor.topbar.hr",
+  "article.editor.topbar.upload",
 ];
 
 // 给顶栏按钮补 title(中文名)。仅当按钮数量与预期完全一致时才逐个贴,
@@ -95,11 +96,11 @@ function applyTopBarTitles(topbar: HTMLElement): void {
   if (buttons.length === TOP_BAR_ITEM_TITLES.length) {
     buttons.forEach((btn, i) => {
       const name = TOP_BAR_ITEM_TITLES[i];
-      if (name) btn.title = name;
+      if (name) btn.title = tr(name);
     });
   }
   const heading = topbar.querySelector<HTMLElement>(".top-bar-heading-button");
-  if (heading) heading.title = "标题级别";
+  if (heading) heading.title = tr("article.editor.headingLevel");
 }
 
 // Walk a pasted slice and split every paragraph at hard-break nodes,
@@ -324,7 +325,7 @@ async function transcodeBase64Images(
       const url = await upload(file);
       img.setAttribute("src", uploadSrc(url));
     } catch {
-      const placeholder = document.createTextNode("[图片上传失败]");
+      const placeholder = document.createTextNode(tr("article.editor.imageUploadFailedMark"));
       img.replaceWith(placeholder);
     }
   }
@@ -472,7 +473,7 @@ export function MilkdownEditor({
               onRun: async (ctx) => {
                 const handler = onPasteFileRef.current;
                 if (!handler) {
-                  toast.error("文件上传未配置");
+                  toast.error(tr("article.editor.fileUploadNotConfigured"));
                   return;
                 }
                 const file = await openFilePicker();
@@ -481,7 +482,7 @@ export function MilkdownEditor({
                   const { url, displayName } = await handler(file);
                   insertAttachmentLink(ctx.get(editorViewCtx), displayName, url, file.size);
                 } catch (err) {
-                  toast.error(`文件上传失败：${(err as Error).message}`);
+                  toast.error(tr("article.editor.fileUploadFailed", { msg: (err as Error).message }));
                 }
               },
             });
@@ -501,7 +502,7 @@ export function MilkdownEditor({
             const seq = ++mermaidSeq;
             renderMermaidToSvg(content, seq)
               .then((svg) => applyPreview(svg))
-              .catch(() => applyPreview("（流程图渲染失败,原 mermaid 源码已保留）"));
+              .catch(() => applyPreview(tr("article.editor.mermaidFailed")));
             return undefined; // async: library shows previewLoading, then our SVG
           },
         },
@@ -545,7 +546,7 @@ export function MilkdownEditor({
               onRun: async (ctx) => {
                 const uploader = onPasteImageRef.current;
                 if (!uploader) {
-                  toast.error("图片上传未配置");
+                  toast.error(tr("article.editor.imageUploadNotConfigured"));
                   return;
                 }
                 const file = await openFilePicker("image/*");
@@ -560,12 +561,12 @@ export function MilkdownEditor({
                   if (!imageBlock) {
                     // Defensive — ImageBlock feature is configured
                     // above so this branch should be unreachable.
-                    toast.error("image-block 节点未注册");
+                    toast.error(tr("article.editor.imageBlockMissing"));
                     return;
                   }
                   insertBlockInPlace(ctx, imageBlock.create({ src: url, caption: "", ratio: 1 }));
                 } catch (err) {
-                  toast.error(`图片上传失败：${(err as Error).message}`);
+                  toast.error(tr("article.editor.imageUploadFailed", { msg: (err as Error).message }));
                 }
               },
             });
@@ -588,7 +589,7 @@ export function MilkdownEditor({
                 const schema = ctx.get(schemaCtx);
                 const codeBlock = schema.nodes.code_block;
                 if (!codeBlock) {
-                  toast.error("code_block 节点未注册");
+                  toast.error(tr("article.editor.codeBlockMissing"));
                   return;
                 }
                 // Math = code_block with `language: "LaTeX"`. Crepe's
@@ -603,7 +604,7 @@ export function MilkdownEditor({
               onRun: async (ctx) => {
                 const handler = onPasteFileRef.current;
                 if (!handler) {
-                  toast.error("文件上传未配置");
+                  toast.error(tr("article.editor.fileUploadNotConfigured"));
                   return;
                 }
                 const file = await openFilePicker();
@@ -619,7 +620,7 @@ export function MilkdownEditor({
                   const { url, displayName } = await handler(file);
                   insertAttachmentLink(ctx.get(editorViewCtx), displayName, url, file.size);
                 } catch (err) {
-                  toast.error(`文件上传失败：${(err as Error).message}`);
+                  toast.error(tr("article.editor.fileUploadFailed", { msg: (err as Error).message }));
                 }
               },
             });
@@ -947,7 +948,7 @@ export function MilkdownEditor({
                 if (i > 0) view.dispatch(view.state.tr.insertText(" "));
                 insertAttachmentLink(view, displayName, url, file.size);
               } catch (err) {
-                toast.error(`文件上传失败：${(err as Error).message}`);
+                toast.error(tr("article.editor.fileUploadFailed", { msg: (err as Error).message }));
               }
             }
           })().catch((err) => {
@@ -976,7 +977,7 @@ export function MilkdownEditor({
                       view.dispatch(view.state.tr.insertText(`![](${uploadSrc(url)})`));
                     })
                     .catch((err: unknown) => {
-                      toast.error(`图片上传失败：${(err as Error).message}`);
+                      toast.error(tr("article.editor.imageUploadFailed", { msg: (err as Error).message }));
                     });
                   return true;
                 }
@@ -998,7 +999,7 @@ export function MilkdownEditor({
                   insertAttachmentLink(view, displayName, url, file.size);
                 })
                 .catch((err: unknown) => {
-                  toast.error(`文件上传失败：${(err as Error).message}`);
+                  toast.error(tr("article.editor.fileUploadFailed", { msg: (err as Error).message }));
                 });
               return true;
             }
@@ -1021,7 +1022,7 @@ export function MilkdownEditor({
               if (!view.dom.isConnected) return;
               insertHtmlAtCursor(view, div.innerHTML);
             })().catch((err) => {
-              toast.error(`粘贴处理失败：${(err as Error).message}`);
+              toast.error(tr("article.editor.pasteFailed", { msg: (err as Error).message }));
             });
             return true;
           }
@@ -1164,7 +1165,7 @@ export function MilkdownEditor({
             // guard is correctness-critical (we trade UI polish
             // for not freezing the editor on a 500KB paste).
             // eslint-disable-next-line no-alert
-            if (!window.confirm(`粘贴内容较长（${kb} KB），可能造成短暂卡顿。继续粘贴？`)) {
+            if (!window.confirm(tr("article.editor.bigPaste", { kb }))) {
               event.preventDefault();
               return true;
             }
@@ -1253,7 +1254,7 @@ export function MilkdownEditor({
       .catch((err) => {
         // eslint-disable-next-line no-console
         console.error("[MilkdownEditor] Crepe.create() failed:", err);
-        if (!cancelled) setLoadError((err as Error)?.message || "未知错误");
+        if (!cancelled) setLoadError((err as Error)?.message || tr("article.editor.unknownError"));
       });
 
     return () => {
@@ -1292,8 +1293,8 @@ export function MilkdownEditor({
       <div ref={rootRef} />
       {loadError && (
         <div role="alert" className="mt-3 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-          编辑器加载失败（{loadError}）。你的内容没有丢失，请刷新页面重试；如果反复出现，请联系管理员。
-          <button type="button" className="ml-2 underline" onClick={() => window.location.reload()}>刷新页面</button>
+          {tr("article.editor.loadFailed", { error: loadError })}
+          <button type="button" className="ml-2 underline" onClick={() => window.location.reload()}>{tr("article.editor.reload")}</button>
         </div>
       )}
       {mention && onMentionQuery && (

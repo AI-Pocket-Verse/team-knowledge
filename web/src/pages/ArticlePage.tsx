@@ -26,6 +26,7 @@ import { useAutosave } from "@/lib/useAutosave";
 import { useEditLock } from "@/lib/useEditLock";
 import { useWorkspaceTree } from "@/stores/workspaceTree";
 import { useUnsavedGuard } from "@/stores/unsavedGuard";
+import { useT } from "@/i18n";
 
 // Server-side sentinel for "no title typed yet" (see normalizeTitle in
 // api/src/routes/articles.ts). Map it to an empty input so the editor
@@ -36,6 +37,7 @@ const fromServer = (t: string) => (t === UNTITLED ? "" : t);
 // 统一文档页(看即可改):打开即只读浏览;有 canEdit 的人点正文/标题(懒锁)进入
 // 编辑,改动经 useAutosave 防抖自动保存。无权限的人恒只读。并发沿用单写软锁。
 export function ArticlePage() {
+  const t = useT();
   const { docId: articleId } = useParams<{ docId: string }>();
   const justCreated = !!(useLocation().state as { justCreated?: boolean } | null)?.justCreated;
   const nav = useNavigate();
@@ -126,34 +128,34 @@ export function ArticlePage() {
       ? [
           { label: article.role.name, to: `/r/${article.roleId}` },
           ...(article.folder ? [{ label: article.folder.name, to: `/f/${article.folderId}` }] : []),
-          { label: article.title || "未命名文档" },
+          { label: fromServer(article.title) || t("article.untitledDoc") },
         ]
       : undefined,
-    title: article ? undefined : "文档",
+    title: article ? undefined : t("article.page.docTitle"),
     rightActions: article
       ? (() => {
           const a = article;
           return (
             <div className="flex items-center gap-2">
               {canEdit && lockedByOther && (
-                <span className="text-xs text-amber-600">他人正在编辑，暂为只读</span>
+                <span className="text-xs text-amber-600">{t("article.page.lockedByOther")}</span>
               )}
               {canEdit && !lockedByOther && editing && (
                 <span className="text-xs text-muted">
                   {autosaveState === "saving" ? (
-                    "保存中…"
+                    t("article.page.saving")
                   ) : autosaveState === "conflict" ? (
                     <button type="button" onClick={() => void resolveConflict()} className="text-amber-600 hover:underline">
-                      文档已更新，点此覆盖保存
+                      {t("article.page.conflict")}
                     </button>
                   ) : autosaveState === "error" ? (
                     <button type="button" onClick={() => flushNow()} className="text-red-600 hover:underline">
-                      保存失败，点此重试
+                      {t("article.page.saveError")}
                     </button>
                   ) : showSaved ? (
-                    "已保存"
+                    t("article.page.saved")
                   ) : !lastSavedAt ? (
-                    "可编辑"
+                    t("article.page.editable")
                   ) : null}
                 </span>
               )}
@@ -162,12 +164,12 @@ export function ArticlePage() {
                 onOpenChange={setMenuOpen}
                 items={[
                   a.permissions.canManageEditors && {
-                    key: "collab", label: "协同编辑",
+                    key: "collab", label: t("article.page.collab"),
                     onClick: () => { setMenuOpen(false); setCollabOpen(true); },
                   },
-                  { key: "details", label: "文档详情", onClick: () => { setMenuOpen(false); setDetailsOpen(true); } },
+                  { key: "details", label: t("article.page.details"), onClick: () => { setMenuOpen(false); setDetailsOpen(true); } },
                   a.permissions.canView && {
-                    key: "history", label: "历史记录",
+                    key: "history", label: t("article.page.history"),
                     // 先 flush 未存编辑:版本回滚会以「服务端当前内容」为基准做快照/替换,
                     // 不先存会把防抖窗口内的编辑丢掉(回滚后被覆盖)。
                     onClick: () => { setMenuOpen(false); flushNow(); setHistoryOpen(true); },
@@ -198,7 +200,7 @@ export function ArticlePage() {
     } catch (err) {
       if (routeIdRef.current !== articleId) return;
       if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
-        setError("该文档不存在或无权访问。");
+        setError(t("article.page.notFound"));
       } else {
         setError((err as Error).message);
       }
@@ -290,9 +292,9 @@ export function ArticlePage() {
     try {
       const res = wasLiked ? await api.likes.remove(article.id) : await api.likes.add(article.id);
       setArticle({ ...article, isLiked: res.isLiked, likeCount: res.likeCount });
-      toast.success(wasLiked ? "已取消点赞" : "点赞成功");
+      toast.success(wasLiked ? t("article.page.unliked") : t("article.page.liked"));
     } catch (err) {
-      toast.error(`操作失败：${(err as Error).message}`);
+      toast.error(t("article.page.actionFailed", { msg: (err as Error).message }));
     } finally {
       setLikeBusy(false);
     }
@@ -305,9 +307,9 @@ export function ArticlePage() {
     try {
       const res = wasBookmarked ? await api.bookmarks.remove(article.id) : await api.bookmarks.add(article.id);
       setArticle({ ...article, isBookmarked: res.isBookmarked, bookmarkCount: res.bookmarkCount });
-      toast.success(wasBookmarked ? "已取消收藏" : "收藏成功");
+      toast.success(wasBookmarked ? t("article.page.unbookmarked") : t("article.page.bookmarked"));
     } catch (err) {
-      toast.error(`操作失败：${(err as Error).message}`);
+      toast.error(t("article.page.actionFailed", { msg: (err as Error).message }));
     } finally {
       setBookmarkBusy(false);
     }
@@ -318,9 +320,9 @@ export function ArticlePage() {
     const url = window.location.origin + `/d/${article.id}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast.success("链接已复制");
+      toast.success(t("article.page.linkCopied"));
     } catch {
-      toast.error("复制失败，请手动复制链接");
+      toast.error(t("article.page.linkCopyFailed"));
     }
   }
 
@@ -373,8 +375,8 @@ export function ArticlePage() {
                 <button
                   type="button"
                   onClick={() => { setOutlineToggled(true); setOutlineOpen(!effectiveOutlineOpen); }}
-                  title={effectiveOutlineOpen ? "隐藏大纲" : "显示大纲"}
-                  aria-label={effectiveOutlineOpen ? "隐藏大纲" : "显示大纲"}
+                  title={effectiveOutlineOpen ? t("article.page.hideOutline") : t("article.page.showOutline")}
+                  aria-label={effectiveOutlineOpen ? t("article.page.hideOutline") : t("article.page.showOutline")}
                   aria-pressed={effectiveOutlineOpen}
                   className={
                     "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition " +
@@ -401,20 +403,20 @@ export function ArticlePage() {
                         <Input
                           value={title}
                           onChange={(e) => setTitle(e.target.value)}
-                          placeholder={UNTITLED}
+                          placeholder={t("article.untitledDoc")}
                           className="text-3xl font-semibold tracking-[-0.02em] h-auto rounded-none bg-transparent border-0 shadow-none focus-visible:ring-0 pl-0 pr-4 pt-0 pb-0 placeholder:text-muted/40"
                           maxLength={255}
                         />
                       ) : (
-                        <h1 className="text-3xl font-semibold tracking-[-0.02em]">{title || UNTITLED}</h1>
+                        <h1 className="text-3xl font-semibold tracking-[-0.02em]">{title || t("article.untitledDoc")}</h1>
                       )}
                     </div>
                     {hasReviewIssues && (
                       <button
                         type="button"
                         onClick={() => setReviewOpen(true)}
-                        title="AI 校验发现待优化问题,点击查看"
-                        aria-label="查看待优化问题"
+                        title={t("article.page.reviewTitle")}
+                        aria-label={t("article.page.reviewLabel")}
                         className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-500 text-sm font-bold text-white hover:bg-rose-600"
                       >
                         !
@@ -422,7 +424,7 @@ export function ArticlePage() {
                     )}
                   </div>
                   <div className="mt-5 flex items-center gap-4 text-sm text-muted">
-                    <UserName userId={article.createdBy?.id} name={article.createdBy?.displayName ?? "（已删除）"} />
+                    <UserName userId={article.createdBy?.id} name={article.createdBy?.displayName ?? t("article.deletedUser")} />
                     <span>{fmtDateTime(article.updatedAt)}</span>
                   </div>
                 </div>
@@ -445,7 +447,7 @@ export function ArticlePage() {
 
               {article.inboundRefs.length > 0 && (
                 <section className="mt-8 pr-4">
-                  <h2 className="text-sm font-semibold text-fg">被引用 ({article.inboundRefs.length})</h2>
+                  <h2 className="text-sm font-semibold text-fg">{t("article.page.inbound", { n: article.inboundRefs.length })}</h2>
                   <ul className="mt-2 flex flex-col gap-1 text-sm">
                     {article.inboundRefs.map((ref) => (
                       <li key={ref.id}>
@@ -493,7 +495,7 @@ export function ArticlePage() {
           open={collabOpen}
           onOpenChange={setCollabOpen}
           articleId={article.id}
-          articleTitle={article.title || "（未命名）"}
+          articleTitle={article.title || t("article.untitled")}
         />
       )}
       <ArticleDetailsDialog open={detailsOpen} onOpenChange={setDetailsOpen} article={article} />
@@ -545,6 +547,7 @@ function ActionsMenu({
   onOpenChange: (open: boolean) => void;
   items: (ActionMenuItem | false | null | undefined)[];
 }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement | null>(null);
   const visible = items.filter((i): i is ActionMenuItem => Boolean(i));
 
@@ -569,8 +572,8 @@ function ActionsMenu({
       <button
         type="button"
         onClick={() => onOpenChange(!open)}
-        title="更多操作"
-        aria-label="更多操作"
+        title={t("article.page.more")}
+        aria-label={t("article.page.more")}
         aria-haspopup="menu"
         aria-expanded={open}
         className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition hover:bg-surface hover:text-primary"

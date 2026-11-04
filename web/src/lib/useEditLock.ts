@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, EditLockConflictError, API_BASE } from "@/lib/api";
 import { toast } from "@/components/Toaster";
+import { tr } from "@/i18n";
 
 export interface UseEditLockResult {
   /** 是否已进入编辑(持有软锁)。 */
@@ -35,9 +36,9 @@ export function useEditLock(args: { articleId: string | null; canEdit: boolean; 
     } catch (err) {
       if (err instanceof EditLockConflictError) {
         setLockedByOther(true); // 切回只读
-        toast.error(`正在被 ${err.lock.userName ?? "他人"} 编辑，请稍后`);
+        toast.error(tr("article.lock.heldBy", { name: err.lock.userName ?? tr("article.lock.someone") }));
       } else if (err instanceof ApiError && err.status === 403) {
-        toast.error("无权编辑该文档");
+        toast.error(tr("article.lock.noPermission"));
       }
       return false;
     }

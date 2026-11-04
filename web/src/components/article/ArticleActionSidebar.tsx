@@ -1,3 +1,5 @@
+import { useT } from "@/i18n";
+
 interface Props {
   isLiked: boolean;
   likeCount: number;
@@ -166,10 +168,11 @@ function ActionButton({ item }: { item: ActionConfig }) {
  * 操作栏始终浮在视口中部、不随正文滚走。
  */
 export function ArticleActionSidebar(props: Props) {
+  const t = useT();
   const items: ActionConfig[] = [
     {
       key: "like",
-      label: props.isLiked ? "取消点赞" : "点赞",
+      label: props.isLiked ? t("article.action.unlike") : t("article.action.like"),
       active: props.isLiked,
       badge: props.likeCount,
       icon: props.isLiked ? ICON_THUMB_FILL : ICON_THUMB,
@@ -178,14 +181,14 @@ export function ArticleActionSidebar(props: Props) {
     },
     {
       key: "comment",
-      label: "评论",
+      label: t("article.action.comment"),
       badge: props.commentCount,
       icon: ICON_COMMENT,
       onClick: props.onComment,
     },
     {
       key: "bookmark",
-      label: props.isBookmarked ? "取消收藏" : "收藏",
+      label: props.isBookmarked ? t("article.action.unbookmark") : t("article.action.bookmark"),
       active: props.isBookmarked,
       badge: props.bookmarkCount,
       icon: props.isBookmarked ? ICON_STAR_FILL : ICON_STAR,
@@ -194,20 +197,20 @@ export function ArticleActionSidebar(props: Props) {
     },
     {
       key: "copy",
-      label: "复制链接",
+      label: t("article.action.copyLink"),
       icon: ICON_LINK,
       onClick: props.onCopyLink,
     },
     {
       key: "export",
-      label: "导出 Markdown",
+      label: t("article.action.exportMd"),
       icon: ICON_DOWNLOAD,
       href: props.canExport ? props.exportHref : undefined,
       hide: !props.canExport,
     },
     {
       key: "fullscreen",
-      label: props.isFullscreen ? "退出全屏" : "全屏浏览",
+      label: props.isFullscreen ? t("article.action.exitFullscreen") : t("article.action.fullscreen"),
       active: props.isFullscreen,
       icon: props.isFullscreen ? ICON_COMPRESS : ICON_EXPAND,
       onClick: props.onToggleFullscreen,

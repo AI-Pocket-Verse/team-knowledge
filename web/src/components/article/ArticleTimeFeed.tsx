@@ -9,6 +9,7 @@ import { RoleBadge } from "@/components/admin/RoleBadge";
 import { UserName } from "@/components/UserName";
 import { DelayedLoader } from "@/components/DelayedLoader";
 import { docHasReviewBadge, ReviewBadge } from "@/lib/reviewBadge";
+import { useT } from "@/i18n";
 
 // Inbox-style time-flow used by the folder landing page (/f/:folderId).
 // Layout: chip filter row on top (only in mode="all") + vertical
@@ -33,6 +34,7 @@ interface Props {
 }
 
 export function ArticleTimeFeed({ mode, header, rightSlot }: Props) {
+  const t = useT();
   const [roles, setRoles] = useState<WorkspaceRole[]>([]);
   const [articles, setArticles] = useState<FeedArticleRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,7 +105,7 @@ export function ArticleTimeFeed({ mode, header, rightSlot }: Props) {
       {showChips && (
         <div className="flex flex-wrap items-center gap-2">
           <Chip active={chipRoleId === "all"} onClick={() => setChipRoleId("all")}>
-            全部
+            {t("article.feed.all")}
           </Chip>
           {roles.map((r) => (
             <Chip
@@ -127,10 +129,10 @@ export function ArticleTimeFeed({ mode, header, rightSlot }: Props) {
       {empty && (
         <div className="rounded-xl border border-line bg-white px-8 py-12 text-center text-sm text-muted shadow-glass">
           {mode.kind === "all"
-            ? "你能访问的角色下还没有文档。"
+            ? t("article.feed.emptyAll")
             : mode.kind === "role"
-              ? "该角色下尚无可见文档。"
-              : "该目录下尚无文档。"}
+              ? t("article.feed.emptyRole")
+              : t("article.feed.emptyFolder")}
         </div>
       )}
 
@@ -155,13 +157,13 @@ export function ArticleTimeFeed({ mode, header, rightSlot }: Props) {
                       {a.title}
                     </Link>
                   </span>
-                  {docHasReviewBadge(a) && <ReviewBadge title="该文档存在 AI 校验发现的待优化问题" />}
+                  {docHasReviewBadge(a) && <ReviewBadge title={t("article.feed.reviewBadge")} />}
                 </div>
                 <div className="mt-0.5 flex items-center gap-4 truncate text-xs text-muted">
                   {a.folderName && <span className="truncate">{a.folderName}</span>}
                   <UserName
                     userId={a.createdBy?.id}
-                    name={a.createdBy?.displayName ?? "（已删除）"}
+                    name={a.createdBy?.displayName ?? t("article.deletedUser")}
                     className="relative z-10 truncate"
                   />
                   <span className="truncate">{fmtDate(a.updatedAt)}</span>
