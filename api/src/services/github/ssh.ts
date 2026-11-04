@@ -11,6 +11,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GithubError, type CommitSummary, type FetchCommitsResult } from "./client.js";
+import { L, appLang } from "../../utils/lang.js";
 
 const execFileP = promisify(execFile);
 
@@ -42,12 +43,12 @@ const realGit: GitExec = async (args) => {
 function mapGitError(e: unknown): GithubError {
   const msg = (e as { stderr?: string; message?: string }).stderr || (e as Error).message || "";
   if (/permission denied|publickey|access denied/i.test(msg)) {
-    return new GithubError("unauthorized", "SSH 密钥无权访问该仓库(Permission denied)");
+    return new GithubError("unauthorized", L(appLang(), "SSH 密钥无权访问该仓库(Permission denied)", "The SSH key has no access to this repository (Permission denied)"));
   }
   if (/repository not found|does not exist|not found/i.test(msg)) {
-    return new GithubError("not_found", "仓库不存在或该 SSH 密钥无权访问");
+    return new GithubError("not_found", L(appLang(), "仓库不存在或该 SSH 密钥无权访问", "Repository not found, or the SSH key has no access"));
   }
-  return new GithubError("network", `git over SSH 失败:${msg.split("\n")[0]?.slice(0, 200) ?? "unknown"}`);
+  return new GithubError("network", L(appLang(), `git over SSH 失败:${msg.split("\n")[0]?.slice(0, 200) ?? "unknown"}`, `git over SSH failed: ${msg.split("\n")[0]?.slice(0, 200) ?? "unknown"}`));
 }
 
 export interface SshRepoInfo {
@@ -68,7 +69,7 @@ export async function testConnectionSsh(
   }
   const sha = out.trim().split(/\s+/)[0] ?? "";
   if (!/^[0-9a-f]{7,40}$/i.test(sha)) {
-    throw new GithubError("upstream", "ls-remote 未返回有效的 HEAD");
+    throw new GithubError("upstream", L(appLang(), "ls-remote 未返回有效的 HEAD", "ls-remote did not return a valid HEAD"));
   }
   return { fullName: `${args.owner}/${args.repo}`, head: sha.slice(0, 7) };
 }

@@ -2,6 +2,7 @@
 // (其 upsert 依赖已删除的 (userId, roleId) 唯一键)。
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
 
 // 自动标题的存储上限:取首条消息前 TITLE_MAX 字(超出补「…」标示被截)。设得宽一些,让顶栏/边栏
 // 各自按实际宽度用 CSS truncate 再省略 —— 既能尽量展示、放不下也有「…」,不再像旧的 16 字那样早早切短、
@@ -11,7 +12,7 @@ const TITLE_MAX = 40;
 /** 首条用户消息 → 标题;超长截断并补「…」;空白兜底「新对话」。 */
 export function deriveTitle(firstMessage: string): string {
   const t = firstMessage.trim();
-  if (!t) return "新对话";
+  if (!t) return L(appLang(), "新对话", "New chat");
   return t.length > TITLE_MAX ? t.slice(0, TITLE_MAX) + "…" : t;
 }
 

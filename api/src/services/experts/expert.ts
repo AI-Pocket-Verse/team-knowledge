@@ -8,6 +8,8 @@ import { search, type SearchHit } from "../retrieval/fts5.js";
 import { searchCrossModule } from "../retrieval/crossModule.js";
 import { getExpert } from "./config.js";
 import { parseUsedMarker } from "./markers.js";
+import { appLang, type Lang } from "../../utils/lang.js";
+import { outputLanguageInstruction } from "../llm/language.js";
 
 const MAX_EXPERT_TIMEOUT_MS = 180_000;
 const DOC_LIMIT = 6;
@@ -75,6 +77,7 @@ export function buildExpertSystem(p: {
   summary?: string;
   collab?: { peers: string[]; allowEscalate: boolean };
   usageMarker?: boolean;            // 让专家声明实际引用了上面第几条团队知识 → 只挂真正用到的出处
+  lang?: Lang;                      // 回答语言(缺省 appLang()),英文时末尾追加输出语言指令
 }): string {
   const persona = p.instruction.trim() || `你是团队里的「${p.roleName}」专家,基于团队知识与你的专长,简洁、准确地回答。`;
   const parts = [persona];
@@ -108,7 +111,7 @@ export function buildExpertSystem(p: {
       `该标记仅供系统识别出处、会被隐藏,不要在正文里解释它,也不要在正文标注序号。`,
     );
   }
-  return parts.join("\n");
+  return parts.join("\n") + outputLanguageInstruction(p.lang ?? appLang());
 }
 
 /** 让某角色专家回答一个问题。opts.subQuestion=true 时按「只答这个子问题、简短带出处」约束(供请教用)。
@@ -123,6 +126,7 @@ export async function answerAsExpert(
     summary?: string;                 // 连续对话的轻量上下文(滚动摘要)
     images?: string[];                // 随消息的图片绝对路径
     mentionHits?: SearchHit[];        // @引用命中的文档(并入上下文 + 出处)
+    lang?: Lang;                      // 回答语言
   } = {},
 ): Promise<ExpertAnswer | null> {
   const runLlm = opts.runLlm ?? callExpertLlm;
@@ -164,7 +168,7 @@ export async function answerAsExpert(
   }
   const webCitations: ExpertCitation[] = [];
 
-  const system = buildExpertSystem({ roleName: role.name, instruction: cfg.instruction, skillMd: skill?.content ?? "", context, summary: opts.summary, collab: opts.collab, usageMarker: true });
+  const system = buildExpertSystem({ roleName: role.name, instruction: cfg.instruction, skillMd: skill?.content ?? "", context, summary: opts.summary, collab: opts.collab, usageMarker: true, lang: opts.lang });
   const user = opts.subQuestion
     ? `请只回答下面这个具体子问题,简短(≤120 字)、带出处,不要展开无关内容:\n${question}`
     : question;

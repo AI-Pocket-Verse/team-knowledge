@@ -2,9 +2,15 @@
 // 用于跨批去重 + 卡片正文;每条带稳定 hash,为后续的「勾选确认 / 下次
 // 不再提醒」铺路(hash 作为条目身份)。
 import { createHash } from "node:crypto";
+import { L, appLang } from "../../utils/lang.js";
 
 export type AuditCategory = "inconsistency" | "logic" | "optimize";
 export const AUDIT_CATEGORIES: AuditCategory[] = ["inconsistency", "logic", "optimize"];
+export const CATEGORY_LABEL_EN: Record<AuditCategory, string> = {
+  inconsistency: "Cross-doc inconsistencies",
+  logic: "Logic errors within a doc",
+  optimize: "Suggested improvements",
+};
 export const CATEGORY_LABEL: Record<AuditCategory, string> = {
   inconsistency: "文档间不一致",
   logic: "文档内逻辑错误",
@@ -143,17 +149,18 @@ export function dedupeFindings(findings: AuditFinding[]): HashedFinding[] {
 
 /** findings → 三段式 Markdown(卡片正文 + 日志/脚本 back-compat 用)。 */
 export function renderFindings(findings: HashedFinding[]): string {
-  if (findings.length === 0) return "本次体检未发现明显问题。";
+  const lang = appLang();
+  if (findings.length === 0) return L(lang, "本次体检未发现明显问题。", "No obvious issues found in this check.");
   const lines: string[] = [];
   for (const cat of AUDIT_CATEGORIES) {
-    lines.push(`## ${CATEGORY_LABEL[cat]}`);
+    lines.push(`## ${(lang === "en" ? CATEGORY_LABEL_EN : CATEGORY_LABEL)[cat]}`);
     const items = findings.filter((f) => f.category === cat);
     if (items.length === 0) {
-      lines.push("未发现");
+      lines.push(L(lang, "未发现", "None found"));
     } else {
       items.forEach((f, idx) => {
-        const doc = f.docTitle ? `《${f.docTitle}》` : "";
-        const sug = f.suggestion ? `（建议:${f.suggestion}）` : "";
+        const doc = f.docTitle ? L(lang, `《${f.docTitle}》`, `"${f.docTitle}" `) : "";
+        const sug = f.suggestion ? L(lang, `（建议:${f.suggestion}）`, ` (Suggestion: ${f.suggestion})`) : "";
         lines.push(`${idx + 1}. ${doc}${f.problem}${sug}`);
       });
     }

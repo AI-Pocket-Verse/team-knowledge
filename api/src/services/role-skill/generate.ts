@@ -8,6 +8,8 @@ import { SKILL_SYSTEM_PROMPT, buildSkillUserMessage } from "./prompt.js";
 import { ensureFrontmatter, slugify } from "./frontmatter.js";
 import { notifySkillUpdated } from "./notify.js";
 import { resolveModelDisplay } from "../llm/model-display.js";
+import { L, appLang } from "../../utils/lang.js";
+import { outputLanguageInstruction } from "../llm/language.js";
 
 interface GenLog {
   error?: (...a: unknown[]) => void;
@@ -128,7 +130,7 @@ export async function generateRoleSkill(roleId: string, opts: { log?: GenLog } =
     });
 
     const fallbackName = slugify(role.name) || `role-${roleId.slice(0, 8)}`;
-    const fallbackDesc = role.description?.trim() || `${role.name} 知识技能`;
+    const fallbackDesc = role.description?.trim() || L(appLang(), `${role.name} 知识技能`, `${role.name} knowledge skill`);
 
     // articles.length === 0 已在函数前部提前返回,这里必有已发布文档。
     const packed = packArticles(articles.map((a) => ({ title: a.title, contentMarkdown: a.contentMarkdown })));
@@ -142,7 +144,7 @@ export async function generateRoleSkill(roleId: string, opts: { log?: GenLog } =
       docCount,
       truncated,
     });
-    const { text: rawContent, providerName: model } = await runProvider({ systemPrompt: SKILL_SYSTEM_PROMPT, history: [], userMessage });
+    const { text: rawContent, providerName: model } = await runProvider({ systemPrompt: SKILL_SYSTEM_PROMPT + outputLanguageInstruction(appLang()), history: [], userMessage });
 
     const fm = ensureFrontmatter(rawContent, { name: fallbackName, description: fallbackDesc });
 

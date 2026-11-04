@@ -31,6 +31,7 @@ import {
   msUntilNextBeijingMonday,
 } from "../utils/beijingWeek.js";
 import { ASSISTANT_NAME } from "../utils/assistant.js";
+import { L, appLang } from "../utils/lang.js";
 
 type ReportType = AdminActivityType | "view";
 
@@ -41,6 +42,28 @@ type ReportType = AdminActivityType | "view";
 function isDocEdit(t: ReportType): boolean {
   return t === "doc_edit" || t === "doc_fix" || t === "doc_restore" || t === "doc_archive" || t === "doc_unarchive";
 }
+
+// 英文标签(与 TYPE_LABEL 一一对应)。
+const TYPE_LABEL_EN: Record<string, string> = {
+  doc_create: "Created a doc",
+  doc_edit: "Edited a doc",
+  doc_restore: "Restored a doc",
+  doc_archive: "Archived a doc",
+  doc_unarchive: "Unarchived a doc",
+  comment: "Comment",
+  like: "Like",
+  bookmark: "Bookmark",
+  upload: "Upload",
+  meeting: "Meeting",
+  chat: `Asked ${ASSISTANT_NAME}`,
+  view: "Viewed a doc",
+  doc_fix: "Fixed check issues",
+  comment_like: "Liked a comment",
+  automation_create: "Created an automation",
+  meeting_comment: "Meeting remark",
+  folder_create: "Created a folder",
+  editor_grant: "Added a collaborator",
+};
 
 // 中文标签(实时动态 + 构成饼图)。
 const TYPE_LABEL: Record<string, string> = {
@@ -122,9 +145,19 @@ function buildSummary(
   o: WeeklyReportSnapshot["overview"],
   users: WeeklyReportUserRow[],
 ): string {
-  if (o.activeUsers === 0) return `本周（${weekLabel}）知识库暂无活动记录。`;
+  const lang = appLang();
+  if (o.activeUsers === 0) return L(lang, `本周（${weekLabel}）知识库暂无活动记录。`, `No knowledge base activity recorded this week (${weekLabel}).`);
   const hrs = (o.totalDurationMin / 60).toFixed(1);
   const top = users[0];
+  if (lang === "en") {
+    let e = `This week (${weekLabel}), ${o.activeUsers} ${o.activeUsers === 1 ? "member was" : "members were"} active, with about ${hrs} hours online in total. `;
+    e += `Content: ${o.docCreate} ${o.docCreate === 1 ? "doc" : "docs"} created, ${o.docEdit} ${o.docEdit === 1 ? "edit" : "edits"}, ${o.chat} ${o.chat === 1 ? "question" : "questions"} to ${ASSISTANT_NAME}, `;
+    e += `${o.comment} ${o.comment === 1 ? "comment" : "comments"}, ${o.like} ${o.like === 1 ? "like" : "likes"}, ${o.view} doc ${o.view === 1 ? "view" : "views"}`;
+    if (o.meeting > 0) e += `, ${o.meeting} ${o.meeting === 1 ? "meeting" : "meetings"}`;
+    e += ".";
+    if (top) e += ` Top contributor: ${top.name} (${top.contribution} pts).`;
+    return e;
+  }
   let s = `本周（${weekLabel}）共有 ${o.activeUsers} 位成员活跃，累计在线约 ${hrs} 小时。`;
   s += `内容方面：新建文档 ${o.docCreate} 篇、修改 ${o.docEdit} 次，向 ${ASSISTANT_NAME} 提问 ${o.chat} 次，`;
   s += `评论 ${o.comment} 条、点赞 ${o.like} 次、查看文档 ${o.view} 次`;
@@ -226,22 +259,22 @@ export async function buildWeeklySnapshot(week: BeijingWeek): Promise<WeeklyRepo
     (await prisma.user.findMany({ where: { id: { in: uids } }, select: { id: true, displayName: true } }))
       .map((u) => [u.id, u.displayName]),
   );
-  const nameOf = (uid: string) => nameById.get(uid) ?? "（已删除）";
+  const nameOf = (uid: string) => nameById.get(uid) ?? L(appLang(), "（已删除）", "(Deleted)");
 
   // 单用户/全员通用的行为构成饼图数据。
   const compositionFrom = (c: {
     docCreate: number; docEdit: number; chat: number; comment: number; like: number;
     view: number; bookmark: number; upload: number; meeting: number;
   }): WeeklyReportCompositionSlice[] => [
-    { key: "docCreate", label: "新建文档", count: c.docCreate },
-    { key: "docEdit", label: "修改文档", count: c.docEdit },
-    { key: "chat", label: `向 ${ASSISTANT_NAME} 提问`, count: c.chat },
-    { key: "comment", label: "评论", count: c.comment },
-    { key: "like", label: "点赞", count: c.like },
-    { key: "view", label: "查看文档", count: c.view },
-    { key: "bookmark", label: "收藏", count: c.bookmark },
-    { key: "upload", label: "上传", count: c.upload },
-    { key: "meeting", label: "会议", count: c.meeting },
+    { key: "docCreate", label: L(appLang(), "新建文档", "Docs created"), count: c.docCreate },
+    { key: "docEdit", label: L(appLang(), "修改文档", "Docs edited"), count: c.docEdit },
+    { key: "chat", label: L(appLang(), `向 ${ASSISTANT_NAME} 提问`, `Questions to ${ASSISTANT_NAME}`), count: c.chat },
+    { key: "comment", label: L(appLang(), "评论", "Comments"), count: c.comment },
+    { key: "like", label: L(appLang(), "点赞", "Likes"), count: c.like },
+    { key: "view", label: L(appLang(), "查看文档", "Doc views"), count: c.view },
+    { key: "bookmark", label: L(appLang(), "收藏", "Bookmarks"), count: c.bookmark },
+    { key: "upload", label: L(appLang(), "上传", "Uploads"), count: c.upload },
+    { key: "meeting", label: L(appLang(), "会议", "Meetings"), count: c.meeting },
   ].filter((s) => s.count > 0);
 
   // ── 用户明细(贡献度倒序)──
@@ -284,7 +317,7 @@ export async function buildWeeklySnapshot(week: BeijingWeek): Promise<WeeklyRepo
       userId: e.uid,
       name: nameOf(e.uid),
       type: e.type,
-      label: TYPE_LABEL[e.type] ?? e.type,
+      label: (appLang() === "en" ? TYPE_LABEL_EN : TYPE_LABEL)[e.type] ?? e.type,
       title: e.title,
     }));
   const safeLiveActivity = stripPrivateTitles(liveActivity);

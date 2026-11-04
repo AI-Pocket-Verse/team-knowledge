@@ -2,6 +2,7 @@
 // 角色专家的【专长视角/skill】。带硬护栏防失控:深度 ≤ 2、单次对话总请教 ≤ 3、防环、目标须允许被请教。
 import { getExpert } from "./config.js";
 import { answerAsExpert, type RunExpertLlm, type RetrievalCache } from "./expert.js";
+import type { Lang } from "../../utils/lang.js";
 
 export const MAX_CONSULT_DEPTH = 2;
 export const MAX_CONSULT_COUNT = 3;
@@ -18,7 +19,7 @@ export async function consult(
   targetRoleId: string,
   subQuestion: string,
   ctx: ConsultContext,
-  opts: { runLlm?: RunExpertLlm; cache?: RetrievalCache; summary?: string } = {},
+  opts: { runLlm?: RunExpertLlm; cache?: RetrievalCache; summary?: string; lang?: Lang } = {},
 ): Promise<ConsultResult> {
   if (ctx.depth >= MAX_CONSULT_DEPTH) return { ok: false, reason: "depth" };
   if (ctx.count >= MAX_CONSULT_COUNT) return { ok: false, reason: "count" };
@@ -27,7 +28,7 @@ export async function consult(
   const cfg = await getExpert(targetRoleId);
   if (!cfg.enabled || !cfg.sources.consult) return { ok: false, reason: "not-allowed" };
 
-  const ans = await answerAsExpert(targetRoleId, subQuestion, { subQuestion: true, runLlm: opts.runLlm, cache: opts.cache, summary: opts.summary });
+  const ans = await answerAsExpert(targetRoleId, subQuestion, { subQuestion: true, runLlm: opts.runLlm, cache: opts.cache, summary: opts.summary, lang: opts.lang });
   if (ans === null) return { ok: false, reason: "unavailable" };
 
   ctx.count += 1;

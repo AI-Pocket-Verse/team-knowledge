@@ -3,6 +3,7 @@
 // 条件写(WHERE status='pending')保证幂等,resolvedAt 用 epoch-ms(与库内 DateTime 约定一致)。
 import { prisma } from "../../db.js";
 import { feishuGateway } from "../../utils/feishuGateway.js";
+import { L, appLang } from "../../utils/lang.js";
 
 export interface NewEscalation {
   conversationId: string;
@@ -63,12 +64,12 @@ export function buildEscalationCard(escalationId: string, input: EscalationCardI
   }));
   return {
     config: { wide_screen_mode: true },
-    header: { template: "orange", title: { tag: "plain_text", content: `「${input.roleName}专家」需要你拍板` } },
+    header: { template: "orange", title: { tag: "plain_text", content: L(appLang(), `「${input.roleName}专家」需要你拍板`, `The ${input.roleName} expert needs your decision`) } },
     elements: [
-      { tag: "div", text: { tag: "lark_md", content: `**卡在哪**\n${input.background}` } },
-      { tag: "div", text: { tag: "lark_md", content: `**需要你定**\n${input.question}` } },
+      { tag: "div", text: { tag: "lark_md", content: L(appLang(), `**卡在哪**\n${input.background}`, `**Where it is stuck**\n${input.background}`) } },
+      { tag: "div", text: { tag: "lark_md", content: L(appLang(), `**需要你定**\n${input.question}`, `**Needs your call**\n${input.question}`) } },
       ...(actions.length > 0 ? [{ tag: "action", actions }] : []),
-      { tag: "note", elements: [{ tag: "plain_text", content: "也可直接回复本消息给出方案" }] },
+      { tag: "note", elements: [{ tag: "plain_text", content: L(appLang(), "也可直接回复本消息给出方案", "You can also reply to this message with your decision") }] },
     ],
   };
 }

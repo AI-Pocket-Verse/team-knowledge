@@ -4,6 +4,13 @@ import { createHash } from "node:crypto";
 
 export type ReviewCategory = "logic" | "clarity" | "format" | "completeness" | "consistency";
 export const REVIEW_CATEGORIES: ReviewCategory[] = ["logic", "clarity", "format", "completeness", "consistency"];
+export const REVIEW_CATEGORY_LABEL_EN: Record<ReviewCategory, string> = {
+  logic: "Contradiction",
+  clarity: "Unclear wording",
+  format: "Formatting",
+  completeness: "Missing / outdated info",
+  consistency: "Cross-doc mismatch",
+};
 export const REVIEW_CATEGORY_LABEL: Record<ReviewCategory, string> = {
   logic: "逻辑矛盾",
   clarity: "表述不清",

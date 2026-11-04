@@ -9,6 +9,7 @@ import { finalizePreviousWeek, getWeeklyReport } from "../weekly-report.js";
 import { notifyAdminsOfWeeklyReport } from "../../utils/notify/adminAlert.js";
 import { renderReportPng } from "./render.js";
 import { buildWeeklyReportImageCard } from "./card.js";
+import { L, appLang } from "../../utils/lang.js";
 
 export async function buildKbWeeklyReportCard(now: Date = new Date()): Promise<unknown> {
   const r = await finalizePreviousWeek(now);
@@ -22,8 +23,8 @@ export async function buildKbWeeklyReportCard(now: Date = new Date()): Promise<u
   if (!snapshot) {
     return {
       config: { wide_screen_mode: true },
-      header: { title: { tag: "plain_text", content: "知识库周报" } },
-      elements: [{ tag: "div", text: { tag: "plain_text", content: "本周暂无周报数据。" } }],
+      header: { title: { tag: "plain_text", content: L(appLang(), "知识库周报", "Knowledge Base Weekly Report") } },
+      elements: [{ tag: "div", text: { tag: "plain_text", content: L(appLang(), "本周暂无周报数据。", "No weekly report data this week.") } }],
     };
   }
   try {
@@ -37,13 +38,13 @@ export async function buildKbWeeklyReportCard(now: Date = new Date()): Promise<u
     const url = `${env.WEB_PUBLIC_URL.replace(/\/$/, "")}/admin/weekly-report/${r.id}`;
     return {
       config: { wide_screen_mode: true },
-      header: { title: { tag: "plain_text", content: `知识库周报 · ${stripCnTz(snapshot.weekLabel)}` } },
+      header: { title: { tag: "plain_text", content: L(appLang(), `知识库周报 · ${stripCnTz(snapshot.weekLabel)}`, `Knowledge Base Weekly Report · ${stripCnTz(snapshot.weekLabel)}`) } },
       elements: [
-        { tag: "div", text: { tag: "plain_text", content: `${stripCnTz(snapshot.summary ?? "本周周报")}（图片渲染失败，点按钮查看完整周报）` } },
+        { tag: "div", text: { tag: "plain_text", content: L(appLang(), `${stripCnTz(snapshot.summary ?? "本周周报")}（图片渲染失败，点按钮查看完整周报）`, `${stripCnTz(snapshot.summary ?? "This week's report")} (Image rendering failed. Use the button to view the full report.)`) } },
         {
           tag: "action",
           actions: [
-            { tag: "button", text: { tag: "plain_text", content: "查看完整周报" }, type: "primary", url: applinkWrap(url, env.FEISHU_CARD_USE_APPLINK) },
+            { tag: "button", text: { tag: "plain_text", content: L(appLang(), "查看完整周报", "View full report") }, type: "primary", url: applinkWrap(url, env.FEISHU_CARD_USE_APPLINK) },
           ],
         },
       ],

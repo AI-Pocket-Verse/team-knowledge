@@ -1,4 +1,5 @@
 import type { SttProvider, SttSession, SttSessionOpts } from "./types.js";
+import { L, appLang } from "../../utils/lang.js";
 
 // process-global circuit breaker around the volc provider.
 //
@@ -86,7 +87,7 @@ export class FallbackSttProvider implements SttProvider {
       // synthetic stub: its "chunk#N" output would flood the host's transcript
       // with gibberish. Surface a one-shot notice (for a UI banner) and emit no
       // transcript; volc auto-resumes after the cooldown.
-      opts.onError(`[degraded] 语音识别暂时不可用，已暂停转录（稍后自动恢复）`);
+      opts.onError(L(appLang(), `[degraded] 语音识别暂时不可用，已暂停转录（稍后自动恢复）`, `[degraded] Speech recognition is temporarily unavailable. Transcription is paused and will resume automatically.`));
       // After the cooldown, fire onClosed so the meeting drops this silent
       // session and reopens — re-trying volc once the breaker has half-closed.
       // Without it the silent session would persist forever and never auto-

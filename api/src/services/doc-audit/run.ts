@@ -18,6 +18,8 @@ import {
 } from "./findings.js";
 import { getAcknowledgedHashes, getAcknowledgedForPrompt, getAcknowledgedFindings, setLastCard } from "./acks.js";
 import { getDocAuditTuning } from "./config.js";
+import { appLang } from "../../utils/lang.js";
+import { outputLanguageInstruction } from "../llm/language.js";
 
 const BATCH_SYSTEM = `你是团队知识库的质检助手。下面是知识库里【一部分已发布文档】(每篇以「## 标题」开头)。通读后找出三类问题:
 - inconsistency 文档间不一致:不同文档对同一事项说法矛盾 / 数据对不上;
@@ -131,8 +133,8 @@ export async function runDocAudit(now: Date, opts: { persist?: boolean } = {}): 
   const ackedForPrompt = await getAcknowledgedForPrompt(60);
   const fuzzyRefs = buildFuzzyRefs(await getAcknowledgedFindings()); // 抗改写模糊过滤参照(全部已确认)
   // 强度注入只包 BATCH_SYSTEM(检出阶段);抑制两个都包(检出 + 合并都要跳过已确认)。
-  const batchSystem = withStrength(withSuppression(BATCH_SYSTEM, ackedForPrompt), strength);
-  const mergeSystem = withSuppression(MERGE_SYSTEM, ackedForPrompt);
+  const batchSystem = withStrength(withSuppression(BATCH_SYSTEM, ackedForPrompt), strength) + outputLanguageInstruction(appLang());
+  const mergeSystem = withSuppression(MERGE_SYSTEM, ackedForPrompt) + outputLanguageInstruction(appLang());
   let truncated = 0;
   let anyOk = false;
   const collected: AuditFinding[] = [];

@@ -4,6 +4,7 @@
 //   1) 标题里残留行内格式符号(** __ ` ~~ 或链接)—— 导入文档常见「## **标题**」;
 //   2) 标题层级跳级(比上一个标题深超过一级,如 H1 直接到 H3)—— 会让大纲缩进错位。
 import type { ReviewFinding } from "./findings.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
 
 interface ParsedHeading { level: number; text: string; }
 
@@ -36,7 +37,7 @@ function truncate(s: string, max = 20): string {
 }
 
 /** 确定性标题格式预检。返回 format 类 findings(未带 hash,由调用方统一 hash + 去重)。 */
-export function lintHeadingFormat(body: string): ReviewFinding[] {
+export function lintHeadingFormat(body: string, lang: Lang = appLang()): ReviewFinding[] {
   const headings = parseHeadings(body);
   const findings: ReviewFinding[] = [];
 
@@ -46,8 +47,8 @@ export function lintHeadingFormat(body: string): ReviewFinding[] {
       findings.push({
         category: "format",
         severity: "med",
-        problem: `标题「${truncate(h.text)}」里残留了加粗/链接等格式符号`,
-        suggestion: "去掉标题中的 ** __ ` ~~ 或链接语法,标题只保留纯文字",
+        problem: L(lang, `标题「${truncate(h.text)}」里残留了加粗/链接等格式符号`, `Heading "${truncate(h.text)}" still contains bold / link markup`),
+        suggestion: L(lang, "去掉标题中的 ** __ ` ~~ 或链接语法,标题只保留纯文字", "Remove ** __ ` ~~ or link syntax from the heading and keep plain text only"),
       });
     }
   }
@@ -59,8 +60,8 @@ export function lintHeadingFormat(body: string): ReviewFinding[] {
       findings.push({
         category: "format",
         severity: "med",
-        problem: `标题「${truncate(h.text)}」层级跳级(上一级是 H${prev},这里直接到 H${h.level})`,
-        suggestion: `把它改为 H${prev + 1},让标题层级逐级递进、大纲不错位`,
+        problem: L(lang, `标题「${truncate(h.text)}」层级跳级(上一级是 H${prev},这里直接到 H${h.level})`, `Heading "${truncate(h.text)}" skips a level (previous is H${prev}, this one jumps to H${h.level})`),
+        suggestion: L(lang, `把它改为 H${prev + 1},让标题层级逐级递进、大纲不错位`, `Change it to H${prev + 1} so heading levels step down one at a time and the outline stays aligned`),
       });
     }
     prev = h.level;

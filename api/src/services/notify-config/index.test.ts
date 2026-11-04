@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 vi.mock("../../env.js", () => ({
   AUTH_API_BASE: "http://auth.invalid/api",
   env: {
+    APP_LANGUAGE: "zh",
     FEISHU_SKILL_NOTIFY_CHAT_IDS: "oc_a,oc_b",
     FEISHU_WEEKLY_DIGEST_CHAT_IDS: "oc_a,oc_b",
     FEISHU_MEETING_NOTIFY_CHAT_IDS: "",

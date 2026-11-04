@@ -8,6 +8,7 @@
 import { esc, approxWidth, wrapText, text, rect } from "../weekly-report-image/helpers.js";
 import { parseLightMarkdown, type Block, type InlineToken } from "./markdown.js";
 import { ASSISTANT_NAME } from "../../utils/assistant.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
 
 export interface ChatShareMessage {
   role: "user" | "assistant";
@@ -21,6 +22,8 @@ export interface ChatShareOptions {
   dateLabel?: string;
   /** 因过大或格式不支持没放进图里的附件张数,>0 时在末尾提示。 */
   skippedImages?: number;
+  /** 界面语言(缺省 appLang())。 */
+  lang?: Lang;
 }
 
 // ── Layout constants (px) ──
@@ -128,8 +131,8 @@ interface BodyLayout { height: number; maxWidth: number; truncated: boolean; ren
 
 // maxHeight：本条正文最多占用的高度。单条消息行数再多也不会把画布撑过上限，
 // 超出的块/行直接丢弃，由调用方补一行截断提示。
-function layoutBody(content: string, innerWidth: number, maxHeight: number): BodyLayout {
-  const blocks = content.trim() ? parseLightMarkdown(content) : [{ t: "para", inlines: [{ t: "text", s: "（无内容）" }] } as Block];
+function layoutBody(content: string, innerWidth: number, maxHeight: number, lang: Lang = appLang()): BodyLayout {
+  const blocks = content.trim() ? parseLightMarkdown(content) : [{ t: "para", inlines: [{ t: "text", s: L(lang, "（无内容）", "(No content)") }] } as Block];
   const draws: Array<(x0: number, y0: number) => string> = [];
   let cy = 0;
   let maxW = 0;
@@ -260,8 +263,9 @@ function layoutImages(images: string[], innerWidth: number): ImagesLayout {
 /** Build the chat-share SVG. Pure + deterministic (date is passed in via opts)
  *  so it's unit-testable without a clock. */
 export function buildChatShareSvg(messages: ChatShareMessage[], opts: ChatShareOptions = {}): string {
-  const title = opts.title?.trim() || `${ASSISTANT_NAME} 对话摘录`;
-  const sub = opts.dateLabel?.trim() || `摘自 ${ASSISTANT_NAME} 对话`;
+  const lang = opts.lang ?? appLang();
+  const title = opts.title?.trim() || L(lang, `${ASSISTANT_NAME} 对话摘录`, `${ASSISTANT_NAME} chat excerpt`);
+  const sub = opts.dateLabel?.trim() || L(lang, `摘自 ${ASSISTANT_NAME} 对话`, `From a chat with ${ASSISTANT_NAME}`);
 
   const body: string[] = [];
   let y = PAD;
@@ -290,14 +294,14 @@ export function buildChatShareSvg(messages: ChatShareMessage[], opts: ChatShareO
     }
     charBudget -= content.length;
     const isUser = m.role === "user";
-    const label = isUser ? "用户" : ASSISTANT_NAME;
+    const label = isUser ? L(lang, "用户", "User") : ASSISTANT_NAME;
     const imgs = layoutImages(m.images ?? [], MAX_INNER_W);
     const hasImages = imgs.height > 0;
     const hasText = content.trim().length > 0;
     // Image-only message: skip the body so we don't show a "（无内容）" placeholder
     // under the image. Otherwise lay out the (possibly-empty) text as before.
     const textLayout = hasText || !hasImages
-      ? layoutBody(content, MAX_INNER_W, Math.max(BODY_LH, MAX_CANVAS_H - y))
+      ? layoutBody(content, MAX_INNER_W, Math.max(BODY_LH, MAX_CANVAS_H - y), lang)
       : { height: 0, maxWidth: 0, truncated: false, render: () => "" };
     if (textLayout.truncated) truncated = true;
     const gapBetween = hasImages && textLayout.height > 0 ? 8 : 0;
@@ -323,11 +327,11 @@ export function buildChatShareSvg(messages: ChatShareMessage[], opts: ChatShareO
   }
 
   if (truncated) {
-    body.push(text("（内容较多，图片已截断；完整内容请用「分享到文档」）", PAD, y + 14, { size: 12, color: COLOR.muted }));
+    body.push(text(L(lang, "（内容较多，图片已截断；完整内容请用「分享到文档」）", "(Too long, so the image was truncated. Use \"Share to doc\" for the full content.)"), PAD, y + 14, { size: 12, color: COLOR.muted }));
     y += 28;
   }
   if (opts.skippedImages && opts.skippedImages > 0) {
-    body.push(text(`（${opts.skippedImages} 张附件图片过大或格式暂不支持，未放入图片）`, PAD, y + 14, { size: 12, color: COLOR.muted }));
+    body.push(text(L(lang, `（${opts.skippedImages} 张附件图片过大或格式暂不支持，未放入图片）`, `(${opts.skippedImages} attached ${opts.skippedImages === 1 ? "image is" : "images are"} too large or in an unsupported format, so ${opts.skippedImages === 1 ? "it was" : "they were"} left out.)`), PAD, y + 14, { size: 12, color: COLOR.muted }));
     y += 28;
   }
 

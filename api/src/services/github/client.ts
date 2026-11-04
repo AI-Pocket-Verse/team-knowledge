@@ -1,3 +1,4 @@
+import { L, appLang } from "../../utils/lang.js";
 // 轻量 GitHub REST 客户端(只读):测试连接 + 拉取一段时间窗内的提交。无 token 走
 // 未鉴权(限额 60/h),有 token 走 Bearer。依赖注入 fetch 便于单测。
 
@@ -34,10 +35,10 @@ async function timedFetch(doFetch: typeof fetch, url: string, init: RequestInit)
 }
 
 function mapStatus(status: number, body: string): GithubError {
-  if (status === 404) return new GithubError("not_found", "仓库不存在或无权访问(404)");
-  if (status === 401) return new GithubError("unauthorized", "token 无效或权限不足(401)");
-  if (status === 403) return new GithubError("rate_limited", "被限流或拒绝(403);私有仓库请配置 token");
-  return new GithubError("upstream", `GitHub 返回 ${status}:${body.slice(0, 200)}`);
+  if (status === 404) return new GithubError("not_found", L(appLang(), "仓库不存在或无权访问(404)", "Repository not found or no access (404)"));
+  if (status === 401) return new GithubError("unauthorized", L(appLang(), "token 无效或权限不足(401)", "Invalid token or insufficient permissions (401)"));
+  if (status === 403) return new GithubError("rate_limited", L(appLang(), "被限流或拒绝(403);私有仓库请配置 token", "Rate limited or denied (403). Configure a token for private repositories"));
+  return new GithubError("upstream", L(appLang(), `GitHub 返回 ${status}:${body.slice(0, 200)}`, `GitHub returned ${status}: ${body.slice(0, 200)}`));
 }
 
 export interface RepoInfo {
@@ -58,7 +59,7 @@ export async function testConnection(
       headers: headers(args.token),
     });
   } catch (e) {
-    throw new GithubError("network", `连接 GitHub 失败:${(e as Error).message}`);
+    throw new GithubError("network", L(appLang(), `连接 GitHub 失败:${(e as Error).message}`, `Failed to connect to GitHub: ${(e as Error).message}`));
   }
   if (!res.ok) throw mapStatus(res.status, await res.text().catch(() => ""));
   const j = (await res.json()) as { full_name?: string; private?: boolean; default_branch?: string; pushed_at?: string };
@@ -125,7 +126,7 @@ export async function listBranches(
     try {
       res = await timedFetch(doFetch, url, { headers: headers(args.token) });
     } catch (e) {
-      throw new GithubError("network", `连接 GitHub 失败:${(e as Error).message}`);
+      throw new GithubError("network", L(appLang(), `连接 GitHub 失败:${(e as Error).message}`, `Failed to connect to GitHub: ${(e as Error).message}`));
     }
     if (!res.ok) throw mapStatus(res.status, await res.text().catch(() => ""));
     const rows = (await res.json()) as Array<{ name?: string }>;
@@ -158,7 +159,7 @@ async function fetchCommitsForRef(
     try {
       res = await timedFetch(doFetch, url, { headers: headers(args.token) });
     } catch (e) {
-      throw new GithubError("network", `连接 GitHub 失败:${(e as Error).message}`);
+      throw new GithubError("network", L(appLang(), `连接 GitHub 失败:${(e as Error).message}`, `Failed to connect to GitHub: ${(e as Error).message}`));
     }
     if (!res.ok) throw mapStatus(res.status, await res.text().catch(() => ""));
     const rows = (await res.json()) as RawCommit[];

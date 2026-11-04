@@ -9,6 +9,7 @@
 import { prisma } from "../../db.js";
 import { startOfBeijingWeek, beijingWeekOf, beijingWorkWeekLabel, stripCnTz } from "../../utils/beijingWeek.js";
 import { delinkLarkMd } from "../../utils/notify/card.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
 
 // 算作「更新」的版本类型，与动态流 / 周报里的文档修改事件同源（ArticleVersion）。
 const UPDATE_VERSION_KINDS = ["edit", "restore", "import", "ai-fix"];
@@ -36,7 +37,7 @@ function pushTitle(map: Map<string, RoleDigest>, roleId: string, roleName: strin
     d = { roleId, roleName, created: [], updated: [] };
     map.set(roleId, d);
   }
-  d[bucket].push(title || "（未命名）");
+  d[bucket].push(title || L(appLang(), "（未命名）", "(Untitled)"));
 }
 
 /** 计算本周(含至 now)的角色知识库变动。now 默认当前时刻(由调用方传入便于测试)。 */
@@ -60,8 +61,8 @@ export async function computeWeeklyRoleDigest(now: Date): Promise<WeeklyDigest> 
   ]);
 
   const map = new Map<string, RoleDigest>();
-  for (const a of created) pushTitle(map, a.roleId, a.role?.name ?? "(未知角色)", "created", a.title);
-  for (const a of updated) pushTitle(map, a.roleId, a.role?.name ?? "(未知角色)", "updated", a.title);
+  for (const a of created) pushTitle(map, a.roleId, a.role?.name ?? L(appLang(), "(未知角色)", "(Unknown role)"), "created", a.title);
+  for (const a of updated) pushTitle(map, a.roleId, a.role?.name ?? L(appLang(), "(未知角色)", "(Unknown role)"), "updated", a.title);
 
   const roles = [...map.values()].sort(
     (a, b) => b.created.length + b.updated.length - (a.created.length + a.updated.length),
@@ -77,9 +78,10 @@ export async function computeWeeklyRoleDigest(now: Date): Promise<WeeklyDigest> 
 function titlesLine(prefix: string, titles: string[]): string | null {
   if (titles.length === 0) return null;
   // 文档标题是用户可控文本,过 delinkLarkMd 防止拼出可点击链接。
-  const shown = titles.slice(0, TITLE_CAP).map((t) => `「${delinkLarkMd(t)}」`).join("、");
-  const more = titles.length > TITLE_CAP ? ` 等 ${titles.length} 篇` : "";
-  return `${prefix}${titles.length}:${shown}${more}`;
+  const lang = appLang();
+  const shown = titles.slice(0, TITLE_CAP).map((t) => L(lang, `「${delinkLarkMd(t)}」`, `"${delinkLarkMd(t)}"`)).join(L(lang, "、", ", "));
+  const more = titles.length > TITLE_CAP ? L(lang, ` 等 ${titles.length} 篇`, ` and ${titles.length - TITLE_CAP} more`) : "";
+  return L(lang, `${prefix}${titles.length}:${shown}${more}`, `${prefix}${titles.length}: ${shown}${more}`);
 }
 
 // 研发改动:来自管理后台配置的 GitHub 仓库(不含本仓库)。
@@ -104,6 +106,7 @@ const SUBJECT_SHOW = 8;
  * 存在性信号)。键限定 config/header/elements 以通过 feishu-sso 端 validCard 校验。
  */
 export function buildWeeklyDigestCard(digest: WeeklyDigest, research: ResearchDigest): unknown {
+  const lang = appLang();
   const elements: unknown[] = [];
   const hasKb = digest.roles.length > 0;
   const hasRepos = research.repos.length > 0;
@@ -115,41 +118,41 @@ export function buildWeeklyDigestCard(digest: WeeklyDigest, research: ResearchDi
       tag: "div",
       text: {
         tag: "lark_md",
-        content: `**📚 知识库内容更新**\n本周合计:新增 ${digest.totals.created} 篇、更新 ${digest.totals.updated} 篇`,
+        content: L(lang, `**📚 知识库内容更新**\n本周合计:新增 ${digest.totals.created} 篇、更新 ${digest.totals.updated} 篇`, `**📚 Knowledge base updates**\nThis week: ${digest.totals.created} added, ${digest.totals.updated} updated`),
       },
     });
     for (const r of digest.roles) {
-      const lines = [titlesLine("新增 ", r.created), titlesLine("更新 ", r.updated)].filter(Boolean);
+      const lines = [titlesLine(L(lang, "新增 ", "Added "), r.created), titlesLine(L(lang, "更新 ", "Updated "), r.updated)].filter(Boolean);
       elements.push({ tag: "div", text: { tag: "lark_md", content: `**${r.roleName}**\n${lines.join("\n")}` } });
     }
   }
 
   if (hasResearch) {
     if (hasKb) elements.push({ tag: "hr" });
-    elements.push({ tag: "div", text: { tag: "lark_md", content: "**🛠 研发改动**" } });
+    elements.push({ tag: "div", text: { tag: "lark_md", content: L(lang, "**🛠 研发改动**", "**🛠 Engineering changes**") } });
     for (const r of research.repos) {
       if (r.error) {
-        elements.push({ tag: "div", text: { tag: "lark_md", content: `**${r.label}**:拉取失败(${r.error})` } });
+        elements.push({ tag: "div", text: { tag: "lark_md", content: L(lang, `**${r.label}**:拉取失败(${r.error})`, `**${r.label}**: fetch failed (${r.error})`) } });
         continue;
       }
       const shown = r.subjects.slice(0, SUBJECT_SHOW).map((s) => `· ${delinkLarkMd(s)}`).join("\n");
-      const more = r.subjects.length > SUBJECT_SHOW ? `\n…等 ${r.subjects.length} 条` : "";
-      const truncNote = r.truncated ? `(≥500 提交，可能不完整)` : "";
-      const body = r.count === 0 ? "本周无提交" : `本周 ${r.count} 个提交${truncNote}${shown ? `\n${shown}${more}` : ""}`;
+      const more = r.subjects.length > SUBJECT_SHOW ? L(lang, `\n…等 ${r.subjects.length} 条`, `\n… ${r.subjects.length} in total`) : "";
+      const truncNote = r.truncated ? L(lang, `(≥500 提交，可能不完整)`, ` (500+ commits, may be incomplete)`) : "";
+      const body = r.count === 0 ? L(lang, "本周无提交", "No commits this week") : L(lang, `本周 ${r.count} 个提交`, `${r.count} ${r.count === 1 ? "commit" : "commits"} this week`) + `${truncNote}${shown ? `\n${shown}${more}` : ""}`;
       elements.push({ tag: "div", text: { tag: "lark_md", content: `**${r.label}**\n${body}` } });
     }
-    if (review) elements.push({ tag: "div", text: { tag: "lark_md", content: `**本周小结**\n${review}` } });
+    if (review) elements.push({ tag: "div", text: { tag: "lark_md", content: L(lang, `**本周小结**\n${review}`, `**Summary**\n${review}`) } });
   }
 
   if (!hasKb && !hasResearch) {
-    elements.push({ tag: "div", text: { tag: "lark_md", content: "本周暂无可量化的知识库或研发更新。" } });
+    elements.push({ tag: "div", text: { tag: "lark_md", content: L(lang, "本周暂无可量化的知识库或研发更新。", "No measurable knowledge base or engineering updates this week.") } });
   }
 
   // 标题去掉 weekLabel 里的「（北京时间）」(历史 digest 可能仍带括注)。
   const weekRange = stripCnTz(digest.weekLabel);
   return {
     config: { wide_screen_mode: true },
-    header: { title: { tag: "plain_text", content: `📊 本周周报 · ${weekRange}` }, template: "blue" },
+    header: { title: { tag: "plain_text", content: L(lang, `📊 本周周报 · ${weekRange}`, `📊 Weekly digest · ${weekRange}`) }, template: "blue" },
     elements,
   };
 }

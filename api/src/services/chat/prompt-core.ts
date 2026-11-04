@@ -6,6 +6,7 @@ import { maybeRefreshSummary } from "./summarize.js";
 import { prisma } from "../../db.js";
 import type { ExpertCitation } from "../experts/expert.js";
 import type { ChatHistoryMessage } from "../llm/types.js";
+import type { Lang } from "../../utils/lang.js";
 
 // 与 runChatTurn.resolveMentions 的返回结构一致(结构化兼容,无需互相 import)。
 export interface ResolvedMentions {
@@ -15,6 +16,7 @@ export interface ResolvedMentions {
 }
 
 export interface PrepareInput {
+  lang?: Lang;                       // 回答语言(缺省 appLang())
   userId: string;
   isAdmin: boolean;
   chatPreference?: string;
@@ -67,7 +69,7 @@ export async function prepareGeneralPrompt(input: PrepareInput): Promise<Prepare
       retrieved, history, userMessage: input.question,
       mentions: input.resolvedMentions.snapshot, skills: input.resolvedMentions.skillBlocks,
       summary, historyCap: cap, userPreference: input.chatPreference,
-      usageMarker: input.usageMarker,
+      usageMarker: input.usageMarker, lang: input.lang,
     });
 
   let built = buildOnce(input.history, input.summary, historyCap);

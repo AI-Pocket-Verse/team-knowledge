@@ -1,8 +1,12 @@
 import type { ChatHistoryMessage } from "../llm/types.js";
 import type { SearchHit } from "../retrieval/fts5.js";
 import { ASSISTANT_NAME } from "../../utils/assistant.js";
+import { appLang, type Lang } from "../../utils/lang.js";
+import { outputLanguageInstruction } from "../llm/language.js";
 
 export interface BuildInput {
+  /// 回答语言(缺省 appLang());英文时在 system 末尾追加输出语言指令,中文不变。
+  lang?: Lang;
   retrieved: SearchHit[];
   history: ChatHistoryMessage[];
   userMessage: string;
@@ -218,7 +222,7 @@ export function buildChatPrompt(input: BuildInput): BuiltPrompt {
 该标记仅供系统识别出处、会被隐藏,不要在正文里解释它,也不要在正文标注序号。`
     : "";
 
-  const systemPrompt = `${SYSTEM_PREAMBLE}${prefBlock}${summaryBlock}${skillBlock}${usageBlock}\n\n[参考资料]\n${corpus}${scopeHint}`;
+  const systemPrompt = `${SYSTEM_PREAMBLE}${prefBlock}${summaryBlock}${skillBlock}${usageBlock}\n\n[参考资料]\n${corpus}${scopeHint}${outputLanguageInstruction(input.lang ?? appLang())}`;
   const historyCap = input.historyCap ?? HISTORY_CAP_DEFAULT;
   const history = input.history.slice(-historyCap);
   // Cite ONLY the docs that actually entered the corpus, in corpus order.

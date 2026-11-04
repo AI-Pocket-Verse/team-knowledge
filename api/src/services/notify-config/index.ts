@@ -15,6 +15,7 @@ import { env } from "../../env.js";
 import { prisma } from "../../db.js";
 import { getSetting } from "../settings.js";
 import { observedChatIds } from "../group-qa/buffer.js";
+import { L, appLang } from "../../utils/lang.js";
 
 export const SCENARIO_KEYS = ["skill_updated", "weekly_digest", "meeting_minutes", "doc_audit", "changelog", "kb_weekly_report", "group_qa"] as const;
 export type ScenarioKey = (typeof SCENARIO_KEYS)[number];
@@ -168,12 +169,12 @@ export async function setScenarioNotifyConfig(
   if (patch.chatIds) {
     const ok = new Set(availableChats().map((c) => c.chatId));
     for (const id of patch.chatIds) {
-      if (!ok.has(id)) throw new Error(`未知的群聊 id:${id}`);
+      if (!ok.has(id)) throw new Error(L(appLang(), `未知的群聊 id:${id}`, `Unknown chat id: ${id}`));
     }
   }
   if (patch.schedule) {
     const def = DEFAULT_SCHEDULES[key];
-    if (!def) throw new Error("该任务由业务事件触发,不支持配置定时时刻");
+    if (!def) throw new Error(L(appLang(), "该任务由业务事件触发,不支持配置定时时刻", "This job is triggered by business events and does not support a schedule"));
     // 归一(去重/排序/夹紧)后落库,读取端的 normalize 只是防御手改。
     patch = { ...patch, schedule: normalizeSchedule(patch.schedule, def) };
   }

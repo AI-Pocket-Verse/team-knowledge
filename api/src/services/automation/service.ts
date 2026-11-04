@@ -4,6 +4,7 @@ import { prisma } from "../../db.js";
 import { normalizeSchedule, computeNextRun, describeSchedule, type ScheduleKind, type ScheduleConfig } from "./schedule.js";
 import { isAllowedWebhook } from "./webhook.js";
 import { renderRunOutput } from "./render.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
 
 export interface AutomationInput {
   name: string;
@@ -35,30 +36,30 @@ class InputError extends Error {}
 export function isInputError(e: unknown): e is Error { return e instanceof InputError; }
 
 // 校验并归一化输入(非法 → InputError,路由转 400);返回落库所需字段 + 计算好的 nextRunAt。
-function prepare(input: AutomationInput, enabled: boolean): { data: Omit<AutomationInput, "scheduleConfig" | "effectiveFrom" | "effectiveTo"> & { scheduleConfig: string; effectiveFrom: Date | null; effectiveTo: Date | null }; nextRunAt: Date | null; cfg: ScheduleConfig } {
+function prepare(input: AutomationInput, enabled: boolean, lang: Lang = appLang()): { data: Omit<AutomationInput, "scheduleConfig" | "effectiveFrom" | "effectiveTo"> & { scheduleConfig: string; effectiveFrom: Date | null; effectiveTo: Date | null }; nextRunAt: Date | null; cfg: ScheduleConfig } {
   const name = input.name?.trim();
   const prompt = input.prompt?.trim();
-  if (!name) throw new InputError("名称不能为空");
-  if (!prompt) throw new InputError("提示词不能为空");
+  if (!name) throw new InputError(L(lang, "名称不能为空", "Name is required"));
+  if (!prompt) throw new InputError(L(lang, "提示词不能为空", "Prompt is required"));
   const webhookUrl = input.webhookUrl?.trim() || null;
-  if (webhookUrl && !isAllowedWebhook(webhookUrl)) throw new InputError("webhook 地址不合法(仅支持飞书/Lark 机器人 webhook)");
+  if (webhookUrl && !isAllowedWebhook(webhookUrl)) throw new InputError(L(lang, "webhook 地址不合法(仅支持飞书/Lark 机器人 webhook)", "Invalid webhook URL (only Feishu / Lark bot webhooks are supported)"));
   let cfg: ScheduleConfig;
-  try { cfg = normalizeSchedule(input.scheduleKind, input.scheduleConfig); }
+  try { cfg = normalizeSchedule(input.scheduleKind, input.scheduleConfig, lang); }
   catch (e) { throw new InputError((e as Error).message); }
   const from = input.effectiveFrom != null ? new Date(input.effectiveFrom) : null;
   const to = input.effectiveTo != null ? new Date(input.effectiveTo) : null;
-  if (from && to && from.getTime() > to.getTime()) throw new InputError("生效起始不能晚于结束");
+  if (from && to && from.getTime() > to.getTime()) throw new InputError(L(lang, "生效起始不能晚于结束", "Effective start must not be after the end"));
   const nextRunAt = enabled ? computeNextRun(input.scheduleKind, cfg, new Date(), { from: from?.getTime() ?? null, to: to?.getTime() ?? null }) : null;
   // 启用中却算不出下一次(单次时间已过 / 已超出生效区间)→ 保存后永不运行,提前报错而非静默。
-  if (enabled && nextRunAt === null) throw new InputError("按当前设置不会有下一次运行(执行时间已过,或已超出生效日期区间)");
+  if (enabled && nextRunAt === null) throw new InputError(L(lang, "按当前设置不会有下一次运行(执行时间已过,或已超出生效日期区间)", "With these settings there will be no next run (the run time has passed, or it is outside the effective date range)"));
   return { data: { name, prompt, webhookUrl, scheduleKind: input.scheduleKind, scheduleConfig: JSON.stringify(cfg), effectiveFrom: from, effectiveTo: to }, nextRunAt, cfg };
 }
 
-export function mapAutomation(a: Automation): AutomationDTO {
+export function mapAutomation(a: Automation, lang: Lang = appLang()): AutomationDTO {
   // 防御:scheduleConfig 理论上写入时必 stringify,但坏行不应让整个列表接口 500。
   let cfg: ScheduleConfig; let label: string;
-  try { cfg = JSON.parse(a.scheduleConfig) as ScheduleConfig; label = describeSchedule(a.scheduleKind as ScheduleKind, cfg); }
-  catch { cfg = {} as ScheduleConfig; label = "调度配置异常"; }
+  try { cfg = JSON.parse(a.scheduleConfig) as ScheduleConfig; label = describeSchedule(a.scheduleKind as ScheduleKind, cfg, lang); }
+  catch { cfg = {} as ScheduleConfig; label = L(lang, "调度配置异常", "Invalid schedule config"); }
   return {
     id: a.id, name: a.name, prompt: a.prompt, webhookUrl: a.webhookUrl,
     scheduleKind: a.scheduleKind, scheduleConfig: cfg, scheduleLabel: label,
@@ -86,18 +87,18 @@ const RUN_STALE_MS = 15 * 60_000;
 async function healStaleRuns(userId: string): Promise<void> {
   await prisma.automationRun.updateMany({
     where: { status: "running", automation: { userId }, startedAt: { lt: new Date(Date.now() - RUN_STALE_MS) } },
-    data: { status: "failed", finishedAt: new Date(), error: "运行超时或已中断" },
+    data: { status: "failed", finishedAt: new Date(), error: L(appLang(), "运行超时或已中断", "Run timed out or was interrupted") },
   }).catch(() => {});
 }
 
 export const RUNS_PAGE_SIZE = 10;
 
 /** 列表:本人全部任务 + 运行记录第一页(每页 10 条)+ 是否还有更早。 */
-export async function listAutomations(userId: string): Promise<{ automations: AutomationDTO[]; recentRuns: AutomationRunDTO[]; runsHasMore: boolean }> {
+export async function listAutomations(userId: string, lang: Lang = appLang()): Promise<{ automations: AutomationDTO[]; recentRuns: AutomationRunDTO[]; runsHasMore: boolean }> {
   await healStaleRuns(userId);
   const automations = await prisma.automation.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
   const { runs, hasMore } = await listRuns(userId);
-  return { automations: automations.map(mapAutomation), recentRuns: runs, runsHasMore: hasMore };
+  return { automations: automations.map((a) => mapAutomation(a, lang)), recentRuns: runs, runsHasMore: hasMore };
 }
 
 /** 运行记录游标分页(按 startedAt desc,id 兜底稳定序)。cursor = 上一页最后一条 id;返回本页 + 是否还有更早。 */
@@ -148,32 +149,32 @@ export async function getRunDetail(userId: string, runId: string): Promise<Autom
   return { ...mapRun(r), prompt: r.automation?.prompt ?? "", output, displayText: output ? renderRunOutput(output) : "" };
 }
 
-export async function getAutomation(userId: string, id: string): Promise<AutomationDTO | null> {
+export async function getAutomation(userId: string, id: string, lang: Lang = appLang()): Promise<AutomationDTO | null> {
   const a = await prisma.automation.findFirst({ where: { id, userId } });
-  return a ? mapAutomation(a) : null;
+  return a ? mapAutomation(a, lang) : null;
 }
 
 // 每人最多创建的任务数：每个任务都会定时联网调 LLM，不设上限可被用来占满后台并发。
 export const MAX_AUTOMATIONS_PER_USER = 30;
 
-export async function createAutomation(userId: string, input: AutomationInput): Promise<AutomationDTO> {
-  const { data, nextRunAt } = prepare(input, true);
+export async function createAutomation(userId: string, input: AutomationInput, lang: Lang = appLang()): Promise<AutomationDTO> {
+  const { data, nextRunAt } = prepare(input, true, lang);
   const owned = await prisma.automation.count({ where: { userId } });
-  if (owned >= MAX_AUTOMATIONS_PER_USER) throw new InputError(`每人最多创建 ${MAX_AUTOMATIONS_PER_USER} 个自动化任务，请先删除不用的任务`);
+  if (owned >= MAX_AUTOMATIONS_PER_USER) throw new InputError(L(lang, `每人最多创建 ${MAX_AUTOMATIONS_PER_USER} 个自动化任务，请先删除不用的任务`, `Each user can create at most ${MAX_AUTOMATIONS_PER_USER} automations. Delete one you no longer need first.`));
   const a = await prisma.automation.create({ data: { ...data, userId, enabled: true, nextRunAt } });
-  return mapAutomation(a);
+  return mapAutomation(a, lang);
 }
 
 /** 更新(归属校验)。保留 enabled 现值:暂停中的任务改配置不会自动恢复。找不到 → null。 */
-export async function updateAutomation(userId: string, id: string, input: AutomationInput): Promise<AutomationDTO | null> {
+export async function updateAutomation(userId: string, id: string, input: AutomationInput, lang: Lang = appLang()): Promise<AutomationDTO | null> {
   const existing = await prisma.automation.findFirst({ where: { id, userId } });
   if (!existing) return null;
-  const { data, nextRunAt } = prepare(input, existing.enabled);
+  const { data, nextRunAt } = prepare(input, existing.enabled, lang);
   const a = await prisma.automation.update({ where: { id }, data: { ...data, nextRunAt, retryCount: 0 } });
-  return mapAutomation(a);
+  return mapAutomation(a, lang);
 }
 
-export async function setAutomationEnabled(userId: string, id: string, enabled: boolean): Promise<AutomationDTO | null> {
+export async function setAutomationEnabled(userId: string, id: string, enabled: boolean, lang: Lang = appLang()): Promise<AutomationDTO | null> {
   const existing = await prisma.automation.findFirst({ where: { id, userId } });
   if (!existing) return null;
   let nextRunAt: Date | null = null;
@@ -184,15 +185,15 @@ export async function setAutomationEnabled(userId: string, id: string, enabled: 
     } catch { nextRunAt = null; }
   }
   const a = await prisma.automation.update({ where: { id }, data: { enabled, nextRunAt, retryCount: 0 } });
-  return mapAutomation(a);
+  return mapAutomation(a, lang);
 }
 
 /** 置顶/取消置顶(归属校验)。pinned=true 记当前时刻、false 清空。找不到 → null。 */
-export async function setAutomationPinned(userId: string, id: string, pinned: boolean): Promise<AutomationDTO | null> {
+export async function setAutomationPinned(userId: string, id: string, pinned: boolean, lang: Lang = appLang()): Promise<AutomationDTO | null> {
   const existing = await prisma.automation.findFirst({ where: { id, userId } });
   if (!existing) return null;
   const a = await prisma.automation.update({ where: { id }, data: { pinnedAt: pinned ? new Date() : null } });
-  return mapAutomation(a);
+  return mapAutomation(a, lang);
 }
 
 /** 删除(归属校验)。删到 → true。 */

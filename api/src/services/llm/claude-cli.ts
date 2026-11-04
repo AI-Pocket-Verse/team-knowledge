@@ -8,6 +8,7 @@ import { basename, join } from "node:path";
 import type { ChatCallOpts, ChatChunk, ChatPrompt, LLMProvider, ProviderHealth } from "./types.js";
 import { startIdleHardTimer } from "./timeout.js";
 import { activeModel } from "./model-choice.js";
+import { L, appLang } from "../../utils/lang.js";
 
 export interface ClaudeCliOpts {
   bin?: string;
@@ -160,7 +161,7 @@ export class ClaudeCliProvider implements LLMProvider {
           const version = out.trim();
           if (code !== 0) resolve({ ok: false, reason: stderr.trim() || `exit ${code}` });
           // 隔离参数(--restricted 等)需要较新的 CLI；旧版本会把它们当未知参数直接报错，这里提前说明原因。
-          else if (!claudeVersionAtLeast(version)) resolve({ ok: false, version, reason: `需要 Claude Code ${MIN_CLAUDE_VERSION} 或更高版本（当前 ${version}），请运行 claude update 升级` });
+          else if (!claudeVersionAtLeast(version)) resolve({ ok: false, version, reason: L(appLang(), `需要 Claude Code ${MIN_CLAUDE_VERSION} 或更高版本（当前 ${version}），请运行 claude update 升级`, `Claude Code ${MIN_CLAUDE_VERSION} or later is required (current ${version}). Run claude update to upgrade`) });
           else resolve({ ok: true, version });
         });
       } catch (e) {

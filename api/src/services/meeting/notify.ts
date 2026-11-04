@@ -11,6 +11,7 @@ import { feishuGateway } from "../../utils/feishuGateway.js";
 import { applinkWrap, delinkLarkMd } from "../../utils/notify/card.js";
 import { targetsIfEnabled } from "../notify-config/index.js";
 import { fmtBeijing } from "../role-skill/notify.js";
+import { L, appLang } from "../../utils/lang.js";
 
 /** 纪要群通知的一次性认领(CAS:仅当 minutesNotifiedAt 仍为 null 时置位)。
  *  返回 true = 本次调用抢到通知权;手动「重新生成」与并发生成都只会有一次 true,
@@ -44,7 +45,7 @@ export function minutesToLarkMd(md: string): string {
     .join("\n")
     .trim();
   if (converted.length <= PREVIEW_CAP) return converted;
-  return converted.slice(0, PREVIEW_CAP).trimEnd() + "\n…(纪要较长,点下方按钮查看完整内容)";
+  return converted.slice(0, PREVIEW_CAP).trimEnd() + L(appLang(), "\n…(纪要较长,点下方按钮查看完整内容)", "\n… (Minutes are long. Use the button below to read the full text.)");
 }
 
 export interface MeetingMinutesCardArgs {
@@ -57,11 +58,12 @@ export interface MeetingMinutesCardArgs {
 
 // 键限定 config/header/elements,通过 feishu-sso 端 validCard 校验。
 export function buildMeetingMinutesCard(args: MeetingMinutesCardArgs): unknown {
+  const lang = appLang();
   return {
     config: { wide_screen_mode: true },
-    header: { title: { tag: "plain_text", content: "📝 会议纪要已生成" }, template: "blue" },
+    header: { title: { tag: "plain_text", content: L(lang, "📝 会议纪要已生成", "📝 Meeting minutes ready") }, template: "blue" },
     elements: [
-      { tag: "div", text: { tag: "lark_md", content: `**会议:**${delinkLarkMd(args.title)}\n**生成时间:**${fmtBeijing(args.generatedAt)}` } },
+      { tag: "div", text: { tag: "lark_md", content: L(lang, `**会议:**${delinkLarkMd(args.title)}\n**生成时间:**${fmtBeijing(args.generatedAt)}`, `**Meeting:** ${delinkLarkMd(args.title)}\n**Generated at:** ${fmtBeijing(args.generatedAt)}`) } },
       { tag: "hr" },
       { tag: "div", text: { tag: "lark_md", content: minutesToLarkMd(args.summaryMarkdown) } },
       {
@@ -69,7 +71,7 @@ export function buildMeetingMinutesCard(args: MeetingMinutesCardArgs): unknown {
         actions: [
           {
             tag: "button",
-            text: { tag: "plain_text", content: "查看会议纪要" },
+            text: { tag: "plain_text", content: L(lang, "查看会议纪要", "View minutes") },
             type: "primary",
             url: meetingDeepLink(args.meetingId),
           },

@@ -4,6 +4,7 @@ import type {
   AdminDashboardActivity,
 } from "@team-knowledge/shared";
 import { prisma } from "../db.js";
+import { L, appLang } from "../utils/lang.js";
 
 // One aggregated activity event (pre-serialization). `uid` may be null when
 // the actor was hard-deleted (SetNull) — such events count toward platform
@@ -163,7 +164,7 @@ export async function pageActivity(opts: {
     return {
       id: e.id,
       userId: e.uid as string,
-      userName: names.get(e.uid as string) ?? "（已删除）",
+      userName: names.get(e.uid as string) ?? L(appLang(), "（已删除）", "(Deleted)"),
       type: e.type,
       title: shown.title,
       at: e.at.toISOString(),

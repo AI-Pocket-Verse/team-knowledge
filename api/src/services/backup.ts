@@ -20,6 +20,7 @@ import type { BackupInfo } from "@team-knowledge/shared";
 import { PrismaClient } from "@prisma/client";
 import { env } from "../env.js";
 import { prisma } from "../db.js";
+import { L, appLang } from "../utils/lang.js";
 
 // Prisma 把相对的 `file:` 路径按 schema 所在目录(api/prisma/)解析，而不是进程 cwd；
 // 这里必须用同一规则，否则还原会写到别处。同时去掉 `?connection_limit=1` 等查询参数。
@@ -191,14 +192,14 @@ export async function validateStagedDb(dbPath: string, migrationsDir: string = M
   try {
     const check = await client.$queryRawUnsafe<{ integrity_check: string }[]>("PRAGMA integrity_check;");
     if (check.length !== 1 || check[0]?.integrity_check !== "ok") {
-      throw new BackupError("backup_corrupt", "备份文件未通过完整性检查,已取消还原");
+      throw new BackupError("backup_corrupt", L(appLang(), "备份文件未通过完整性检查,已取消还原", "The backup failed the integrity check. Restore cancelled"));
     }
     const hasTable = await client.$queryRawUnsafe<{ n: number | bigint }[]>(
       "SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND name = '_prisma_migrations'",
     );
     if (Number(hasTable[0]?.n ?? 0) === 0) {
       // 库本身完好,只是没有迁移记录:不是本程序生成的库,或来自记录迁移之前的旧版本。
-      throw new BackupError("backup_schema_outdated", "备份里没有数据库版本记录(不是本程序的备份或版本过旧),已取消还原");
+      throw new BackupError("backup_schema_outdated", L(appLang(), "备份里没有数据库版本记录(不是本程序的备份或版本过旧),已取消还原", "The backup has no database version record (not a backup of this app, or too old). Restore cancelled"));
     }
     const rows = await client.$queryRawUnsafe<{ migration_name: string }[]>(
       "SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL",
@@ -206,7 +207,7 @@ export async function validateStagedDb(dbPath: string, migrationsDir: string = M
     applied = new Set(rows.map((r) => r.migration_name));
   } catch (e) {
     if (e instanceof BackupError) throw e;
-    throw new BackupError("backup_corrupt", `备份文件无法读取(损坏或不是有效的数据库),已取消还原:${(e as Error).message}`);
+    throw new BackupError("backup_corrupt", L(appLang(), `备份文件无法读取(损坏或不是有效的数据库),已取消还原:${(e as Error).message}`, `The backup file cannot be read (corrupted or not a valid database). Restore cancelled: ${(e as Error).message}`));
   } finally {
     await client.$disconnect().catch(() => { /* 尽力 */ });
   }
@@ -218,10 +219,10 @@ export async function validateStagedDb(dbPath: string, migrationsDir: string = M
     return;
   }
   if (codeMigrations.some((m) => !applied.has(m))) {
-    throw new BackupError("backup_schema_outdated", "备份的数据库结构比当前版本旧,直接还原会导致站点报错,已取消还原");
+    throw new BackupError("backup_schema_outdated", L(appLang(), "备份的数据库结构比当前版本旧,直接还原会导致站点报错,已取消还原", "The backup's database schema is older than the current version and restoring it would break the site. Restore cancelled"));
   }
   if ([...applied].some((m) => !codeMigrations.includes(m))) {
-    throw new BackupError("backup_schema_newer", "备份的数据库结构比当前版本新,请先部署对应版本再还原,已取消还原");
+    throw new BackupError("backup_schema_newer", L(appLang(), "备份的数据库结构比当前版本新,请先部署对应版本再还原,已取消还原", "The backup's database schema is newer than the current version. Deploy the matching version first. Restore cancelled"));
   }
 }
 
@@ -237,7 +238,7 @@ let restoreInFlight = false;
 
 // 还原到所选备份。进程内热替换;返回 prerestore 安全快照 + 是否一并还原了 uploads。
 export async function restoreBackup(name: string): Promise<{ predo: BackupInfo; uploadsRestored: boolean }> {
-  if (restoreInFlight) throw new BackupError("restore_in_progress", "已有一次还原正在进行,请稍后再试");
+  if (restoreInFlight) throw new BackupError("restore_in_progress", L(appLang(), "已有一次还原正在进行,请稍后再试", "A restore is already in progress. Please try again later"));
   restoreInFlight = true;
   try {
     return await doRestore(name);
@@ -248,13 +249,13 @@ export async function restoreBackup(name: string): Promise<{ predo: BackupInfo; 
 
 async function doRestore(name: string): Promise<{ predo: BackupInfo; uploadsRestored: boolean }> {
   const src = resolveBackupFile(name);
-  if (!src) throw new BackupError("invalid_name", "非法的备份文件名");
+  if (!src) throw new BackupError("invalid_name", L(appLang(), "非法的备份文件名", "Invalid backup file name"));
   try {
     const st = await stat(src);
-    if (!st.isFile()) throw new BackupError("not_found", "备份文件不存在");
+    if (!st.isFile()) throw new BackupError("not_found", L(appLang(), "备份文件不存在", "Backup file not found"));
   } catch (err) {
     if (err instanceof BackupError) throw err;
-    throw new BackupError("not_found", "备份文件不存在");
+    throw new BackupError("not_found", L(appLang(), "备份文件不存在", "Backup file not found"));
   }
 
   // 1) 把待还原库解到暂存文件(纯 fs,不需要 DB),并在换库前校验。校验放在 prerestore
@@ -270,7 +271,7 @@ async function doRestore(name: string): Promise<{ predo: BackupInfo; uploadsRest
   } catch (e) {
     await rm(staging, { force: true });
     if (e instanceof BackupError) throw e;
-    throw new BackupError("backup_corrupt", `备份文件无法解压,已取消还原:${(e as Error).message}`);
+    throw new BackupError("backup_corrupt", L(appLang(), `备份文件无法解压,已取消还原:${(e as Error).message}`, `The backup file cannot be extracted. Restore cancelled: ${(e as Error).message}`));
   }
 
   // 2) 还原前安全快照(此时仍连接,VACUUM INTO 在线可用)。
@@ -308,7 +309,7 @@ async function doRestore(name: string): Promise<{ predo: BackupInfo; uploadsRest
     } catch (e) {
       await rm(staging, { force: true });
       await rm(upStagingParent, { recursive: true, force: true });
-      throw new BackupError("conflict", `上传文件包解压失败,已取消还原:${(e as Error).message}`);
+      throw new BackupError("conflict", L(appLang(), `上传文件包解压失败,已取消还原:${(e as Error).message}`, `Failed to extract the uploads package. Restore cancelled: ${(e as Error).message}`));
     }
   }
 
@@ -404,13 +405,13 @@ async function sweepUploadsTemp(): Promise<void> {
 // 删除一份备份(后台手动管理;同样做穿越防御)。
 export async function deleteBackup(name: string): Promise<void> {
   const p = resolveBackupFile(name);
-  if (!p) throw new BackupError("invalid_name", "非法的备份文件名");
+  if (!p) throw new BackupError("invalid_name", L(appLang(), "非法的备份文件名", "Invalid backup file name"));
   try {
     const st = await stat(p);
-    if (!st.isFile()) throw new BackupError("not_found", "备份文件不存在");
+    if (!st.isFile()) throw new BackupError("not_found", L(appLang(), "备份文件不存在", "Backup file not found"));
   } catch (err) {
     if (err instanceof BackupError) throw err;
-    throw new BackupError("not_found", "备份文件不存在");
+    throw new BackupError("not_found", L(appLang(), "备份文件不存在", "Backup file not found"));
   }
   await unlink(p);
   // 一并删掉配套的 uploads 包(同目录同名);不存在则忽略。

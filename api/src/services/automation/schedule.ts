@@ -1,3 +1,4 @@
+import { L, appLang, type Lang } from "../../utils/lang.js";
 // 自动化任务的调度计算。时区固定【北京时间 Asia/Shanghai = UTC+8,无夏令时】,
 // 用固定 +8 偏移把「北京墙钟」和真实 UTC 时刻互转,避开 JS Date 无内建时区的坑。
 //
@@ -26,28 +27,28 @@ export interface OnceConfig { atMs: number }
 export type ScheduleConfig = CronConfig | IntervalConfig | OnceConfig;
 
 /** 校验 + 归一化 scheduleConfig(非法则抛错,供 API 层转 400)。 */
-export function normalizeSchedule(kind: ScheduleKind, config: unknown): ScheduleConfig {
+export function normalizeSchedule(kind: ScheduleKind, config: unknown, lang: Lang = appLang()): ScheduleConfig {
   const c = (config ?? {}) as Record<string, unknown>;
   if (kind === "cron") {
     const weekdays = Array.isArray(c.weekdays) ? c.weekdays.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 7) : [];
     const hour = Number(c.hour), minute = Number(c.minute);
-    if (weekdays.length === 0) throw new Error("cron: weekdays 不能为空");
-    if (!(Number.isInteger(hour) && hour >= 0 && hour <= 23)) throw new Error("cron: hour 非法");
-    if (!(Number.isInteger(minute) && minute >= 0 && minute <= 59)) throw new Error("cron: minute 非法");
+    if (weekdays.length === 0) throw new Error(L(lang, "cron: weekdays 不能为空", "cron: weekdays must not be empty"));
+    if (!(Number.isInteger(hour) && hour >= 0 && hour <= 23)) throw new Error(L(lang, "cron: hour 非法", "cron: invalid hour"));
+    if (!(Number.isInteger(minute) && minute >= 0 && minute <= 59)) throw new Error(L(lang, "cron: minute 非法", "cron: invalid minute"));
     return { weekdays: Array.from(new Set(weekdays)).sort((a, b) => a - b), hour, minute };
   }
   if (kind === "interval") {
     const everyMs = Number(c.everyMs);
-    if (!(Number.isFinite(everyMs) && everyMs >= MIN_INTERVAL_MS)) throw new Error("interval: everyMs 至少 600000(10 分钟)");
+    if (!(Number.isFinite(everyMs) && everyMs >= MIN_INTERVAL_MS)) throw new Error(L(lang, "interval: everyMs 至少 600000(10 分钟)", "interval: everyMs must be at least 600000 (10 minutes)"));
     return { everyMs: Math.floor(everyMs) };
   }
   if (kind === "once") {
     const atMs = Number(c.atMs);
     // JS Date 的合法范围是 ±8.64e15 ms,超出则 new Date 为 Invalid Date,落库时会 500。
-    if (!Number.isFinite(atMs) || Math.abs(atMs) > 8.64e15) throw new Error("once: atMs 非法");
+    if (!Number.isFinite(atMs) || Math.abs(atMs) > 8.64e15) throw new Error(L(lang, "once: atMs 非法", "once: invalid atMs"));
     return { atMs: Math.floor(atMs) };
   }
-  throw new Error(`未知 scheduleKind: ${kind}`);
+  throw new Error(L(lang, `未知 scheduleKind: ${kind}`, `Unknown scheduleKind: ${kind}`));
 }
 
 // 把北京墙钟(y-m-d h:m)转成真实 UTC 时刻(ms)。
@@ -92,12 +93,19 @@ export function computeNextRun(
 }
 
 const WD_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+const WD_NAMES_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /** 人类可读的调度描述(列表展示用)。 */
-export function describeSchedule(kind: ScheduleKind, config: ScheduleConfig): string {
+export function describeSchedule(kind: ScheduleKind, config: ScheduleConfig, lang: Lang = appLang()): string {
   if (kind === "cron") {
     const c = config as CronConfig;
     const hm = `${String(c.hour).padStart(2, "0")}:${String(c.minute).padStart(2, "0")}`;
+    if (lang === "en") {
+      const wdEn = c.weekdays.length === 7 ? "Every day"
+        : c.weekdays.length === 5 && [1, 2, 3, 4, 5].every((d) => c.weekdays.includes(d)) ? "Weekdays"
+        : "Every " + c.weekdays.map((d) => WD_NAMES_EN[d - 1]).join(", ");
+      return `${wdEn} ${hm}`;
+    }
     const wd = c.weekdays.length === 7 ? "每天"
       : c.weekdays.length === 5 && [1, 2, 3, 4, 5].every((d) => c.weekdays.includes(d)) ? "工作日"
       : "每" + c.weekdays.map((d) => WD_NAMES[d - 1]).join("、");
@@ -105,9 +113,12 @@ export function describeSchedule(kind: ScheduleKind, config: ScheduleConfig): st
   }
   if (kind === "interval") {
     const ms = (config as IntervalConfig).everyMs;
-    return ms % 3_600_000 === 0 ? `每 ${ms / 3_600_000} 小时` : `每 ${Math.round(ms / 60_000)} 分钟`;
+    return ms % 3_600_000 === 0
+      ? L(lang, `每 ${ms / 3_600_000} 小时`, `Every ${ms / 3_600_000} h`)
+      : L(lang, `每 ${Math.round(ms / 60_000)} 分钟`, `Every ${Math.round(ms / 60_000)} min`);
   }
   const at = new Date((config as OnceConfig).atMs + BEIJING_OFFSET_MS);
   const p = (n: number) => String(n).padStart(2, "0");
-  return `单次 ${at.getUTCFullYear()}-${p(at.getUTCMonth() + 1)}-${p(at.getUTCDate())} ${p(at.getUTCHours())}:${p(at.getUTCMinutes())}`;
+  const stamp = `${at.getUTCFullYear()}-${p(at.getUTCMonth() + 1)}-${p(at.getUTCDate())} ${p(at.getUTCHours())}:${p(at.getUTCMinutes())}`;
+  return L(lang, `单次 ${stamp}`, `Once ${stamp}`);
 }

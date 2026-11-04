@@ -11,6 +11,8 @@ import { createEscalation } from "./escalation.js";
 import { prepareGeneralPrompt, type ResolvedMentions } from "../chat/prompt-core.js";
 import { getProvider } from "../llm/registry.js";
 import { chatSemaphore } from "../../utils/concurrency.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
+import { outputLanguageInstruction } from "../llm/language.js";
 
 // 生图决策链的服务端日志(便于运维定位为何走/没走生图;按 [image] 前缀可 grep)。
 function imgLog(msg: string): void { console.log(msg); }
@@ -83,6 +85,7 @@ export interface OrchestrateResult { answer: string; trace: TraceEvent[]; citati
   thinking?: string }
 
 export interface OrchestrateInput {
+  lang?: Lang;                        // 界面语言(路由传 requestLang(req);缺省 appLang()):回答语言与提示文案
   question: string;
   targetRoleIds?: string[];
   conversationId?: string;            // 升级单引用
@@ -196,6 +199,7 @@ async function runGeneralAnswer(
     resolvedMentions: input.mentions ?? { hits: [], snapshot: [], skillBlocks: [] },
     history: input.history ?? [], summary: input.summary, conversationId: input.conversationId,
     usageMarker: true, // 让模型声明实际引用的参考资料 → 只列真正用到的出处
+    lang: input.lang,
   });
   const systemPrompt = (gate ? prepared.systemPrompt + gateDirective(gate.experts) : prepared.systemPrompt) + imageDirective();
   const run = input.runGeneralLlm ?? callGeneralLlm;
@@ -230,7 +234,7 @@ async function runGeneralAnswer(
   // raw===null = 主调用失败/超时/空(非「模型说没找到」)。此时只回失败信息,【绝不生图】——
   // 否则会拿兜底文案憋出一张和项目内容无关的废图(用户明确反馈:没拿到内容就该返信息,而不是图)。
   const runOk = raw !== null;
-  const answer = raw ?? "我没查到相关资料,换个问法或补充些背景试试。";
+  const answer = raw ?? L(input.lang ?? appLang(), "我没查到相关资料,换个问法或补充些背景试试。", "I could not find anything relevant. Try rephrasing or adding some context.");
   // 生图(优先于专家交接与 [[USED]]):
   //   ① 模型按指令吐了 [[IMAGE: 提示词]] → 直接生图;
   //   ② 模型【没吐标记】但诉求明显是要图(甚至口头说"已生成"却没真生)→ 兜底:用它刚写的正文当素材,
@@ -250,7 +254,7 @@ async function runGeneralAnswer(
       // 最终只展示图;模型这段叙述(剥掉 [[IMAGE]] 标记后的正文)作为「思考过程」折叠展示,不进答复正文。
       return { routeToExpert: false, result: { answer: "", thinking: img.clean || undefined, trace, citations: [], images: urls } };
     }
-    return { routeToExpert: false, result: { answer: "抱歉,图片生成暂时不可用(可能未配置图像服务或调用失败),稍后再试。", trace, citations: [] } };
+    return { routeToExpert: false, result: { answer: L(input.lang ?? appLang(), "抱歉,图片生成暂时不可用(可能未配置图像服务或调用失败),稍后再试。", "Sorry, image generation is unavailable right now (the image service may not be configured, or the call failed). Please try again later."), trace, citations: [] } };
   }
   // 门控判专用 → 不展示这段(交接给专家重新作答),由调用方路由。
   if (gate && hasExpertMarker(answer)) return { routeToExpert: true, result: null };
@@ -291,7 +295,7 @@ async function runGeneralAnswer(
   }
   // 最终展示文本:再过一道残留标记兜底(防「只有标记没正文」时漏出原始 [[...]]);
   // 若剥完为空(模型只给了标记、无实质内容),给一句友好兜底而非空泡/裸标记。
-  const finalAnswer = stripResidualMarkers(clean || answer) || "嗯,这次我没组织出有效回答,换个说法再问我一次?";
+  const finalAnswer = stripResidualMarkers(clean || answer) || L(input.lang ?? appLang(), "嗯,这次我没组织出有效回答,换个说法再问我一次?", "Hmm, I could not put together a useful answer this time. Could you ask again in a different way?");
   return { routeToExpert: false, result: { answer: finalAnswer, trace, citations: [...docCitations, ...webCitations] } };
 }
 
@@ -331,19 +335,20 @@ export async function orchestrate(input: OrchestrateInput): Promise<OrchestrateR
   if (roleIds.length === 1) return runPrimaryWithCollab(roleIds[0]!, input, roles, nameOf, trace, emit, cache);
 
   const settled = await Promise.all(
-    roleIds.map(async (rid) => ({ rid, a: await answerAsExpert(rid, input.question, { runLlm: input.runExpertLlm, cache, summary: input.summary, images: input.images, mentionHits: input.mentions?.hits }) })),
+    roleIds.map(async (rid) => ({ rid, a: await answerAsExpert(rid, input.question, { runLlm: input.runExpertLlm, cache, summary: input.summary, images: input.images, mentionHits: input.mentions?.hits, lang: input.lang }) })),
   );
   const ok = settled.filter((x): x is { rid: string; a: NonNullable<typeof x.a> } => x.a !== null);
   for (const x of ok) emit({ type: "answered", roleId: x.rid });
   const citations = ok.flatMap((x) => x.a.citations);
 
-  if (ok.length === 0) return { answer: "专家暂不可用,请稍后再试。", trace, citations: [] };
+  const lang = input.lang ?? appLang();
+  if (ok.length === 0) return { answer: L(lang, "专家暂不可用,请稍后再试。", "The experts are unavailable right now. Please try again later."), trace, citations: [] };
   if (ok.length === 1) { input.onToken?.(ok[0].a.answer); return { answer: ok[0].a.answer, trace, citations }; }
 
   // 多专家 → 汇总成一份带出处的连贯答复(汇总文本逐 token 流式)。
   const merged = ok.map((x) => `【${nameOf(x.rid)}专家】${x.a.answer}`).join("\n\n");
   const summary = input.runSummaryLlm
-    ? await input.runSummaryLlm("把多位专家的意见合成一份连贯、带出处的答复,保留各自结论与分歧;但若各专家只是寒暄/问候或都没给出实质内容,就直接用一句自然的话回应,不要罗列「综合专家意见」「出处」之类框架。", merged, input.onToken)
+    ? await input.runSummaryLlm("把多位专家的意见合成一份连贯、带出处的答复,保留各自结论与分歧;但若各专家只是寒暄/问候或都没给出实质内容,就直接用一句自然的话回应,不要罗列「综合专家意见」「出处」之类框架。" + outputLanguageInstruction(lang), merged, input.onToken)
     : null;
   emit({ type: "summarized" });
   return { answer: summary ?? merged, trace, citations };
@@ -367,8 +372,9 @@ async function runPrimaryWithCollab(
 
   // 首答可能含协作标记 → 用 marker-safe 转发器:干净文本边生成边打字机,标记本身不外泄。
   // 若随后要请教/升级而改写答复,done 事件携带的权威文本会覆盖预览。
-  const first = await answerAsExpert(roleId, input.question, { runLlm: input.runExpertLlm, collab: { peers, allowEscalate }, onToken: markerSafeSink(input.onToken), cache, summary: input.summary, images: input.images, mentionHits: input.mentions?.hits });
-  if (!first) return { answer: "专家暂不可用,请稍后再试。", trace, citations: [] };
+  const first = await answerAsExpert(roleId, input.question, { runLlm: input.runExpertLlm, collab: { peers, allowEscalate }, onToken: markerSafeSink(input.onToken), cache, summary: input.summary, images: input.images, mentionHits: input.mentions?.hits, lang: input.lang });
+  const lang = input.lang ?? appLang();
+  if (!first) return { answer: L(lang, "专家暂不可用,请稍后再试。", "The expert is unavailable right now. Please try again later."), trace, citations: [] };
   emit({ type: "answered", roleId });
   const parsed = parseMarkers(first.answer);
 
@@ -384,7 +390,7 @@ async function runPrimaryWithCollab(
     });
     emit({ type: "escalation", roleId, note: esc.id });
     return {
-      answer: `${parsed.clean}\n\n(此事需要拍板,已生成决策卡。你可以在对话里直接定夺,或转交给「${nameOf(roleId)}」负责人/其他人。)`,
+      answer: `${parsed.clean}\n\n${L(lang, `(此事需要拍板,已生成决策卡。你可以在对话里直接定夺,或转交给「${nameOf(roleId)}」负责人/其他人。)`, `(This needs a decision. A decision card has been created. You can decide right here in the chat, or hand it to the ${nameOf(roleId)} owner or someone else.)`)}`,
       trace,
       citations: first.citations,
       escalationId: esc.id,
@@ -396,15 +402,15 @@ async function runPrimaryWithCollab(
   if (parsed.consult) {
     const target = roles.find((r) => r.name === parsed.consult!.target || parsed.consult!.target.includes(r.name));
     if (target) {
-      const c = await consult(target.roleId, parsed.consult.question, newConsultContext(), { runLlm: input.runExpertLlm, cache, summary: input.summary });
+      const c = await consult(target.roleId, parsed.consult.question, newConsultContext(), { runLlm: input.runExpertLlm, cache, summary: input.summary, lang: input.lang });
       if (c.ok) {
         emit({ type: "consult", roleId: target.roleId });
         const followUp = `原问题:${input.question}\n\n【${target.name}专家的意见】:${c.answer}\n\n请据此给出最终答复,不要再输出协作标记。`;
         // 定稿不再流式(预览已展示首答;done 携带权威终稿覆盖)。
-        const finalAns = await answerAsExpert(roleId, followUp, { runLlm: input.runExpertLlm, cache, summary: input.summary });
+        const finalAns = await answerAsExpert(roleId, followUp, { runLlm: input.runExpertLlm, cache, summary: input.summary, lang: input.lang });
         return { answer: finalAns?.answer ?? parsed.clean, trace, citations: [...first.citations, ...(finalAns?.citations ?? [])] };
       }
-      return { answer: `${parsed.clean}\n\n(想请教「${target.name}专家」但未成功:${c.reason})`, trace, citations: first.citations };
+      return { answer: `${parsed.clean}\n\n${L(lang, `(想请教「${target.name}专家」但未成功:${c.reason})`, `(Tried to consult the ${target.name} expert but it did not work: ${c.reason})`)}`, trace, citations: first.citations };
     }
   }
 

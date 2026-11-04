@@ -8,6 +8,7 @@ import { fileTypeFromBuffer } from "file-type";
 import { prisma } from "../../db.js";
 import { env } from "../../env.js";
 import { imagePixelSize } from "../../utils/imageSize.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
 
 export const UPLOAD_DIR = resolve(env.DATA_DIR, "uploads");
 export const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20MB
@@ -65,19 +66,20 @@ export async function storeImageBuffer(
   // quotaExempt:AI 文生图等【系统代生成】的图,用户并未主动上传,故不计入其 1GB 配额
   // (否则系统生的图会悄悄占满用户配额,把他自己的上传也一并卡死)。仍受 MAX_IMAGE_BYTES
   // 单张上限约束,且生图侧另有每用户限流 + 并发闸兜底,不会无界膨胀。
-  opts?: { quotaExempt?: boolean },
+  opts?: { quotaExempt?: boolean; lang?: Lang },
 ): Promise<StoredImage> {
-  if (buffer.length === 0) throw new ImageStoreError("unsupported_media_type", "空文件");
-  if (buffer.length > MAX_IMAGE_BYTES) throw new ImageStoreError("payload_too_large", "文件超过 20MB 上限");
+  const lang = opts?.lang ?? appLang();
+  if (buffer.length === 0) throw new ImageStoreError("unsupported_media_type", L(lang, "空文件", "Empty file"));
+  if (buffer.length > MAX_IMAGE_BYTES) throw new ImageStoreError("payload_too_large", L(lang, "文件超过 20MB 上限", "File exceeds the 20 MB limit"));
   if (claimedMime && !ALLOWED_IMAGE_MIME.has(claimedMime)) {
-    throw new ImageStoreError("unsupported_media_type", "仅支持 PNG/JPEG/GIF/WebP");
+    throw new ImageStoreError("unsupported_media_type", L(lang, "仅支持 PNG/JPEG/GIF/WebP", "Only PNG / JPEG / GIF / WebP are supported"));
   }
   const detected = await fileTypeFromBuffer(buffer);
   if (!detected || !ALLOWED_IMAGE_MIME.has(detected.mime)) {
-    throw new ImageStoreError("unsupported_media_type", "文件类型与扩展名不匹配");
+    throw new ImageStoreError("unsupported_media_type", L(lang, "文件类型与扩展名不匹配", "File type does not match its extension"));
   }
   if (!opts?.quotaExempt && await exceedsQuota(userId, buffer.length)) {
-    throw new ImageStoreError("quota_exceeded", "存储配额已用尽");
+    throw new ImageStoreError("quota_exceeded", L(lang, "存储配额已用尽", "Storage quota used up"));
   }
 
   const ext = EXT_FOR_MIME[detected.mime] ?? "bin";
@@ -97,11 +99,12 @@ export async function storeImageBuffer(
 export async function resolveChatImages(
   userId: string,
   urls: string[],
+  lang: Lang = appLang(),
 ): Promise<{ urls: string[]; absPaths: string[] }> {
   if (urls.length === 0) return { urls: [], absPaths: [] };
   const filenames = urls.map((u) => {
     const m = /^\/uploads\/([A-Za-z0-9][A-Za-z0-9._-]*)$/.exec(u);
-    if (!m) throw new Error("图片地址不合法");
+    if (!m) throw new Error(L(lang, "图片地址不合法", "Invalid image URL"));
     return m[1]!;
   });
   const rows = await prisma.upload.findMany({
@@ -111,8 +114,8 @@ export async function resolveChatImages(
   const byName = new Map(rows.map((r) => [r.filename, r]));
   for (const f of filenames) {
     const row = byName.get(f);
-    if (!row) throw new Error("图片不存在或不属于你");
-    if (!ALLOWED_IMAGE_MIME.has(row.mimeType)) throw new Error("仅支持图片附件");
+    if (!row) throw new Error(L(lang, "图片不存在或不属于你", "Image not found or not yours"));
+    if (!ALLOWED_IMAGE_MIME.has(row.mimeType)) throw new Error(L(lang, "仅支持图片附件", "Only image attachments are supported"));
   }
   return { urls, absPaths: filenames.map((f) => join(UPLOAD_DIR, f)) };
 }

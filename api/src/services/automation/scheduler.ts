@@ -7,6 +7,7 @@ import { prisma } from "../../db.js";
 import { isRestoring } from "../backup.js";
 import { computeNextRun, retryDelayMs, MAX_AUTOMATION_RETRIES, type ScheduleKind, type ScheduleConfig, type IntervalConfig } from "./schedule.js";
 import { runAutomation } from "./run.js";
+import { L, appLang, type Lang } from "../../utils/lang.js";
 
 const TICK_MS = 30_000;
 const running = new Set<string>(); // 防重入:同一任务上一次没跑完不再触发
@@ -87,7 +88,7 @@ async function reconcile(log?: FastifyBaseLogger): Promise<void> {
   // 进程重启时,任何 status=running 的运行记录都是被中断的孤儿 → 标记为 failed。
   await prisma.automationRun.updateMany({
     where: { status: "running" },
-    data: { status: "failed", finishedAt: new Date(), error: "服务重启,运行中断" },
+    data: { status: "failed", finishedAt: new Date(), error: L(appLang(), "服务重启,运行中断", "Interrupted by a service restart") },
   }).catch((e) => log?.warn?.({ err: e }, "[automation] 清理孤儿运行记录失败"));
 
   const now = new Date();

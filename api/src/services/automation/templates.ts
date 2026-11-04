@@ -1,6 +1,7 @@
 // 「从模板添加」的内置模板(代码内置;点模板 → 预填添加表单 → 用户改 → 保存)。
 // 每个模板自带默认调度与提示词;webhook 地址留给用户填(独立字段)。icon 为前端图标 key。
 import type { ScheduleKind, ScheduleConfig } from "./schedule.js";
+import { appLang, type Lang } from "../../utils/lang.js";
 
 export interface AutomationTemplate {
   key: string;
@@ -80,3 +81,68 @@ export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
     scheduleKind: "cron", scheduleConfig: { weekdays: [1, 2, 3, 4, 5], hour: 9, minute: 0 },
   },
 ];
+
+// ── 英文模板(界面语言为英文时由路由返回;key / icon / 默认调度与中文模板一致)──
+const CARD_OUTPUT_EN = [
+  "",
+  "[Output format]",
+  "- Format the result as a single Feishu interactive card and output the card JSON directly (the request body for a Feishu custom-bot webhook).",
+  "- Structure: { \"msg_type\": \"interactive\", \"card\": { \"header\": {…title…}, \"elements\": [ …markdown content… ] } }.",
+  "- Write the card content in markdown; include the date in the title.",
+  "- Output only the card JSON itself, wrapped in a ```json code block, with no extra explanation.",
+  "- Check that the JSON is valid before outputting.",
+].join("\n");
+
+const EN_TEXT: Record<string, { title: string; description: string; prompt: string }> = {
+  ai_news: {
+    title: "Daily AI news digest",
+    description: "Track the day's important AI developments: products, models and industry news.",
+    prompt: [
+      "Search the web and compile important AI developments in three dimensions: products / models, industry / companies, and research / technology. At most 3 items per dimension.",
+      "Selection rules: prefer news published in the last 1-2 days (including today, Beijing time) and state the date in the summary; recent but undated items that are clearly important may be included and marked \"recent\"; prefer broad impact, high information density and direct relevance to AI; deduplicate (keep the more authoritative source for the same event); never invent news, links or sources; if a dimension has fewer than 3 solid items, output what you have and note \"not enough high-value recent news in this dimension\".",
+      "Present each item as \"title + one-sentence summary (with date)\".",
+    ].join("\n") + CARD_OUTPUT_EN,
+  },
+  weekly_report: {
+    title: "Weekly work report",
+    description: "Summarize the week's progress every Friday in a structured report.",
+    prompt: "Write this week's work report in four parts: Completed, In progress, Next week's plan, and Risks and blockers. Keep items concise and readable." + CARD_OUTPUT_EN,
+  },
+  english_words: {
+    title: "5 English words a day",
+    description: "Five useful, high-frequency English words every day, with definitions and examples.",
+    prompt: "Recommend 5 high-frequency, practical English words. For each give: the word, phonetic transcription, part of speech, a clear definition, and one natural example sentence. Medium difficulty, practical focus." + CARD_OUTPUT_EN,
+  },
+  why_today: {
+    title: "A daily \"why\"",
+    description: "One interesting question a day: the question first, then the answer.",
+    prompt: "Pose one interesting popular-science question (science, daily life or history). State the question in one sentence, answer it in 3-5 plain sentences, and finish with a related fun fact." + CARD_OUTPUT_EN,
+  },
+  today_in_history: {
+    title: "On this day in history",
+    description: "One notable event from tech, film, music and more that happened on today's date.",
+    prompt: "Using today's date in Beijing time, pick 1-3 interesting events that happened on this day in history (prefer technology, culture, film and music). For each give the year, the event and a one-line comment." + CARD_OUTPUT_EN,
+  },
+  meeting_prep: {
+    title: "Pre-meeting preparation",
+    description: "A practical prep checklist before a meeting: goals, agenda, materials, roles, decisions and key questions.",
+    prompt: [
+      "Prepare for an upcoming team meeting with a practical, ready-to-use checklist that helps the host and attendees run an efficient meeting. Include:",
+      "1. Meeting goal: 1-2 sentences on what the meeting should achieve;",
+      "2. Suggested agenda and time allocation: 3-6 items, each with a duration;",
+      "3. Materials and data to prepare or send in advance;",
+      "4. Attendees and roles: host, note-taker, decision-makers, etc.;",
+      "5. Decisions to make / items to confirm in the meeting;",
+      "6. Key questions to raise: to drive discussion and avoid gaps;",
+      "7. Potential disagreements or risks, with contingency plans;",
+      "8. Follow-up template: owner + due date placeholders.",
+      "Keep it concise and actionable; if no specific meeting topic is given, provide a generic but directly usable checklist.",
+    ].join("\n") + CARD_OUTPUT_EN,
+  },
+};
+
+/** 按语言返回模板列表;中文原样返回 AUTOMATION_TEMPLATES。 */
+export function automationTemplates(lang: Lang = appLang()): AutomationTemplate[] {
+  if (lang !== "en") return AUTOMATION_TEMPLATES;
+  return AUTOMATION_TEMPLATES.map((t) => ({ ...t, ...(EN_TEXT[t.key] ?? {}) }));
+}

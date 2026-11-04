@@ -1,3 +1,4 @@
+import { L, appLang } from "../../utils/lang.js";
 // Helpers to guarantee the generated skill.md carries a well-formed Claude
 // Agent Skill frontmatter (name + description). The model is asked to emit it,
 // but models drift — so we parse whatever it produced, normalize it, and
@@ -48,7 +49,7 @@ export function ensureFrontmatter(raw: string, fallback: { name: string; descrip
   }
 
   const name = slugify(parsedName) || slugify(fallback.name) || "team-knowledge-role-skill";
-  const description = oneLine(parsedDesc) || oneLine(fallback.description) || "知识库角色知识技能";
+  const description = oneLine(parsedDesc) || oneLine(fallback.description) || L(appLang(), "知识库角色知识技能", "Knowledge skill for a knowledge base role");
   // description 可能含 `: `、以 `[` / `>` 开头等，裸输出不是合法 YAML；JSON 字符串即合法的 YAML 双引号标量。
   const fm = `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n---\n\n`;
   return { content: fm + body.trimStart(), name, description };

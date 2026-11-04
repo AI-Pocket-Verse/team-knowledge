@@ -3,6 +3,7 @@
 // hash 不在最新卡(旧卡 / 新审计后)→ toast 兜底,不动库、不回传卡。
 import { getLastCard, getLastCardMeta, acknowledgeFindingRecord, unacknowledgeFindingRecord, getAcknowledgedHashes } from "./acks.js";
 import { buildDocAuditCard } from "./audit.js";
+import { L, appLang } from "../../utils/lang.js";
 
 export interface AckResult {
   toast: string;
@@ -14,7 +15,7 @@ export async function acknowledgeFinding(hash: string, by: string, checked = tru
   const lastCard = await getLastCard();
   const finding = lastCard.find((f) => f.hash === hash);
   if (!finding) {
-    return { toast: "该条目已不在最新报告中,无需操作。", card: null };
+    return { toast: L(appLang(), "该条目已不在最新报告中,无需操作。", "This item is no longer in the latest report. Nothing to do."), card: null };
   }
   if (checked) await acknowledgeFindingRecord(finding, by);
   else await unacknowledgeFindingRecord(hash);
@@ -30,5 +31,5 @@ export async function acknowledgeFinding(hash: string, by: string, checked = tru
     generatedAt: meta ? new Date(meta.generatedAt) : new Date(),
     llmFailed: false,
   });
-  return { toast: checked ? "已确认,下次不再提醒这条。" : "已撤销确认,该条下次仍会提醒。", card };
+  return { toast: checked ? L(appLang(), "已确认,下次不再提醒这条。", "Acknowledged. You will not be reminded about this one again.") : L(appLang(), "已撤销确认,该条下次仍会提醒。", "Acknowledgement undone. You will be reminded about this one again."), card };
 }

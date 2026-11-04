@@ -1,3 +1,4 @@
+import { L, appLang, type Lang } from "../../utils/lang.js";
 // 自动化投递:把 AI 产出 POST 到用户填的飞书机器人 webhook。
 //   - 安全:仅允许飞书/Lark 官方机器人 webhook 域(堵 SSRF —— 服务端不代 POST 任意 URL)。
 //   - 从 AI 输出里提取飞书消息 JSON(优先 ```json 代码块;否则首个可解析的 {…});
@@ -98,8 +99,8 @@ export function buildFeishuPayload(aiOutput: string): Record<string, unknown> {
   // 超长则截断并加提示,避免超大卡片被飞书判 code≠0 投递失败。截断在转换前做,避免切断行内标记。
   const FEISHU_MD_MAX = 5000;
   const truncated = aiOutput.length > FEISHU_MD_MAX;
-  const md = markdownToLarkMd(aiOutput.slice(0, FEISHU_MD_MAX)) + (truncated ? "\n\n…(内容较长,已截断)" : "");
-  const content = md.trim() || "(无内容)"; // 兜底:lark_md 内容不能为空,否则飞书拒收
+  const md = markdownToLarkMd(aiOutput.slice(0, FEISHU_MD_MAX)) + (truncated ? L(appLang(), "\n\n…(内容较长,已截断)", "\n\n… (content too long, truncated)") : "");
+  const content = md.trim() || L(appLang(), "(无内容)", "(no content)"); // 兜底:lark_md 内容不能为空,否则飞书拒收
   return {
     msg_type: "interactive",
     card: {
@@ -113,9 +114,9 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 
 /** POST 到飞书 webhook。仅白名单域;失败重试 2 次。飞书成功判据:HTTP 200 且 body.code===0(或无 code)。 */
 export async function deliverToFeishu(webhookUrl: string, aiOutput: string): Promise<DeliveryResult> {
-  if (!isAllowedWebhook(webhookUrl)) return { ok: false, retryable: false, error: "webhook 域不在白名单(仅支持飞书/Lark 机器人 webhook)" };
+  if (!isAllowedWebhook(webhookUrl)) return { ok: false, retryable: false, error: L(appLang(), "webhook 域不在白名单(仅支持飞书/Lark 机器人 webhook)", "Webhook domain is not allowed (only Feishu / Lark bot webhooks are supported)") };
   const body = JSON.stringify(buildFeishuPayload(aiOutput));
-  let last: DeliveryResult = { ok: false, error: "未执行" };
+  let last: DeliveryResult = { ok: false, error: L(appLang(), "未执行", "Not executed") };
   for (let attempt = 1; attempt <= 3; attempt++) {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 20_000);
@@ -126,10 +127,10 @@ export async function deliverToFeishu(webhookUrl: string, aiOutput: string): Pro
       let code: number | undefined;
       try { code = (JSON.parse(text) as { code?: number }).code; } catch { /* 非 JSON 响应 */ }
       if (res.ok && (code === undefined || code === 0)) return { ok: true, httpStatus: res.status };
-      last = { ok: false, httpStatus: res.status, error: `飞书返回 ${res.status}${code !== undefined ? ` code=${code}` : ""}: ${text.slice(0, 200)}` };
+      last = { ok: false, httpStatus: res.status, error: L(appLang(), `飞书返回 ${res.status}${code !== undefined ? ` code=${code}` : ""}: ${text.slice(0, 200)}`, `Feishu returned ${res.status}${code !== undefined ? ` code=${code}` : ""}: ${text.slice(0, 200)}`) };
       if (res.status < 500 && res.status !== 429) return { ...last, retryable: false }; // 4xx(除 429)确定性错误,不重试
     } catch (e) {
-      last = { ok: false, error: (e as Error).name === "AbortError" ? "投递超时" : (e as Error).message };
+      last = { ok: false, error: (e as Error).name === "AbortError" ? L(appLang(), "投递超时", "Delivery timed out") : (e as Error).message };
     } finally {
       clearTimeout(timer);
     }
