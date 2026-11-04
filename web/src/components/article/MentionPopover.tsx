@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ArticleSearchHit } from "@team-knowledge/shared";
+import { useT } from "@/i18n";
 
 interface Props {
   query: string;
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function MentionPopover({ query, anchor, onSelect, onClose, search }: Props) {
+  const t = useT();
   const [hits, setHits] = useState<ArticleSearchHit[]>([]);
   const [active, setActive] = useState(0);
   // True from the moment a non-empty query is typed until its debounced
@@ -83,7 +85,7 @@ export function MentionPopover({ query, anchor, onSelect, onClose, search }: Pro
       style={{ left: anchor.left, top: anchor.top + 4 }}
     >
       {hits.length === 0 ? (
-        <div className="px-3 py-2 text-sm text-muted">无匹配结果</div>
+        <div className="px-3 py-2 text-sm text-muted">{t("article.mention.noMatch")}</div>
       ) : (
         hits.map((h, i) => (
           <button

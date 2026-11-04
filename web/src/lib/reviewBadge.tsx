@@ -1,4 +1,5 @@
 import type { FolderRow, SlimDoc } from "@team-knowledge/shared";
+import { tr } from "@/i18n";
 
 // AI 校验「待优化」红色感叹号:文档有问题且当前用户可编辑才显示;父目录/角色按子孙聚合。
 // 单一来源,供边栏(WorkspaceLeftRail)与角色/目录右侧列表页(RolePage/ArticleListPage/
@@ -21,7 +22,7 @@ export function ReviewBadge({ title }: { title: string }) {
   return (
     <span
       title={title}
-      aria-label="待优化"
+      aria-label={tr("article.reviewBadge")}
       className="ml-[5px] inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold leading-none text-white"
     >
       !

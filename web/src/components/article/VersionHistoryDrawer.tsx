@@ -5,6 +5,7 @@ import { fmtDateTime } from "@/lib/relativeTime";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/Toaster";
 import { dialog } from "@/components/Dialog";
+import { useT } from "@/i18n";
 
 export function VersionHistoryDrawer({
   open,
@@ -23,6 +24,7 @@ export function VersionHistoryDrawer({
   canRestore?: boolean;
   onRestored?: () => void;
 }) {
+  const t = useT();
   const [versions, setVersions] = useState<ArticleVersion[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -59,21 +61,21 @@ export function VersionHistoryDrawer({
 
   async function restore(versionId: string) {
     if (restoringId) return;
-    const ok = await dialog.confirm("文档的标题与正文将回滚到该版本，当前内容会被存入历史记录，可再次回滚。", {
-      title: "确认回滚到此版本？",
-      confirmText: "回滚",
+    const ok = await dialog.confirm(t("article.versions.confirmBody"), {
+      title: t("article.versions.confirmTitle"),
+      confirmText: t("article.versions.confirmBtn"),
     });
     if (!ok) return;
     setRestoringId(versionId);
     try {
       await api.articles.restoreVersion(articleId, versionId);
-      toast.success("已回滚到该版本");
+      toast.success(t("article.versions.done"));
       // Refresh the version list so the new pre-restore snapshot shows up.
       const r = await api.articles.versions(articleId);
       setVersions(r.versions);
       onRestored?.();
     } catch (err) {
-      toast.error(`回滚失败：${(err as Error).message}`);
+      toast.error(t("article.versions.failed", { msg: (err as Error).message }));
     } finally {
       setRestoringId(null);
     }
@@ -88,17 +90,17 @@ export function VersionHistoryDrawer({
         ref={asideRef}
         role="dialog"
         aria-modal="true"
-        aria-label="历史版本"
+        aria-label={t("article.versions.title")}
         className="fixed right-0 top-0 z-50 h-full w-[28rem] overflow-y-auto bg-white shadow-pop border-l border-line"
       >
         <header className="sticky top-0 flex items-center justify-between border-b border-line bg-white px-4 py-3">
-          <div className="text-sm font-semibold">历史版本 ({versions.length})</div>
-          <Button variant="ghost" size="sm" onClick={onClose}>关闭</Button>
+          <div className="text-sm font-semibold">{t("article.versions.titleCount", { n: versions.length })}</div>
+          <Button variant="ghost" size="sm" onClick={onClose}>{t("common.close")}</Button>
         </header>
         <div className="flex flex-col">
-          {loading && <div className="p-4 text-sm text-muted">加载中…</div>}
+          {loading && <div className="p-4 text-sm text-muted">{t("common.loading")}</div>}
           {!loading && versions.length === 0 && (
-            <div className="p-4 text-sm text-muted">尚无历史版本</div>
+            <div className="p-4 text-sm text-muted">{t("article.versions.empty")}</div>
           )}
           {versions.map((v) => {
             const expanded = expandedId === v.id;
@@ -117,7 +119,7 @@ export function VersionHistoryDrawer({
                     <div className="flex flex-col">
                       <span className="font-medium">{v.title}</span>
                       <span className="text-xs text-muted">
-                        {fmtDateTime(v.createdAt)} {v.authorDisplayName ?? "（已删除）"}
+                        {fmtDateTime(v.createdAt)} {v.authorDisplayName ?? t("article.deletedUser")}
                       </span>
                     </div>
                   </button>
@@ -129,9 +131,9 @@ export function VersionHistoryDrawer({
                         className="h-7 px-2 text-xs whitespace-nowrap"
                         disabled={restoringId === v.id}
                         onClick={() => restore(v.id)}
-                        title="回滚到此版本"
+                        title={t("article.versions.rollbackTitle")}
                       >
-                        {restoringId === v.id ? "回滚中…" : "回滚"}
+                        {restoringId === v.id ? t("article.versions.rollingBack") : t("article.versions.confirmBtn")}
                       </Button>
                     </div>
                   )}
@@ -139,7 +141,7 @@ export function VersionHistoryDrawer({
                 {expanded && (
                   <div className="bg-surface">
                     <pre className="px-4 py-3 text-xs whitespace-pre-wrap text-fg">
-                      {v.contentMarkdown || "（空）"}
+                      {v.contentMarkdown || t("article.versions.emptyContent")}
                     </pre>
                   </div>
                 )}

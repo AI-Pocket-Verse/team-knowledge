@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
 import { lineDiff, toBlocks, applySelection, countHunks } from "../../lib/lineDiff";
+import { useT } from "../../i18n";
 
 // 长未改动段折叠阈值:超过则只显示「⋯ N 行未改动 ⋯」,避免整篇 context 刷屏。
 const CONTEXT_COLLAPSE = 6;
@@ -17,6 +18,7 @@ export function ReviewDiffDialog(props: {
   onCancel: () => void;
   onApplied: (newBody: string) => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const blocks = useMemo(() => toBlocks(lineDiff(props.before, props.after)), [props.before, props.after]);
@@ -45,7 +47,7 @@ export function ReviewDiffDialog(props: {
       await api.articles.review.apply(props.articleId, result, props.expectedUpdatedAt);
       props.onApplied(result);
     } catch (e) {
-      setErr((e as Error).message || "应用失败");
+      setErr((e as Error).message || t("article.diff.failed"));
     } finally {
       setBusy(false);
     }
@@ -57,21 +59,21 @@ export function ReviewDiffDialog(props: {
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={props.onCancel}>
       <div className="flex w-full max-w-3xl flex-col rounded-xl bg-white p-5 shadow-pop" onClick={(e) => e.stopPropagation()}>
         <div className="mb-2 flex items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-fg">优化预览 · 勾选要采用的改动</h2>
+          <h2 className="text-base font-semibold text-fg">{t("article.diff.title")}</h2>
           {hunkCount > 1 && (
             <div className="flex gap-2 text-xs">
-              <button type="button" className="text-muted hover:text-primary" onClick={() => setAll(true)} disabled={busy}>全选</button>
-              <button type="button" className="text-muted hover:text-primary" onClick={() => setAll(false)} disabled={busy}>全不选</button>
+              <button type="button" className="text-muted hover:text-primary" onClick={() => setAll(true)} disabled={busy}>{t("article.diff.selectAll")}</button>
+              <button type="button" className="text-muted hover:text-primary" onClick={() => setAll(false)} disabled={busy}>{t("article.diff.selectNone")}</button>
             </div>
           )}
         </div>
         <p className="mb-3 text-xs text-muted">
-          {props.findingsCount != null && `AI 针对 ${props.findingsCount} 处问题给出修订,落到正文共 ${hunkCount} 处文本改动。`}
-          默认采用全部改动;取消勾选的将保留原文。已选 {changedCount} 处。
+          {props.findingsCount != null && t("article.diff.summary", { findings: props.findingsCount, hunks: hunkCount })}
+          {t("article.diff.defaultAll", { n: changedCount })}
         </p>
         {props.unlocated != null && props.unlocated > 0 && (
           <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            另有 {props.unlocated} 处问题 AI 未能在原文中自动定位,本次未修改,建议手动检查处理。
+            {t("article.diff.unlocated", { n: props.unlocated })}
           </p>
         )}
 
@@ -82,7 +84,7 @@ export function ReviewDiffDialog(props: {
               return (
                 <div key={bi} className="rounded-md bg-surface/60 px-3 py-1 font-mono text-[12px] text-muted">
                   {collapsed
-                    ? `⋯ ${b.lines.length} 行未改动 ⋯`
+                    ? t("article.diff.collapsed", { n: b.lines.length })
                     : (b.lines.join("\n") || " ")}
                 </div>
               );
@@ -114,16 +116,16 @@ export function ReviewDiffDialog(props: {
 
         {err && <p className="mt-2 text-sm text-rose-600">{err}</p>}
         <div className="mt-4 flex items-center justify-end gap-2">
-          {noChange && <span className="mr-auto text-xs text-muted">未选择任何改动</span>}
+          {noChange && <span className="mr-auto text-xs text-muted">{t("article.diff.noneSelected")}</span>}
           <button className="rounded-lg px-3 py-1.5 text-sm text-muted hover:bg-surface" onClick={props.onCancel} disabled={busy}>
-            取消
+            {t("common.cancel")}
           </button>
           <button
             className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-fg hover:opacity-90 disabled:opacity-50"
             onClick={onApply}
             disabled={busy || noChange}
           >
-            {busy ? "应用中…" : `应用所选(${changedCount})`}
+            {busy ? t("article.diff.applying") : t("article.diff.apply", { n: changedCount })}
           </button>
         </div>
       </div>

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import type { ArticleSummary } from "@team-knowledge/shared";
 import { UserName } from "@/components/UserName";
 import { formatTimestamp } from "@/lib/format";
+import { useT } from "@/i18n";
 
 interface Props {
   article: ArticleSummary;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function ArticleRow({ article: a, onToggleBookmark }: Props) {
+  const t = useT();
   // Card-style list item. The outer wrapper is an <article> (no
   // navigation), with the title <Link>'s `::after` extended to cover
   // the whole card via `after:absolute after:inset-0` — this makes
@@ -28,19 +30,19 @@ export function ArticleRow({ article: a, onToggleBookmark }: Props) {
               to={detailPath}
               className="after:absolute after:inset-0 after:rounded-xl after:content-['']"
             >
-              {a.title || "（未命名）"}
+              {a.title || t("article.untitled")}
             </Link>
           </h3>
         </div>
         <p className="mt-1 line-clamp-1 text-sm text-muted">
-          {a.preview && a.preview.length > 0 ? a.preview : <span className="italic text-muted/60">暂无内容</span>}
+          {a.preview && a.preview.length > 0 ? a.preview : <span className="italic text-muted/60">{t("article.row.noContent")}</span>}
         </p>
         <div className="mt-2 flex items-center justify-between text-xs text-muted">
           {/* `relative z-10` lifts the author link above the title link's
               ::after card overlay so the name click navigates to /u/:id. */}
           <UserName
             userId={a.createdBy?.id}
-            name={a.createdBy?.displayName ?? "（已删除）"}
+            name={a.createdBy?.displayName ?? t("article.deletedUser")}
             className="relative z-10"
           />
           <span>{formatTimestamp(a.updatedAt)}</span>
@@ -60,7 +62,7 @@ export function ArticleRow({ article: a, onToggleBookmark }: Props) {
       <button
         type="button"
         onClick={() => onToggleBookmark(a.id, a.isBookmarked)}
-        aria-label={a.isBookmarked ? "取消收藏" : "收藏"}
+        aria-label={a.isBookmarked ? t("article.action.unbookmark") : t("article.action.bookmark")}
         // `relative z-10` lifts the button above the title link's
         // ::after overlay so clicks land on the button, not the link.
         className={

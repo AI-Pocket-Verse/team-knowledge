@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useT } from "@/i18n";
 
 interface ArticleTOCProps {
   markdown: string;
@@ -129,6 +130,7 @@ export function OutlineToggleIcon({ open }: { open: boolean }) {
 }
 
 export function ArticleTOC({ markdown }: ArticleTOCProps) {
+  const t = useT();
   const headings = useMemo(() => parseHeadings(markdown), [markdown]);
 
   // Stable observer dep: useMemo returns a new array
@@ -272,13 +274,13 @@ export function ArticleTOC({ markdown }: ArticleTOCProps) {
 
   if (headings.length === 0) {
     return (
-      <div className="text-xs text-muted/60">本文暂无标题</div>
+      <div className="text-xs text-muted/60">{t("article.toc.empty")}</div>
     );
   }
 
   return (
-    <nav aria-label="文档大纲" className="text-sm">
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">大纲</div>
+    <nav aria-label={t("article.toc.label")} className="text-sm">
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("article.toc.title")}</div>
       <ul ref={listRef} className="flex flex-col gap-0.5">
         {headings.map((h) => (
           <li key={h.globalIndex}>

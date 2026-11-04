@@ -1,4 +1,7 @@
+import { useT } from "@/i18n";
+
 export function ImageUploadPlaceholder({ state }: { state: "uploading" | "error" }) {
+  const t = useT();
   return (
     <span className={
       "inline-flex items-center rounded-md border px-2 py-1 text-xs " +
@@ -6,7 +9,7 @@ export function ImageUploadPlaceholder({ state }: { state: "uploading" | "error"
         ? "border-blue-200 bg-blue-50 text-blue-700"
         : "border-red-200 bg-red-50 text-red-700")
     }>
-      {state === "uploading" ? "上传中…" : "上传失败"}
+      {state === "uploading" ? t("article.image.uploading") : t("article.image.failed")}
     </span>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/i18n";
 
 /**
  * Floating "scroll back to top" button for the article reading view.
@@ -32,6 +33,7 @@ import { useEffect, useRef, useState } from "react";
  * user scrolled.
  */
 export function BackToTopButton() {
+  const t = useT();
   const [visible, setVisible] = useState(false);
   // Distance from viewport right edge — set by measuring the article
   // body's right edge. `null` means "before Crepe mounts" — fall back
@@ -157,8 +159,8 @@ export function BackToTopButton() {
         if (el) el.scrollTo({ top: 0, behavior: "smooth" });
         else window.scrollTo({ top: 0, behavior: "smooth" });
       }}
-      aria-label="回到顶部"
-      title="回到顶部"
+      aria-label={t("article.backToTop")}
+      title={t("article.backToTop")}
       style={rightOffset != null ? { right: `${rightOffset}px` } : undefined}
       className="fixed bottom-24 right-6 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-white/50 text-muted opacity-50 shadow-glassLg backdrop-blur transition hover:bg-white hover:text-primary hover:opacity-100"
     >

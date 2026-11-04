@@ -10,6 +10,7 @@ import { usePageChrome } from "@/stores/pageChrome";
 import { RoleSkillDialogButton } from "@/components/role-skill/RoleSkillPanel";
 import { UserName } from "@/components/UserName";
 import { docHasReviewBadge, ReviewBadge } from "@/lib/reviewBadge";
+import { useT } from "@/i18n";
 
 // Role landing surface at /r/:roleId.
 //
@@ -18,6 +19,7 @@ import { docHasReviewBadge, ReviewBadge } from "@/lib/reviewBadge";
 // docs. Clicking a folder navigates to /f/:folderId; clicking a doc
 // navigates directly to /d/:docId (no slide-in modal — share-friendly).
 export function RolePage() {
+  const t = useT();
   const { roleId } = useParams<{ roleId: string }>();
   const [role, setRole] = useState<WorkspaceRole | null>(null);
   const [tree, setTree] = useState<WorkspaceTreeResponse | null>(null);
@@ -47,12 +49,12 @@ export function RolePage() {
         ]);
         if (cancelled) return;
         const match = rolesRes.roles.find((r) => r.id === roleId);
-        if (!match) { setError("该角色不存在或无权访问。"); return; }
+        if (!match) { setError(t("article.role.notFound")); return; }
         setRole(match);
         setTree(treeRes);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof ApiError && err.status === 403 ? "无权访问该角色" : (err as Error).message);
+          setError(err instanceof ApiError && err.status === 403 ? t("article.role.forbidden") : (err as Error).message);
         }
       }
     })();
@@ -75,8 +77,8 @@ export function RolePage() {
   const hint = (
     <>
       {role.description}
-      {role.description && role.ownership !== "owned" && "，"}
-      {role.ownership !== "owned" && "你以只读身份查看"}
+      {role.description && role.ownership !== "owned" && t("article.role.hintSep")}
+      {role.ownership !== "owned" && t("article.role.readonlyView")}
     </>
   );
   const hasHint = !!role.description || role.ownership !== "owned";
@@ -88,7 +90,7 @@ export function RolePage() {
 
       {empty ? (
         <div className="rounded-xl border border-line bg-white px-8 py-12 text-center text-sm text-muted shadow-glass">
-          该角色下尚无目录或文档。
+          {t("article.role.empty")}
         </div>
       ) : (
         <ul className="divide-y divide-line rounded-xl border border-line bg-white overflow-hidden shadow-glass">
@@ -105,6 +107,7 @@ export function RolePage() {
 }
 
 function DocListItem({ doc }: { doc: SlimDoc }) {
+  const t = useT();
   return (
     // Card-overlay row: the title <Link>'s ::after covers the whole row so the
     // row navigates to the doc, while the author UserName stays a real sibling
@@ -116,15 +119,15 @@ function DocListItem({ doc }: { doc: SlimDoc }) {
         <div className="flex items-center font-medium text-fg group-hover:text-primary transition">
           <span className="min-w-0 max-w-full truncate">
             <Link to={`/d/${doc.id}`} className="after:absolute after:inset-0 after:content-['']">
-              {doc.title || "（未命名）"}
+              {doc.title || t("article.untitled")}
             </Link>
           </span>
-          {docHasReviewBadge(doc) && <ReviewBadge title="该文档存在 AI 校验发现的待优化问题" />}
+          {docHasReviewBadge(doc) && <ReviewBadge title={t("article.feed.reviewBadge")} />}
         </div>
         <div className="mt-0.5 flex items-center gap-4 truncate text-xs text-muted">
           <UserName
             userId={doc.createdBy?.id}
-            name={doc.createdBy?.displayName ?? "（已删除）"}
+            name={doc.createdBy?.displayName ?? t("article.deletedUser")}
             className="relative z-10 truncate"
           />
           <span className="truncate">{fmtDate(doc.updatedAt)}</span>

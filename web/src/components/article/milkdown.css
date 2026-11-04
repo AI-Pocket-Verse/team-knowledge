@@ -253,6 +253,9 @@
   font-size: 12px;
   font-weight: 600;
 }
+:lang(en) .tm-editor .milkdown-code-block .tools-button-group button[data-tm-copied]::after {
+  content: "Copied";
+}
 /* 万一某处代码渲染成原生 <pre>(非 CodeMirror),也走浅色,别再深色。 */
 .tm-editor .ProseMirror pre {
   background: #f4f6fb;

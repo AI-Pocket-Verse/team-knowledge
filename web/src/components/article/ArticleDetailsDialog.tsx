@@ -12,6 +12,7 @@ import { api } from "@/lib/api";
 import { UserName } from "@/components/UserName";
 import { countArticleWords } from "@/lib/wordCount";
 import { fmtRelativeTime } from "@/lib/relativeTime";
+import { useI18n } from "@/i18n";
 
 interface Props {
   open: boolean;
@@ -36,6 +37,7 @@ function formatBytes(bytes: number): string {
  * viewers see the aggregate counts plus a note explaining the list is hidden.
  */
 export function ArticleDetailsDialog({ open, onOpenChange, article }: Props) {
+  const { t, lang } = useI18n();
   const [views, setViews] = useState<ArticleViewsResponse | null>(null);
   const [viewsError, setViewsError] = useState<string | null>(null);
 
@@ -60,51 +62,51 @@ export function ArticleDetailsDialog({ open, onOpenChange, article }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>文档详情</DialogTitle>
+          <DialogTitle>{t("article.details.title")}</DialogTitle>
         </DialogHeader>
 
         {/* Metadata grid: label (muted) | value. */}
         <dl className="mt-4 grid grid-cols-[5rem_1fr] gap-y-2.5 text-sm">
-          <dt className="text-muted">作者</dt>
+          <dt className="text-muted">{t("article.details.author")}</dt>
           <dd className="font-medium">
-            <UserName userId={article.createdBy?.id} name={article.createdBy?.displayName ?? "（已删除）"} />
+            <UserName userId={article.createdBy?.id} name={article.createdBy?.displayName ?? t("article.deletedUser")} />
           </dd>
 
-          <dt className="text-muted">创建时间</dt>
+          <dt className="text-muted">{t("article.details.created")}</dt>
           <dd>{fmtRelativeTime(article.createdAt)}</dd>
 
-          <dt className="text-muted">最后修改</dt>
+          <dt className="text-muted">{t("article.details.modified")}</dt>
           <dd>{fmtRelativeTime(article.updatedAt)}</dd>
 
-          <dt className="text-muted">字数</dt>
-          <dd>{wordCount.toLocaleString()} 字</dd>
+          <dt className="text-muted">{t("article.details.words")}</dt>
+          <dd>{t("article.details.wordsValue", { n: wordCount.toLocaleString(lang === "zh" ? "zh-CN" : "en-US") })}</dd>
 
-          <dt className="text-muted">文档大小</dt>
+          <dt className="text-muted">{t("article.details.size")}</dt>
           <dd>{formatBytes(byteSize)}</dd>
 
-          <dt className="text-muted">访问量</dt>
+          <dt className="text-muted">{t("article.details.views")}</dt>
           <dd>{views ? views.pv.toLocaleString() : "…"}</dd>
 
-          <dt className="text-muted">独立访客</dt>
+          <dt className="text-muted">{t("article.details.uniqueViewers")}</dt>
           <dd>{views ? views.uniqueViewers.toLocaleString() : "…"}</dd>
         </dl>
 
         {/* 谁看过 — only when the server says we may see the list. */}
         <div className="mt-4 border-t border-line pt-4">
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">谁看过</h4>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("article.details.whoViewed")}</h4>
           {viewsError && (
             <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
               {viewsError}
             </div>
           )}
           {!viewsError && !views && (
-            <div className="text-xs text-muted">加载中…</div>
+            <div className="text-xs text-muted">{t("common.loading")}</div>
           )}
           {views && !views.canSeeViewers && (
-            <div className="text-xs text-muted">仅作者 / 管理员可见访问者名单。</div>
+            <div className="text-xs text-muted">{t("article.details.viewersHidden")}</div>
           )}
           {views && views.canSeeViewers && views.viewers && views.viewers.length === 0 && (
-            <div className="text-xs text-muted">还没有人查看过这篇文档。</div>
+            <div className="text-xs text-muted">{t("article.details.noViewers")}</div>
           )}
           {views && views.canSeeViewers && views.viewers && views.viewers.length > 0 && (
             <ul className="flex max-h-56 flex-col gap-1 overflow-y-auto">
@@ -124,7 +126,7 @@ export function ArticleDetailsDialog({ open, onOpenChange, article }: Props) {
 
         <div className="mt-4 flex justify-end">
           <DialogClose asChild>
-            <Button variant="ghost" size="sm">关闭</Button>
+            <Button variant="ghost" size="sm">{t("common.close")}</Button>
           </DialogClose>
         </div>
       </DialogContent>

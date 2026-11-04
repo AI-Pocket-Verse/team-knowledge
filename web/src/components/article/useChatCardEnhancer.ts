@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { toast } from "@/components/Toaster";
 import { CHAT_CARD_USER_LABEL, CHAT_CARD_ASSISTANT_PREFIX } from "@/components/chat/chatCardLabels";
+import { tr } from "@/i18n";
 
 // (Issue 4) Read-view enhancement for chat-export docs. buildShareMarkdown
 // writes each selected message as a blockquote whose FIRST line is the
@@ -46,7 +47,7 @@ export function useChatCardEnhancer(enabled: boolean, deps: unknown[]) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "tm-chat-card__copy";
-        btn.textContent = "复制";
+        btn.textContent = tr("common.copy");
         btn.contentEditable = "false";
         btn.addEventListener("click", (e) => {
           e.preventDefault();
@@ -57,8 +58,8 @@ export function useChatCardEnhancer(enabled: boolean, deps: unknown[]) {
           clone.querySelector(".tm-chat-card__label")?.remove();
           const text = (clone.textContent ?? "").trim();
           void navigator.clipboard.writeText(text).then(
-            () => toast.success("已复制"),
-            () => toast.error("复制失败，请手动选择复制"),
+            () => toast.success(tr("common.copied")),
+            () => toast.error(tr("article.chatCard.copyFailed")),
           );
         });
         bq.appendChild(btn);

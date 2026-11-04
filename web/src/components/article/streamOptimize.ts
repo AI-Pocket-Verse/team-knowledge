@@ -1,6 +1,7 @@
 import { API_BASE } from "@/lib/api";
 import { parseSseChunk } from "@/lib/sse";
 import { handleUnauthorized } from "@/lib/sseAuth";
+import { tr } from "@/i18n";
 
 // 「文档一键优化」的 SSE 消费(fetch + ReadableStream,带 cookie)。大文档优化耗时长,同步返回
 // 会被网关/CDN idle 超时切断报 504;改走 SSE 后连接全程活跃(token 帧 + 心跳),前端还能显示进度。
@@ -24,12 +25,12 @@ export async function streamOptimize(
     signal: o.signal,
   });
   if (!res.ok) {
-    if (res.status === 401) { void handleUnauthorized(); throw new Error("登录已过期，正在跳转到登录页…"); }
-    if (res.status === 403) throw new Error("你没有权限优化该文档");
-    if (res.status === 409) throw new Error("该文档正在优化中,请稍候再试");
-    throw new Error(`请求失败（${res.status}）`);
+    if (res.status === 401) { void handleUnauthorized(); throw new Error(tr("article.optimize.expired")); }
+    if (res.status === 403) throw new Error(tr("article.optimize.forbidden"));
+    if (res.status === 409) throw new Error(tr("article.optimize.busy"));
+    throw new Error(tr("article.optimize.requestFailed", { status: res.status }));
   }
-  if (!res.body) throw new Error("响应为空，请稍后重试");
+  if (!res.body) throw new Error(tr("article.optimize.emptyResponse"));
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -55,11 +56,11 @@ export async function streamOptimize(
           unlocated = typeof d.unlocated === "number" ? d.unlocated : 0;
         } catch { /* skip */ }
       } else if (evt.event === "error") {
-        try { errMsg = (JSON.parse(evt.data) as { message?: string }).message ?? "优化失败"; } catch { errMsg = "优化失败"; }
+        try { errMsg = (JSON.parse(evt.data) as { message?: string }).message ?? tr("article.optimize.failed"); } catch { errMsg = tr("article.optimize.failed"); }
       }
     }
   }
   if (errMsg) throw new Error(errMsg);
-  if (fixedMarkdown === null) throw new Error("优化未完成,请稍后重试");
+  if (fixedMarkdown === null) throw new Error(tr("article.optimize.incomplete"));
   return { fixedMarkdown, unlocated };
 }

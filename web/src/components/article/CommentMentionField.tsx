@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "@/lib/api";
+import { useT } from "@/i18n";
 
 // Comment composer with inline @-mention of users. It's a contentEditable
 // (not a textarea) so a picked mention renders as a BLUE chip — `@姓名` — while
@@ -114,6 +115,7 @@ export const CommentMentionField = forwardRef<CommentFieldHandle, Props>(functio
   { onChange, onSubmitShortcut, placeholder, className },
   ref,
 ) {
+  const t = useT();
   const editorRef = useRef<HTMLDivElement | null>(null);
   const [trigger, setTrigger] = useState<Trigger | null>(null);
   const [results, setResults] = useState<MentionUser[]>([]);
@@ -261,9 +263,9 @@ export const CommentMentionField = forwardRef<CommentFieldHandle, Props>(functio
       {trigger && (
         <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-60 overflow-auto rounded-lg border border-line bg-white py-1 shadow-pop">
           {query !== null && query.length < 2 ? (
-            <div className="px-3 py-2 text-xs text-muted">输入姓名以 @ 提及…</div>
+            <div className="px-3 py-2 text-xs text-muted">{t("article.mentionField.hint")}</div>
           ) : results.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-muted">无匹配姓名</div>
+            <div className="px-3 py-2 text-xs text-muted">{t("article.mentionField.noMatch")}</div>
           ) : (
             results.map((u, i) => (
               <button

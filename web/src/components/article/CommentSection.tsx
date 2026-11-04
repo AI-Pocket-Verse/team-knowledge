@@ -9,6 +9,7 @@ import { formatTimestamp } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { UserName } from "@/components/UserName";
 import { CommentMentionField, renderCommentBody, mentionsToPlain, type CommentFieldHandle } from "./CommentMentionField";
+import { useT } from "@/i18n";
 
 interface Props {
   articleId: string;
@@ -33,6 +34,7 @@ export const CommentSection = forwardRef<CommentSectionHandle, Props>(function C
   { articleId, onCountChange },
   ref,
 ) {
+  const t = useT();
   const [comments, setComments] = useState<CommentRow[]>([]);
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
@@ -62,7 +64,7 @@ export const CommentSection = forwardRef<CommentSectionHandle, Props>(function C
         setComments(res.comments);
         onCountChangeRef.current?.(flatCount(res.comments));
       } catch (err) {
-        if (!cancelled) toast.error(`评论加载失败：${(err as Error).message}`);
+        if (!cancelled) toast.error(t("article.comments.loadFailed", { msg: (err as Error).message }));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -101,7 +103,7 @@ export const CommentSection = forwardRef<CommentSectionHandle, Props>(function C
         return next;
       });
       inputRef.current?.clear(); // clears the editor + resets draft via onChange
-      toast.success("评论已发布");
+      toast.success(t("article.comments.posted"));
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -127,7 +129,7 @@ export const CommentSection = forwardRef<CommentSectionHandle, Props>(function C
   }
 
   async function remove(id: string) {
-    const ok = await dialog.confirm("确认删除这条评论？其下的回复会一并删除。", { confirmText: "删除", danger: true });
+    const ok = await dialog.confirm(t("article.comments.confirmDelete"), { confirmText: t("common.delete"), danger: true });
     if (!ok) return;
     try {
       await api.comments.remove(id);
@@ -140,7 +142,7 @@ export const CommentSection = forwardRef<CommentSectionHandle, Props>(function C
         onCountChangeRef.current?.(flatCount(next));
         return next;
       });
-      toast.success("评论已删除");
+      toast.success(t("article.comments.deleted"));
     } catch (err) {
       toast.error((err as Error).message);
     }
@@ -175,7 +177,7 @@ export const CommentSection = forwardRef<CommentSectionHandle, Props>(function C
   return (
     <section ref={rootRef} className="border-t border-line pt-6">
       <h2 className="text-base font-semibold">
-        评论 <span className="ml-1 text-sm font-normal text-muted">({total})</span>
+        {t("article.comments.title")} <span className="ml-1 text-sm font-normal text-muted">({total})</span>
       </h2>
 
       <div className="mt-4 flex flex-col gap-2">
@@ -183,21 +185,21 @@ export const CommentSection = forwardRef<CommentSectionHandle, Props>(function C
           ref={inputRef}
           onChange={setDraft}
           onSubmitShortcut={() => void submitTopLevel()}
-          placeholder="留下你的评论…（@ 提及姓名，Cmd/Ctrl + Enter 发送）"
+          placeholder={t("article.comments.placeholder")}
           className="min-h-[4.5rem] w-full rounded-lg border border-line bg-bg/50 px-3 py-2 text-sm focus:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
         />
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted">{draftVisibleLen}/4000</span>
           <Button size="sm" onClick={submitTopLevel} disabled={draft.trim().length === 0 || posting}>
-            {posting ? "发送中…" : "发送"}
+            {posting ? t("article.comments.sending") : t("article.comments.send")}
           </Button>
         </div>
       </div>
 
       <div className="mt-6 flex flex-col gap-3">
-        {loading && <div className="text-sm text-muted">加载中…</div>}
+        {loading && <div className="text-sm text-muted">{t("common.loading")}</div>}
         {!loading && comments.length === 0 && (
-          <div className="text-sm text-muted">还没有评论，做第一个评论的人。</div>
+          <div className="text-sm text-muted">{t("article.comments.empty")}</div>
         )}
         {comments.map((c) => (
           <CommentItem
@@ -239,6 +241,7 @@ function CommentItem({
   /** 缩进封顶后被平铺的回复:带上被回复者与其原文摘要(否则看不出回的是谁/啥)。 */
   quote?: { name: string; body: string } | null;
 }) {
+  const t = useT();
   const isReply = depth > 0;
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyDraft, setReplyDraft] = useState("");
@@ -252,7 +255,7 @@ function CommentItem({
       await onReply(comment.id, body);
       setReplyDraft("");
       setReplyOpen(false);
-      toast.success("回复已发布");
+      toast.success(t("article.comments.replyPosted"));
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -273,13 +276,13 @@ function CommentItem({
     >
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm font-medium">
-          <UserName userId={comment.author?.id} name={comment.author?.displayName ?? "（已删除）"} />
+          <UserName userId={comment.author?.id} name={comment.author?.displayName ?? t("article.deletedUser")} />
         </div>
         <div className="text-xs text-muted">{formatTimestamp(comment.createdAt)}</div>
       </div>
       {quote && (
         <div className="mt-1 truncate rounded border-l-2 border-line bg-surface px-2 py-1 text-xs text-muted">
-          回复 @{quote.name}：{quoteExcerpt(quote.body)}
+          {t("article.comments.replyQuote", { name: quote.name, excerpt: quoteExcerpt(quote.body) })}
         </div>
       )}
       <p className="mt-1 whitespace-pre-wrap text-sm text-fg/85">{renderCommentBody(comment.body)}</p>
@@ -292,7 +295,7 @@ function CommentItem({
             comment.isLiked ? "text-primary bg-blue-50" : "text-muted hover:text-primary hover:bg-blue-50",
           )}
           aria-pressed={comment.isLiked}
-          aria-label={comment.isLiked ? "取消点赞" : "点赞"}
+          aria-label={comment.isLiked ? t("article.comments.unlike") : t("article.comments.like")}
         >
           <HeartIcon filled={comment.isLiked} />
           {comment.likeCount > 0 && <span>{comment.likeCount}</span>}
@@ -305,7 +308,7 @@ function CommentItem({
           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted transition hover:text-primary hover:bg-blue-50"
         >
           <ReplyIcon />
-          <span>回复</span>
+          <span>{t("article.comments.reply")}</span>
         </button>
         {comment.canDelete && (
           <button
@@ -313,7 +316,7 @@ function CommentItem({
             onClick={() => void onDelete(comment.id)}
             className="ml-auto rounded-md px-2 py-1 text-muted/70 transition hover:bg-rose-50 hover:text-rose-500"
           >
-            删除
+            {t("common.delete")}
           </button>
         )}
       </div>
@@ -323,7 +326,7 @@ function CommentItem({
           <CommentMentionField
             onChange={setReplyDraft}
             onSubmitShortcut={() => void submitReply()}
-            placeholder={`回复 ${comment.author?.displayName ?? "..."}（@ 提及姓名）`}
+            placeholder={t("article.comments.replyPlaceholder", { name: comment.author?.displayName ?? "..." })}
             className="min-h-[3rem] w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
           />
           <div className="flex justify-end gap-2">
@@ -333,14 +336,14 @@ function CommentItem({
               onClick={() => { setReplyOpen(false); setReplyDraft(""); }}
               disabled={replyPosting}
             >
-              取消
+              {t("common.cancel")}
             </Button>
             <Button
               size="sm"
               onClick={submitReply}
               disabled={replyDraft.trim().length === 0 || replyPosting}
             >
-              {replyPosting ? "发送中…" : "发送"}
+              {replyPosting ? t("article.comments.sending") : t("article.comments.send")}
             </Button>
           </div>
         </div>
@@ -361,7 +364,7 @@ function CommentItem({
               highlightId={highlightId}
               quote={
                 depth + 1 > MAX_INDENT_DEPTH
-                  ? { name: comment.author?.displayName ?? "（已删除）", body: comment.body }
+                  ? { name: comment.author?.displayName ?? t("article.deletedUser"), body: comment.body }
                   : null
               }
             />
