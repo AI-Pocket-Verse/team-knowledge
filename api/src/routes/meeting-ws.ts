@@ -1,3 +1,4 @@
+import { L, appLang } from "../utils/lang.js";
 import type { FastifyInstance, FastifyBaseLogger } from "fastify";
 import type { WebSocket } from "ws";
 import { resolve, join } from "node:path";
@@ -491,7 +492,7 @@ async function fireAssistantChime(
     try {
       releaseSlot = await meetingAssistantSemaphore.acquire(30_000);
     } catch {
-      if (live()) broadcastAll(s, { type: "assistant_skipped", reason: `${ASSISTANT_NAME} 当前繁忙，请稍后再试` });
+      if (live()) broadcastAll(s, { type: "assistant_skipped", reason: L(appLang(), `${ASSISTANT_NAME} 当前繁忙，请稍后再试`, `${ASSISTANT_NAME} is busy. Try again later`) });
       return;
     }
     // The meeting may have ended (or this chime been aborted) while we waited
@@ -796,7 +797,7 @@ export function kickViewersFromPrivateMeeting(sessionId: string): void {
   const s = sessions.get(sessionId);
   if (!s) return;
   for (const v of [...s.viewers]) {
-    rejectAndClose(v, 4403, "forbidden", "forbidden", "该会议已改为私密，无权继续观看");
+    rejectAndClose(v, 4403, "forbidden", "forbidden", L(appLang(), "该会议已改为私密，无权继续观看", "This meeting is now private. You can no longer watch it"));
   }
 }
 
@@ -989,12 +990,12 @@ export async function meetingWsRoutes(app: FastifyInstance): Promise<void> {
       // 客户端照常走下面的登录鉴权。
       const origin = (req.headers["origin"] ?? "").toString();
       if (origin && !isAllowedOrigin(origin, req)) {
-        rejectAndClose(socket, 4403, "forbidden_origin", "forbidden_origin", "跨站请求被拒绝");
+        rejectAndClose(socket, 4403, "forbidden_origin", "forbidden_origin", L(req, "跨站请求被拒绝", "Cross-site request rejected"));
         return;
       }
       const sso = req.user;
       if (!sso) {
-        rejectAndClose(socket, 4401, "unauthenticated", "unauthenticated", "请先登录");
+        rejectAndClose(socket, 4401, "unauthenticated", "unauthenticated", L(req, "请先登录", "Sign in first"));
         return;
       }
       // Mirror requireUser: map the SSO identity to the local user row.
@@ -1010,18 +1011,18 @@ export async function meetingWsRoutes(app: FastifyInstance): Promise<void> {
         select: { id: true, isActive: true, isAdmin: true, displayName: true },
       });
       if (!user || !user.isActive) {
-        rejectAndClose(socket, 4401, "unauthenticated", "unauthenticated", "请先登录");
+        rejectAndClose(socket, 4401, "unauthenticated", "unauthenticated", L(req, "请先登录", "Sign in first"));
         return;
       }
 
       const sessionId = req.params.id;
       const dbSession = await prisma.meetingSession.findUnique({ where: { id: sessionId } });
       if (!dbSession || dbSession.deletedAt != null) {
-        rejectAndClose(socket, 4404, "not_found", "not_found", "会议不存在");
+        rejectAndClose(socket, 4404, "not_found", "not_found", L(req, "会议不存在", "Meeting not found"));
         return;
       }
       if (dbSession.status !== "active") {
-        rejectAndClose(socket, 4410, "ended", "ended", "会议已结束");
+        rejectAndClose(socket, 4410, "ended", "ended", L(req, "会议已结束", "The meeting has ended"));
         return;
       }
       // Visibility gate: a private meeting's live stream is creator-only
@@ -1031,7 +1032,7 @@ export async function meetingWsRoutes(app: FastifyInstance): Promise<void> {
       // the id of. allowedRoleIds is NOT consulted here — it's an
       // assistant-retrieval scope only, never an access gate.
       if (!canViewMeeting(user, { visibility: dbSession.visibility, createdById: dbSession.createdById })) {
-        rejectAndClose(socket, 4403, "forbidden", "forbidden", "无权访问该会议");
+        rejectAndClose(socket, 4403, "forbidden", "forbidden", L(req, "无权访问该会议", "No permission to access this meeting"));
         return;
       }
 
@@ -1085,7 +1086,7 @@ export async function meetingWsRoutes(app: FastifyInstance): Promise<void> {
       // reject new connects so we don't add work the shutdown will
       // immediately have to undo.
       if (state.shuttingDown) {
-        rejectAndClose(socket, 4410, "ended", "ended", "会议已结束");
+        rejectAndClose(socket, 4410, "ended", "ended", L(req, "会议已结束", "The meeting has ended"));
         return;
       }
 
@@ -1095,7 +1096,7 @@ export async function meetingWsRoutes(app: FastifyInstance): Promise<void> {
         // intuition; the kicked tab gets a clean error frame.
         const prev = state.host;
         if (prev && prev !== socket) {
-          sendEvent(prev, { type: "error", code: "host_replaced", message: "另一个标签接管了主持人位置" });
+          sendEvent(prev, { type: "error", code: "host_replaced", message: L(req, "另一个标签接管了主持人位置", "Another tab took over the host seat") });
           try { prev.close(4409, "host_replaced"); } catch { /* noop */ }
         }
         state.host = socket;
@@ -1296,11 +1297,11 @@ export async function meetingWsRoutes(app: FastifyInstance): Promise<void> {
         // honors the 20-comment hard cap.
         if (msg.type === "comment_now") {
           if (state.host !== socket) {
-            sendEvent(socket, { type: "assistant_skipped", reason: "仅主持人可使用「评论刚才」" });
+            sendEvent(socket, { type: "assistant_skipped", reason: L(req, "仅主持人可使用「评论刚才」", "Only the host can use 'Comment on that'") });
             return;
           }
           if (state.assistantBusy) {
-            sendEvent(socket, { type: "assistant_skipped", reason: `${ASSISTANT_NAME} 正在生成中，请稍后` });
+            sendEvent(socket, { type: "assistant_skipped", reason: L(req, `${ASSISTANT_NAME} 正在生成中，请稍后`, `${ASSISTANT_NAME} is generating. Please wait`) });
             return;
           }
           const eng = ensureTriggerEngine(state);
@@ -1317,7 +1318,7 @@ export async function meetingWsRoutes(app: FastifyInstance): Promise<void> {
             // Surface a skip if a concurrent chime claimed assistantBusy between
             // the sync check above and this scheduled fire (otherwise the
             // click vanishes with no feedback).
-            onBusySkip: () => sendEvent(socket, { type: "assistant_skipped", reason: `${ASSISTANT_NAME} 正在生成中，请稍后` }),
+            onBusySkip: () => sendEvent(socket, { type: "assistant_skipped", reason: L(req, `${ASSISTANT_NAME} 正在生成中，请稍后`, `${ASSISTANT_NAME} is generating. Please wait`) }),
           });
           return;
         }
@@ -1337,7 +1338,7 @@ export async function meetingWsRoutes(app: FastifyInstance): Promise<void> {
           // anything longer with the same skip channel the UI already renders.
           const MAX_QUESTION_CHARS = 4096;
           if (question.length > MAX_QUESTION_CHARS) {
-            sendEvent(socket, { type: "assistant_skipped", reason: "问题过长，请精简后再问（上限 4096 字）" });
+            sendEvent(socket, { type: "assistant_skipped", reason: L(req, "问题过长，请精简后再问（上限 4096 字）", "Question too long. Shorten it and ask again (4096 characters maximum)") });
             return;
           }
           // Per-user cooldown — protects the shared LLM budget
@@ -1356,15 +1357,15 @@ export async function meetingWsRoutes(app: FastifyInstance): Promise<void> {
           const last = state.lastAskAtByUser.get(user.id) ?? 0;
           if (nowMs - last < PER_USER_COOLDOWN_MS) {
             const left = Math.ceil((PER_USER_COOLDOWN_MS - (nowMs - last)) / 1000);
-            sendEvent(socket, { type: "assistant_skipped", reason: `请等待 ${left}s 再问下一个` });
+            sendEvent(socket, { type: "assistant_skipped", reason: L(req, `请等待 ${left}s 再问下一个`, `Wait ${left}s before asking the next one`) });
             return;
           }
           if (!isHostAsker && (state.askCountByUser.get(user.id) ?? 0) >= PER_VIEWER_ASK_CAP) {
-            sendEvent(socket, { type: "assistant_skipped", reason: `你本场提问已达上限（${PER_VIEWER_ASK_CAP} 次）` });
+            sendEvent(socket, { type: "assistant_skipped", reason: L(req, `你本场提问已达上限（${PER_VIEWER_ASK_CAP} 次）`, `You have reached the question limit for this meeting (${PER_VIEWER_ASK_CAP})`) });
             return;
           }
           if (state.assistantBusy) {
-            sendEvent(socket, { type: "assistant_skipped", reason: `${ASSISTANT_NAME} 正在生成中，请稍后` });
+            sendEvent(socket, { type: "assistant_skipped", reason: L(req, `${ASSISTANT_NAME} 正在生成中，请稍后`, `${ASSISTANT_NAME} is generating. Please wait`) });
             return;
           }
           const eng = ensureTriggerEngine(state);
@@ -1411,7 +1412,7 @@ export async function meetingWsRoutes(app: FastifyInstance): Promise<void> {
             // Same busy-race feedback as comment_now: a concurrent chime may
             // claim assistantBusy between the sync check above and this scheduled
             // fire, so tell the asker instead of dropping silently.
-            onBusySkip: () => sendEvent(socket, { type: "assistant_skipped", reason: `${ASSISTANT_NAME} 正在生成中，请稍后` }),
+            onBusySkip: () => sendEvent(socket, { type: "assistant_skipped", reason: L(req, `${ASSISTANT_NAME} 正在生成中，请稍后`, `${ASSISTANT_NAME} is generating. Please wait`) }),
           });
           return;
         }

@@ -6,6 +6,7 @@
 // give them a role" alert pushed straight to every admin's Feishu via the same
 // bot gateway. Fire-and-forget: the caller (requireUser) wraps it in
 // trackBestEffort so it never blocks or fails the login path.
+import { L, appLang } from "../lang.js";
 import { prisma } from "../../db.js";
 import { env } from "../../env.js";
 import { feishuGateway } from "../feishuGateway.js";
@@ -26,22 +27,26 @@ function buildNewUserCard(u: NewUser): unknown {
   const usersUrl = `${env.WEB_PUBLIC_URL.replace(/\/$/, "")}/admin/users`;
   return {
     config: { wide_screen_mode: true },
-    header: { title: { tag: "plain_text", content: "新用户加入" } },
+    header: { title: { tag: "plain_text", content: L(appLang(), "新用户加入", "New user joined") } },
     elements: [
       {
         tag: "div",
         text: {
           tag: "plain_text",
-          content: `${u.displayName}${u.email ? `（${u.email}）` : ""} 首次登录，暂无角色。`,
+          content: L(
+            appLang(),
+            `${u.displayName}${u.email ? `（${u.email}）` : ""} 首次登录，暂无角色。`,
+            `${u.displayName}${u.email ? ` (${u.email})` : ""} signed in for the first time and has no role yet.`,
+          ),
         },
       },
-      { tag: "div", text: { tag: "plain_text", content: "请在「系统管理 → 用户」中为 TA 分配角色。" } },
+      { tag: "div", text: { tag: "plain_text", content: L(appLang(), "请在「系统管理 → 用户」中为 TA 分配角色。", "Assign a role in Admin > Users.") } },
       {
         tag: "action",
         actions: [
           {
             tag: "button",
-            text: { tag: "plain_text", content: "去分配角色" },
+            text: { tag: "plain_text", content: L(appLang(), "去分配角色", "Assign role") },
             type: "primary",
             url: applinkWrap(usersUrl, env.FEISHU_CARD_USE_APPLINK),
           },
@@ -84,7 +89,7 @@ function buildWeeklyReportCard(r: WeeklyReportAlert): unknown {
   const url = `${env.WEB_PUBLIC_URL.replace(/\/$/, "")}/admin/weekly-report/${r.id}`;
   return {
     config: { wide_screen_mode: true },
-    header: { title: { tag: "plain_text", content: `知识库周报 · ${stripCnTz(r.weekLabel)}` } },
+    header: { title: { tag: "plain_text", content: L(appLang(), `知识库周报 · ${stripCnTz(r.weekLabel)}`, `Weekly report · ${stripCnTz(r.weekLabel)}`) } },
     elements: [
       { tag: "div", text: { tag: "plain_text", content: stripCnTz(r.summary) } },
       {
@@ -92,7 +97,7 @@ function buildWeeklyReportCard(r: WeeklyReportAlert): unknown {
         actions: [
           {
             tag: "button",
-            text: { tag: "plain_text", content: "查看完整周报" },
+            text: { tag: "plain_text", content: L(appLang(), "查看完整周报", "View full report") },
             type: "primary",
             url: applinkWrap(url, env.FEISHU_CARD_USE_APPLINK),
           },

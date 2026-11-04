@@ -1,6 +1,7 @@
 // 管理后台:助手内容过滤清单(增 / 删 / 列,仅管理员)。被排除的角色 / 文件夹 /
 // 文档不进入助手的检索与分析(问答 / 会议讨论 / 群聊答疑 / 文档体检)。仅影响
 //助手的 AI,不影响用户的浏览与权限。
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -45,9 +46,9 @@ export async function adminAssistantFilterRoutes(app: FastifyInstance): Promise<
     const user = await requireAdmin(req, reply);
     if (!user) return;
     const parsed = bodySchema.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     const { targetType, targetId } = parsed.data;
-    if (!(await targetExists(targetType, targetId))) return reply.code(404).send({ error: "not_found", message: "目标不存在" });
+    if (!(await targetExists(targetType, targetId))) return reply.code(404).send({ error: "not_found", message: L(req, "目标不存在", "Target not found") });
     await prisma.assistantExclusion.upsert({
       where: { targetType_targetId: { targetType, targetId } },
       create: { targetType, targetId, createdById: user.id },
@@ -62,7 +63,7 @@ export async function adminAssistantFilterRoutes(app: FastifyInstance): Promise<
     const user = await requireAdmin(req, reply);
     if (!user) return;
     const parsed = bodySchema.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     const { targetType, targetId } = parsed.data;
     await prisma.assistantExclusion.deleteMany({ where: { targetType, targetId } });
     invalidateAssistantExclusionCache();

@@ -2,6 +2,7 @@
 // (recipientId = current user) — a user can only ever see / mutate their own
 // notifications. The Feishu push is handled out-of-band by the dispatcher; this
 // surface is purely the in-app bell (list / unread count / mark read).
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -76,8 +77,8 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
         commentId: n.commentId,
         readAt: n.readAt ? n.readAt.toISOString() : null,
         createdAt: n.createdAt.toISOString(),
-        actorName: snap.actorName ?? n.actor?.displayName ?? "有人",
-        articleTitle: snap.articleTitle ?? "文档",
+        actorName: snap.actorName ?? n.actor?.displayName ?? L(req, "有人", "Someone"),
+        articleTitle: snap.articleTitle ?? L(req, "文档", "Document"),
         excerpt: snap.excerpt ?? null,
         actorAvatarUrl: n.actor?.avatarUrl ?? null,
         title: snap.title ?? null,
@@ -107,7 +108,7 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const ids = req.body?.ids;
     if (ids !== undefined && (!Array.isArray(ids) || ids.some((id) => typeof id !== "string"))) {
-      return reply.code(400).send({ error: "invalid_input", message: "ids 必须是字符串数组" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "ids 必须是字符串数组", "ids must be an array of strings") });
     }
     const articleId =
       typeof req.body?.articleId === "string" && req.body.articleId.trim() ? req.body.articleId.trim() : undefined;
@@ -149,7 +150,7 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const parsed = prefsSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "参数错误", "Invalid parameters") });
     }
     const current = await prisma.notificationPref.findUnique({ where: { userId: user.id } });
     const merged = {

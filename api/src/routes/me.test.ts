@@ -21,7 +21,26 @@ describe("GET /api/me", () => {
     const app = await buildServer(AUTH);
     const res = await app.inject({ method: "GET", url: "/api/me" });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ user: null, assistantName: "AI" });
+    expect(res.json()).toEqual({ user: null, assistantName: "AI", appLanguage: "zh" });
+    await app.close();
+  });
+
+  it("returns English error messages for X-Lang: en and Chinese otherwise", async () => {
+    const app = await buildServer(AUTH);
+    const cookie = authCookie(SSO_ID);
+    const en = await app.inject({
+      method: "PATCH", url: "/api/me/profile", headers: { cookie, "x-lang": "en" }, payload: {},
+    });
+    expect(en.statusCode).toBe(400);
+    expect(en.json().message).toBe("No fields to update");
+    const zh = await app.inject({
+      method: "PATCH", url: "/api/me/profile", headers: { cookie }, payload: {},
+    });
+    expect(zh.json().message).toBe("无可更新字段");
+    const tooLong = await app.inject({
+      method: "PATCH", url: "/api/me/profile", headers: { cookie, "x-lang": "en" }, payload: { chatPreference: "x".repeat(201) },
+    });
+    expect(tooLong.json().message).toBe("Chat preference can be at most 200 characters");
     await app.close();
   });
 

@@ -1,3 +1,4 @@
+import { L } from "./lang.js";
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
@@ -95,10 +96,10 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
     // from "confirmed not logged in". req.authTransient is set by the
     // auth-client-api onRequest hook when whoami blipped / returned 5xx.
     if (req.authTransient) {
-      reply.code(503).send({ error: "auth_unavailable", message: "登录服务暂时不可用,请稍后重试" });
+      reply.code(503).send({ error: "auth_unavailable", message: L(req, "登录服务暂时不可用,请稍后重试", "Sign-in service is temporarily unavailable. Try again later") });
       return null;
     }
-    reply.code(401).send({ error: "unauthenticated", message: "请先登录" });
+    reply.code(401).send({ error: "unauthenticated", message: L(req, "请先登录", "Sign in first") });
     return null;
   }
   // Key the local user on the STABLE Feishu open_id — NOT feishu-sso's cuid
@@ -153,7 +154,7 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
   }
 
   if (!user || !user.isActive) {
-    reply.code(403).send({ error: "inactive", message: "账号已被停用" });
+    reply.code(403).send({ error: "inactive", message: L(req, "账号已被停用", "This account has been deactivated") });
     return null;
   }
   recordActivity(user);
@@ -164,7 +165,7 @@ export async function requireAdmin(req: FastifyRequest, reply: FastifyReply) {
   const user = await requireUser(req, reply);
   if (!user) return null;
   if (!user.isAdmin) {
-    reply.code(403).send({ error: "forbidden", message: "需要管理员权限" });
+    reply.code(403).send({ error: "forbidden", message: L(req, "需要管理员权限", "Admin permission required") });
     return null;
   }
   return user;

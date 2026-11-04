@@ -3,6 +3,7 @@
 //   POST   /api/admin/backup              立即手动备份
 //   POST   /api/admin/backup/:name/restore 还原到所选备份(进程内热替换)
 //   DELETE /api/admin/backup/:name        删除一份备份
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { requireAdmin } from "../utils/guards.js";
 import {
@@ -29,7 +30,7 @@ export async function adminBackupRoutes(app: FastifyInstance): Promise<void> {
       return { backup };
     } catch (err) {
       req.log.error({ err }, "manual backup failed");
-      return reply.code(500).send({ error: "backup_failed", message: `备份失败：${(err as Error).message}` });
+      return reply.code(500).send({ error: "backup_failed", message: L(req, `备份失败：${(err as Error).message}`, `Backup failed: ${(err as Error).message}`) });
     }
   });
 
@@ -50,7 +51,7 @@ export async function adminBackupRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(code).send({ error: err.code, message: err.message });
       }
       req.log.error({ err }, "restore failed");
-      return reply.code(500).send({ error: "restore_failed", message: `还原失败：${(err as Error).message}` });
+      return reply.code(500).send({ error: "restore_failed", message: L(req, `还原失败：${(err as Error).message}`, `Restore failed: ${(err as Error).message}`) });
     }
   });
 
@@ -66,7 +67,7 @@ export async function adminBackupRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(err.code === "not_found" ? 404 : 400).send({ error: err.code, message: err.message });
       }
       req.log.error({ err }, "delete backup failed");
-      return reply.code(500).send({ error: "delete_failed", message: `删除失败：${(err as Error).message}` });
+      return reply.code(500).send({ error: "delete_failed", message: L(req, `删除失败：${(err as Error).message}`, `Delete failed: ${(err as Error).message}`) });
     }
   });
 }

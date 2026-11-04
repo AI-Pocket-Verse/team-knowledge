@@ -1,3 +1,4 @@
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import type { PublicUserProfileResponse } from "@team-knowledge/shared";
 import { prisma } from "../db.js";
@@ -34,7 +35,7 @@ export async function usersRoutes(app: FastifyInstance): Promise<void> {
     // 404 for a missing OR deactivated account — a disabled user has no public
     // profile, and we don't distinguish the two to avoid leaking existence.
     if (!target || !target.isActive) {
-      return reply.code(404).send({ error: "not_found", message: "用户不存在" });
+      return reply.code(404).send({ error: "not_found", message: L(req, "用户不存在", "User not found") });
     }
     // Count the target's live (non-deleted) authored docs. 去草稿后不再区分状态;
     // 这是公开贡献度指标(类似提交数),非内容列表,不泄露任何正文。
@@ -64,7 +65,7 @@ export async function usersRoutes(app: FastifyInstance): Promise<void> {
       select: { id: true, isActive: true },
     });
     if (!target || !target.isActive) {
-      return reply.code(404).send({ error: "not_found", message: "用户不存在" });
+      return reply.code(404).send({ error: "not_found", message: L(req, "用户不存在", "User not found") });
     }
     return getPublicArticles(target.id, { id: user.id, isAdmin: user.isAdmin });
   });
@@ -81,7 +82,7 @@ export async function usersRoutes(app: FastifyInstance): Promise<void> {
         select: { id: true, displayName: true, isActive: true },
       });
       if (!target || !target.isActive) {
-        return reply.code(404).send({ error: "not_found", message: "用户不存在" });
+        return reply.code(404).send({ error: "not_found", message: L(req, "用户不存在", "User not found") });
       }
       const pageRaw = Number(req.query.page);
       const page = Number.isFinite(pageRaw) ? Math.max(1, Math.trunc(pageRaw)) : 1;

@@ -3,6 +3,7 @@
 // cookie to feishu-sso, which acts as the user; bot pushes use the shared
 // INTERNAL_API_TOKEN. Without WHOAMI_URL (local single-user mode) every call
 // fails fast with `feishu_not_configured`.
+import { L, appLang } from "./lang.js";
 import { AUTH_API_BASE, env } from "../env.js";
 
 /** Stable error carrying the gateway's normalized error code + HTTP status. */
@@ -19,7 +20,7 @@ export class FeishuGatewayError extends Error {
 
 function gatewayBase(): string {
   if (!AUTH_API_BASE) {
-    throw new FeishuGatewayError("feishu_not_configured", 503, "未接入飞书：请先部署 feishu-sso 并配置 WHOAMI_URL");
+    throw new FeishuGatewayError("feishu_not_configured", 503, L(appLang(), "未接入飞书：请先部署 feishu-sso 并配置 WHOAMI_URL", "Feishu is not connected: deploy feishu-sso and set WHOAMI_URL first"));
   }
   return AUTH_API_BASE;
 }
@@ -33,9 +34,9 @@ async function gwFetch(url: string, init: RequestInit = {}, timeoutMs = GATEWAY_
   } catch (e) {
     const name = (e as Error).name;
     if (name === "TimeoutError" || name === "AbortError") {
-      throw new FeishuGatewayError("feishu_gateway_timeout", 504, "飞书网关(feishu-sso)响应超时");
+      throw new FeishuGatewayError("feishu_gateway_timeout", 504, L(appLang(), "飞书网关(feishu-sso)响应超时", "Feishu gateway (feishu-sso) timed out"));
     }
-    throw new FeishuGatewayError("feishu_gateway_unreachable", 502, "无法连接飞书网关(feishu-sso)");
+    throw new FeishuGatewayError("feishu_gateway_unreachable", 502, L(appLang(), "无法连接飞书网关(feishu-sso)", "Cannot reach the Feishu gateway (feishu-sso)"));
   }
 }
 

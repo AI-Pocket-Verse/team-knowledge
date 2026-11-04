@@ -6,7 +6,8 @@
 // - PATCH  /api/admin/github/repos/:id            更新统计分支 { branches }(空 = 全部)
 // - POST   /api/admin/github/repos/:id/test       测试已存仓库(用存储的 token)
 // - POST   /api/admin/github/test                 临时测试(新增表单用,token 现填现测)
-import type { FastifyInstance, FastifyReply } from "fastify";
+import { L } from "../utils/lang.js";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireAdmin } from "../utils/guards.js";
 import { addGithubRepo, removeGithubRepo, listGithubReposPublic, getGithubRepoById, updateGithubRepoBranches, type GithubAuth } from "../services/github/config.js";
@@ -37,7 +38,7 @@ function checkRepoRef<T extends { owner: string; repo: string }>(input: T, reply
   if (!ok(owner) || !ok(repo)) {
     reply.code(400).send({
       error: "invalid_github_repo",
-      message: "仓库所有者或仓库名只能包含字母、数字、点、下划线和连字符",
+      message: L(reply.request, "仓库所有者或仓库名只能包含字母、数字、点、下划线和连字符", "Repository owner and name may only contain letters, digits, dots, underscores and hyphens"),
     });
     return null;
   }
@@ -45,13 +46,17 @@ function checkRepoRef<T extends { owner: string; repo: string }>(input: T, reply
 }
 
 // 统一测试结果:token / ssh 两种方式都归一为 { fullName, detail },前端无需关心差异。
-async function runTest(args: { owner: string; repo: string; auth?: GithubAuth; token?: string }): Promise<{ fullName: string; detail: string }> {
+async function runTest(req: FastifyRequest, args: { owner: string; repo: string; auth?: GithubAuth; token?: string }): Promise<{ fullName: string; detail: string }> {
   if (args.auth === "ssh") {
     const info = await testConnectionSsh({ owner: args.owner, repo: args.repo });
     return { fullName: info.fullName, detail: `SSH · HEAD ${info.head}` };
   }
   const info = await testConnection({ owner: args.owner, repo: args.repo, token: args.token });
-  return { fullName: info.fullName, detail: `${info.private ? "私有" : "公开"} · 默认分支 ${info.defaultBranch}` };
+  return { fullName: info.fullName, detail: L(
+    req,
+    `${info.private ? "私有" : "公开"} · 默认分支 ${info.defaultBranch}`,
+    `${info.private ? "Private" : "Public"} · Default branch ${info.defaultBranch}`,
+  ) };
 }
 
 function sendGithubError(reply: FastifyReply, e: unknown) {
@@ -73,7 +78,7 @@ export async function adminGithubRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireAdmin(req, reply);
     if (!user) return;
     const parsed = addSchema.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     const input = checkRepoRef(parsed.data, reply);
     if (!input) return;
     try {
@@ -101,7 +106,7 @@ export async function adminGithubRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireAdmin(req, reply);
     if (!user) return;
     const repo = await getGithubRepoById(req.params.id);
-    if (!repo) return reply.code(404).send({ error: "not_found", message: "仓库不存在" });
+    if (!repo) return reply.code(404).send({ error: "not_found", message: L(req, "仓库不存在", "Repository not found") });
     try {
       const branches = repo.auth === "ssh"
         ? await listBranchesSsh({ owner: repo.owner, repo: repo.repo })
@@ -117,7 +122,7 @@ export async function adminGithubRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireAdmin(req, reply);
     if (!user) return;
     const parsed = z.object({ branches: z.array(z.string().min(1).max(200)).max(200) }).safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     try {
       const repo = await updateGithubRepoBranches(req.params.id, parsed.data.branches, user.id);
       return { repo };
@@ -131,9 +136,9 @@ export async function adminGithubRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireAdmin(req, reply);
     if (!user) return;
     const repo = await getGithubRepoById(req.params.id);
-    if (!repo) return reply.code(404).send({ error: "not_found", message: "仓库不存在" });
+    if (!repo) return reply.code(404).send({ error: "not_found", message: L(req, "仓库不存在", "Repository not found") });
     try {
-      const info = await runTest({ owner: repo.owner, repo: repo.repo, auth: repo.auth, token: repo.token });
+      const info = await runTest(req, { owner: repo.owner, repo: repo.repo, auth: repo.auth, token: repo.token });
       return { ok: true, ...info };
     } catch (e) {
       return sendGithubError(reply, e);
@@ -145,11 +150,11 @@ export async function adminGithubRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireAdmin(req, reply);
     if (!user) return;
     const parsed = testSchema.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     const input = checkRepoRef(parsed.data, reply);
     if (!input) return;
     try {
-      const info = await runTest(input);
+      const info = await runTest(req, input);
       return { ok: true, ...info };
     } catch (e) {
       return sendGithubError(reply, e);

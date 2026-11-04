@@ -1,5 +1,6 @@
 // 内部接口(仅 feishu-sso 飞书卡片回调调用,x-internal-token 鉴权):点击「确认」一条
 // 体检问题 → 落「已确认」+ 回传重建后的卡片,feishu-sso 侧据此 PATCH 更新消息 + 弹 toast。
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { internalTokenOk } from "../utils/internalToken.js";
@@ -19,7 +20,7 @@ export async function internalDocAuditRoutes(app: FastifyInstance): Promise<void
     }
     const parsed = bodySchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const r = await acknowledgeFinding(parsed.data.hash, parsed.data.operatorOpenId || "unknown", parsed.data.checked);
     return { toast: r.toast, card: r.card };

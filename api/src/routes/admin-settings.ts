@@ -1,3 +1,4 @@
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireUser } from "../utils/guards.js";
@@ -93,7 +94,7 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/admin/settings/llm-provider", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
 
     const current = await getLlmProvider();
     const available = await probeAll();
@@ -103,24 +104,24 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.patch("/api/admin/settings/llm-provider", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
 
     const parsed = patchSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "无效的 provider" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "无效的 provider", "Invalid provider") });
     }
     const target = parsed.data.provider;
 
     if (target === "codex" && !codexAllowed()) {
       return reply.code(409).send({
         error: "codex_not_allowed",
-        message: "已启用登录的多人部署只能使用 claude 引擎：codex 带 shell 工具，无法限制它读取服务器文件。",
+        message: L(req, "已启用登录的多人部署只能使用 claude 引擎：codex 带 shell 工具，无法限制它读取服务器文件。", "Multi-user deployments with login enabled can only use the claude engine: codex has shell tools and cannot be restricted from reading server files."),
       });
     }
 
     const probes = await probeAll();
     if (!probes[target].ok) {
-      return reply.code(412).send({ error: "provider_unavailable", message: probes[target].reason ?? "目标 provider 不可用" });
+      return reply.code(412).send({ error: "provider_unavailable", message: probes[target].reason ?? L(req, "目标 provider 不可用", "Target provider unavailable") });
     }
 
     await setLlmProvider(target, user.id);
@@ -137,16 +138,16 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/admin/settings/model-display", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     return getModelDisplayAdmin();
   });
 
   app.put("/api/admin/settings/model-display", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     const parsed = modelDisplaySchema.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     await setModelDisplayConfig(parsed.data, user.id);
     req.log.info({ event: "llm.model_display_updated", by: user.id }, "model display updated");
     return getModelDisplayAdmin();
@@ -158,7 +159,7 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/admin/settings/llm-binaries", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
 
     const paths = await getLlmBinPaths();
     const available = await probeAll();
@@ -168,18 +169,18 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.put("/api/admin/settings/llm-binaries", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
 
     const parsed = binPathSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "无效的参数" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "无效的参数", "Invalid parameters") });
     }
     for (const which of ["claude", "codex"] as const) {
       const raw = which === "claude" ? parsed.data.claudePath : parsed.data.codexPath;
       if (raw === undefined) continue;          // 未提供该字段 → 保持不变
       const val = (raw ?? "").trim();
       if (val && !val.startsWith("/")) {
-        return reply.code(400).send({ error: "invalid_input", message: `${which} 路径需为绝对路径（以 / 开头）` });
+        return reply.code(400).send({ error: "invalid_input", message: L(req, `${which} 路径需为绝对路径（以 / 开头）`, `${which} path must be absolute (starting with /)`) });
       }
       if (val) {
         const check = await verifyCliBinary(which, val);
@@ -206,18 +207,18 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/admin/settings/llm-models", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     return llmModelStatus();
   });
 
   app.put("/api/admin/settings/llm-models", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
 
     const parsed = llmModelSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "无效的参数" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "无效的参数", "Invalid parameters") });
     }
     // 先整体校验再写入，避免一个字段写成功、另一个字段报错的半截状态。
     for (const which of ["claude", "codex"] as const) {
@@ -225,7 +226,11 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
       if (val && !isValidModelId(val)) {
         return reply.code(400).send({
           error: "invalid_model_id",
-          message: `${which === "claude" ? "Claude Code" : "Codex"} 模型 ID 只能包含字母、数字和 . _ - : / [ ]，且以字母或数字开头`,
+          message: L(
+            req,
+            `${which === "claude" ? "Claude Code" : "Codex"} 模型 ID 只能包含字母、数字和 . _ - : / [ ]，且以字母或数字开头`,
+            `${which === "claude" ? "Claude Code" : "Codex"} model ID may only contain letters, digits and . _ - : / [ ], and must start with a letter or digit`,
+          ),
         });
       }
     }
@@ -246,7 +251,7 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/admin/settings/volc-stt", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
 
     const creds = await getVolcSttCreds();
     return {
@@ -264,11 +269,11 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.put("/api/admin/settings/volc-stt", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
 
     const parsed = volcSttSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "无效的参数" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "无效的参数", "Invalid parameters") });
     }
     const prevStt = await getVolcSttCreds();
     const nextStt = {
@@ -277,7 +282,7 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
       apiKey: resolveSecret(parsed.data.apiKey, prevStt?.apiKey),
     };
     if (!nextStt.apiKey && (!nextStt.appId || !nextStt.accessToken)) {
-      return reply.code(400).send({ error: "invalid_input", message: "请填写 API Key，或同时填写 App ID 与 Access Token" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "请填写 API Key，或同时填写 App ID 与 Access Token", "Enter an API Key, or both App ID and Access Token") });
     }
     await setVolcSttCreds({
       ...nextStt,
@@ -294,7 +299,7 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.delete("/api/admin/settings/volc-stt", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     await setVolcSttCreds(null, user.id);
     invalidateSttProviderCache();
     req.log.info({ event: "volc.stt.creds_cleared", by: user.id }, "volc stt creds cleared");
@@ -305,7 +310,7 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/admin/settings/volc-tts", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
 
     const creds = await getVolcTtsCreds();
     return {
@@ -321,11 +326,11 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.put("/api/admin/settings/volc-tts", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
 
     const parsed = volcTtsSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "无效的参数" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "无效的参数", "Invalid parameters") });
     }
     const prevTts = await getVolcTtsCreds();
     const nextTts = {
@@ -334,7 +339,7 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
       apiKey: resolveSecret(parsed.data.apiKey, prevTts?.apiKey),
     };
     if (!nextTts.apiKey && (!nextTts.appId || !nextTts.accessToken)) {
-      return reply.code(400).send({ error: "invalid_input", message: "请填写 API Key，或同时填写 App ID 与 Access Token" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "请填写 API Key，或同时填写 App ID 与 Access Token", "Enter an API Key, or both App ID and Access Token") });
     }
     await setVolcTtsCreds({
       ...nextTts,
@@ -349,7 +354,7 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.delete("/api/admin/settings/volc-tts", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     await setVolcTtsCreds(null, user.id);
     invalidateTtsProviderCache();
     req.log.info({ event: "volc.tts.creds_cleared", by: user.id }, "volc tts creds cleared");
@@ -361,14 +366,14 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/admin/settings/article-review", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     return getReviewSettings();
   });
 
   app.patch("/api/admin/settings/article-review", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     const parsed = z.object({
       enabled: z.boolean().optional(),
       scanIntervalSec: z.number().int().optional(),
@@ -379,7 +384,7 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
       reminderMinute: z.number().int().optional(),
       reminderWeekdays: z.array(z.number().int()).optional(),
     }).safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     const next = await setReviewSettings(parsed.data, user.id);
     req.log.info({ event: "article_review.settings_updated", ...next, by: user.id }, "article-review settings updated");
     return next;
@@ -390,19 +395,19 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/admin/settings/doc-audit-tuning", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     return getDocAuditTuning();
   });
 
   app.put("/api/admin/settings/doc-audit-tuning", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     const parsed = z.object({
       strength: z.number().int().min(1).max(10).optional(),
       maxPerCategory: z.number().int().min(1).optional(),
     }).safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     const next = await setDocAuditTuning(parsed.data, user.id);
     req.log.info({ event: "doc_audit.tuning_updated", ...next, by: user.id }, "doc-audit tuning updated");
     return next;
@@ -422,14 +427,14 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.patch("/api/admin/settings/web-notify", async (req, reply) => {
     const user = await requireAdminOrOpenPage(req, reply, "web-notify");
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "admin_only", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "admin_only", message: L(req, "仅管理员可用", "Admins only") });
     const parsed = z.object({
       enabled: z.boolean().optional(),
       automation: z.boolean().optional(),
       meeting: z.boolean().optional(),
       image: z.boolean().optional(),
     }).safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     const next = await setWebNotifySettings(parsed.data, user.id);
     req.log.info({ event: "web_notify.settings_updated", ...next, by: user.id }, "web-notify settings updated");
     return next;
@@ -439,7 +444,7 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/admin/page-visibility", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     const map = await getVisibilityMap();
     return { pages: ELIGIBLE_PAGES.map((p) => ({ key: p.key, label: p.label, visibility: map[p.key] })) };
   });
@@ -447,13 +452,13 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
   app.patch("/api/admin/page-visibility", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     const parsed = z.object({
       // key 白名单从 ELIGIBLE_PAGES 派生,避免新增可配置页时忘了同步这里(web-notify 就漏过)。
       key: z.enum(ELIGIBLE_PAGES.map((p) => p.key) as [string, ...string[]]),
       visibility: z.enum(["admin", "all"]),
     }).safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: "参数错误(key 必须是可配置页面)" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: L(req, "参数错误(key 必须是可配置页面)", "Invalid parameters (key must be a configurable page)") });
     const map = await setPageVisibility(parsed.data.key, parsed.data.visibility, user.id);
     req.log.info({ event: "admin.page_visibility_updated", ...parsed.data, by: user.id }, "page visibility updated");
     return { pages: ELIGIBLE_PAGES.map((p) => ({ key: p.key, label: p.label, visibility: map[p.key] })) };

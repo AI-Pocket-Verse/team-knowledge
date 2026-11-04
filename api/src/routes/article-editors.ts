@@ -1,3 +1,4 @@
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -77,8 +78,8 @@ export async function articleEditorRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const res = await loadForManage(req.params.id, user);
-    if (res.kind === "not_found") return reply.code(404).send({ error: "not_found", message: "文档不存在" });
-    if (res.kind === "forbidden") return reply.code(403).send({ error: "forbidden", message: "无权管理协作者" });
+    if (res.kind === "not_found") return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
+    if (res.kind === "forbidden") return reply.code(403).send({ error: "forbidden", message: L(req, "无权管理协作者", "No permission to manage collaborators") });
 
     const rows = await prisma.articleEditor.findMany({
       where: { articleId: req.params.id },
@@ -102,19 +103,19 @@ export async function articleEditorRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const parsed = addEditorSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     }
     const { userId } = parsed.data;
 
     const res = await loadForManage(req.params.id, user);
-    if (res.kind === "not_found") return reply.code(404).send({ error: "not_found", message: "文档不存在" });
-    if (res.kind === "forbidden") return reply.code(403).send({ error: "forbidden", message: "无权管理协作者" });
+    if (res.kind === "not_found") return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
+    if (res.kind === "forbidden") return reply.code(403).send({ error: "forbidden", message: L(req, "无权管理协作者", "No permission to manage collaborators") });
 
     // Self-grants are a no-op — the author is already implicitly an
     // editor. Surface as 400 so the UI can tell the user instead of
     // silently appearing to succeed but not creating a row.
     if (userId === res.article.createdById) {
-      return reply.code(400).send({ error: "invalid_input", message: "作者本身无需添加为协作者" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "作者本身无需添加为协作者", "The author does not need to be added as a collaborator") });
     }
     // Target must exist + be active. Reject early so we don't accept a
     // grant against a deleted / disabled account.
@@ -123,7 +124,7 @@ export async function articleEditorRoutes(app: FastifyInstance): Promise<void> {
       select: { id: true, displayName: true, avatarUrl: true, isActive: true },
     });
     if (!target || !target.isActive) {
-      return reply.code(404).send({ error: "not_found", message: "用户不存在或已停用" });
+      return reply.code(404).send({ error: "not_found", message: L(req, "用户不存在或已停用", "User not found or deactivated") });
     }
 
     try {
@@ -151,8 +152,8 @@ export async function articleEditorRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const res = await loadForManage(req.params.id, user);
-    if (res.kind === "not_found") return reply.code(404).send({ error: "not_found", message: "文档不存在" });
-    if (res.kind === "forbidden") return reply.code(403).send({ error: "forbidden", message: "无权管理协作者" });
+    if (res.kind === "not_found") return reply.code(404).send({ error: "not_found", message: L(req, "文档不存在", "Document not found") });
+    if (res.kind === "forbidden") return reply.code(403).send({ error: "forbidden", message: L(req, "无权管理协作者", "No permission to manage collaborators") });
 
     await prisma.articleEditor.deleteMany({
       where: { articleId: req.params.id, userId: req.params.userId },
@@ -174,7 +175,7 @@ export async function articleEditorRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const parsed = userSearchSchema.safeParse(req.query);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: "搜索关键词必须 2–64 字符" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "搜索关键词必须 2–64 字符", "Search keyword must be 2-64 characters") });
     }
     const q = parsed.data.q;
     const includeSelf = parsed.data.includeSelf === "1";

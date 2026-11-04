@@ -2,6 +2,7 @@
 // Read-only, whole-knowledge-base AGGREGATE scope, so it's served to every
 // authenticated user (no per-individual breakdown here). Separate from
 // /api/admin/dashboard (overview + per-user table) to keep each payload bounded.
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import type { AdminActivityType, AdminAnalyticsResponse } from "@team-knowledge/shared";
 import { prisma } from "../db.js";
@@ -71,7 +72,7 @@ export async function adminAnalyticsRoutes(app: FastifyInstance): Promise<void> 
 
     // ── composition.byRole + rankings.docsByRole (one groupBy) ──
     const byRole = roleGroups
-      .map((g) => ({ roleId: g.roleId, roleName: roleName.get(g.roleId) ?? "（已删除角色）", count: g._count }))
+      .map((g) => ({ roleId: g.roleId, roleName: roleName.get(g.roleId) ?? L(req, "（已删除角色）", "(deleted role)"), count: g._count }))
       .sort((a, b) => b.count - a.count);
     const docsByRole = byRole.slice(0, TOP_N);
 
@@ -141,7 +142,7 @@ export async function adminAnalyticsRoutes(app: FastifyInstance): Promise<void> 
     const nameByUid = new Map(contribUsers.map((u) => [u.id, u.displayName]));
     const topContributors = topUids.map(([userId, contribution]) => ({
       userId,
-      userName: nameByUid.get(userId) ?? "（已删除）",
+      userName: nameByUid.get(userId) ?? L(req, "（已删除）", "(deleted)"),
       ops: opsByUid.get(userId) ?? 0,
       contribution: Math.round(contribution * 10) / 10,
       breakdown: [...(breakByUid.get(userId)?.entries() ?? [])]

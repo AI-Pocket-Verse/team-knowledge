@@ -1,3 +1,4 @@
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { requireUser } from "../utils/guards.js";
@@ -106,7 +107,7 @@ export async function workspaceRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
 
     const role = await prisma.role.findUnique({ where: { id: req.params.roleId } });
-    if (!role) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    if (!role) return reply.code(404).send({ error: "not_found", message: L(req, "角色不存在", "Role not found") });
 
     const userRoleIds = await getUserRoleIds(user.id);
 
@@ -152,7 +153,7 @@ export async function workspaceRoutes(app: FastifyInstance): Promise<void> {
         createdBy: { select: { id: true, displayName: true } },
       },
     });
-    if (!m || m.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "目录不存在" });
+    if (!m || m.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "目录不存在", "Folder not found") });
 
     const userRoleIds = await getUserRoleIds(user.id);
     const permissions = getFolderPermissions({
@@ -162,7 +163,7 @@ export async function workspaceRoutes(app: FastifyInstance): Promise<void> {
     });
 
     if (!permissions.canView) {
-      return reply.code(403).send({ error: "forbidden", message: "无权访问该目录" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "无权访问该目录", "No permission to access this folder") });
     }
 
     return {
@@ -192,7 +193,7 @@ export async function workspaceRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
 
     const role = await prisma.role.findUnique({ where: { id: req.params.roleId } });
-    if (!role) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    if (!role) return reply.code(404).send({ error: "not_found", message: L(req, "角色不存在", "Role not found") });
 
     const userRoleIds = await getUserRoleIds(user.id);
 

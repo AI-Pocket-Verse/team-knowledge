@@ -1,4 +1,5 @@
 // Feishu interactive-card builder + doc deep link for engagement notifications.
+import { L, appLang } from "../lang.js";
 import { env } from "../../env.js";
 
 export type NotifType =
@@ -33,13 +34,13 @@ export function delinkLarkMd(s: string): string {
 }
 
 const TITLE: Record<NotifType, (actor: string) => string> = {
-  article_like: (a) => `${a} 赞了你的文档`,
-  article_favorite: (a) => `${a} 收藏了你的文档`,
-  article_comment: (a) => `${a} 评论了文档`,
-  comment_reply: (a) => `${a} 回复了你的评论`,
-  comment_mention: (a) => `${a} 在评论中提到了你`,
-  article_review_issue: () => "文档待优化",
-  article_review_reminder: () => "文档待优化 · 每日提醒",
+  article_like: (a) => L(appLang(), `${a} 赞了你的文档`, `${a} liked your document`),
+  article_favorite: (a) => L(appLang(), `${a} 收藏了你的文档`, `${a} bookmarked your document`),
+  article_comment: (a) => L(appLang(), `${a} 评论了文档`, `${a} commented on a document`),
+  comment_reply: (a) => L(appLang(), `${a} 回复了你的评论`, `${a} replied to your comment`),
+  comment_mention: (a) => L(appLang(), `${a} 在评论中提到了你`, `${a} mentioned you in a comment`),
+  article_review_issue: () => L(appLang(), "文档待优化", "Document needs improvement"),
+  article_review_reminder: () => L(appLang(), "文档待优化 · 每日提醒", "Document needs improvement · Daily reminder"),
 };
 
 export interface NotificationCardInput {
@@ -71,7 +72,7 @@ export function buildNotificationCard(p: NotificationCardInput): unknown {
     actions: [
       {
         tag: "button",
-        text: { tag: "plain_text", content: "查看文档" },
+        text: { tag: "plain_text", content: L(appLang(), "查看文档", "View document") },
         type: "primary",
         url: applinkWrap(docDeepLink(p.articleId, p.commentId), env.FEISHU_CARD_USE_APPLINK),
       },

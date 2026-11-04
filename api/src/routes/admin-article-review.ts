@@ -3,6 +3,7 @@
 //   GET  /api/admin/article-review/dismissed  列出忽略集(关联文章标题;跳过已删/不存在文章)
 //   POST /api/admin/article-review/undismiss  撤销某文章某条问题的忽略,并触发复检使其(如仍存在)重新冒出
 // 一键优化 / 应用 / 忽略(整篇)沿用 routes/articles.ts 的 /articles/:id/review/*(管理员有编辑权)。
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -75,10 +76,10 @@ export async function adminArticleReviewRoutes(app: FastifyInstance): Promise<vo
   app.post("/api/admin/article-review/undismiss", async (req, reply) => {
     const user = await requireAdminOrOpenPage(req, reply, "article-review");
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "admin_only", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "admin_only", message: L(req, "仅管理员可用", "Admins only") });
 
     const parsed = z.object({ articleId: z.string().min(1), hash: z.string().min(1) }).safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: "参数错误" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: L(req, "参数错误", "Invalid parameters") });
 
     await removeDismissed(parsed.data.articleId, parsed.data.hash, user.id);
     // 让该文档「必被重新校验」:清掉 reviewedHash/reviewedAt —— 候选筛选据此判定需复检,

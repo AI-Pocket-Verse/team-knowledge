@@ -5,6 +5,7 @@
 // entirely (no in-app row, no Feishu), while feishuEnabled=false keeps the
 // in-app row and only skips the Feishu push. Fire-and-forget from the
 // request path — never blocks the like/comment/favorite response.
+import { L, appLang } from "../lang.js";
 import { prisma } from "../../db.js";
 import { env } from "../../env.js";
 import { resolveRecipients, type NotifEvent } from "./recipients.js";
@@ -44,8 +45,8 @@ export async function emitNotification(ev: NotifEvent): Promise<void> {
       ? prisma.comment.findUnique({ where: { id: ev.commentId }, select: { body: true } })
       : Promise.resolve(null),
   ]);
-  const actorName = actor?.displayName ?? "有人";
-  const articleTitle = article?.title ?? "文档";
+  const actorName = actor?.displayName ?? L(appLang(), "有人", "Someone");
+  const articleTitle = article?.title ?? L(appLang(), "文档", "Document");
   const excerpt = comment?.body ? excerptOf(comment.body) : undefined;
 
   const ids = [...recipients.keys()];

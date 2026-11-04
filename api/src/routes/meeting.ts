@@ -1,3 +1,4 @@
+import { L, appLang } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type {
@@ -135,7 +136,7 @@ async function serializeSession(row: {
     hostUserId: row.createdById,
     // Host should always exist (FK cascades, so if user is gone the
     // session is too) — fallback string is paranoia.
-    hostName: hostName ?? "（已删除）",
+    hostName: hostName ?? L(appLang(), "（已删除）", "(deleted)"),
     allowedRoleIds: roleIds,
     allowedRoles,
     config: decodeConfig(row.config),
@@ -322,7 +323,7 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) {
       return reply.code(400).send({
         error: "invalid_input",
-        message: parsed.error.issues[0]?.message ?? "无效的会议参数",
+        message: parsed.error.issues[0]?.message ?? L(req, "无效的会议参数", "Invalid meeting parameters"),
       });
     }
 
@@ -337,7 +338,7 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
       if (roles.length !== parsed.data.allowedRoleIds.length) {
         return reply.code(400).send({
           error: "invalid_input",
-          message: "包含无效的角色，请刷新后重试",
+          message: L(req, "包含无效的角色，请刷新后重试", "Contains invalid roles. Refresh and try again"),
         });
       }
     }
@@ -370,7 +371,7 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     if (txResult.kind === "existing") {
       return reply.code(409).send({
         error: "active_meeting_exists",
-        message: `你已经在主持「${txResult.existing.title}」，请先结束再开新会议`,
+        message: L(req, `你已经在主持「${txResult.existing.title}」，请先结束再开新会议`, `You are already hosting "${txResult.existing.title}". End it before starting a new meeting`),
         activeMeetingId: txResult.existing.id,
       });
     }
@@ -438,13 +439,13 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
 
     const params = idParamSchema.safeParse(req.params);
-    if (!params.success) return reply.code(400).send({ error: "invalid_input", message: "无效的会议 id" });
+    if (!params.success) return reply.code(400).send({ error: "invalid_input", message: L(req, "无效的会议 id", "Invalid meeting id") });
 
     const row = await prisma.meetingSession.findUnique({ where: { id: params.data.id } });
-    if (!row || row.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "会议不存在或已删除" });
+    if (!row || row.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "会议不存在或已删除", "Meeting not found or deleted") });
     // Private meetings: 404 (not 403) for non-creator non-admins so their
     // existence isn't revealed.
-    if (!canViewMeeting(user, row)) return reply.code(404).send({ error: "not_found", message: "会议不存在或已删除" });
+    if (!canViewMeeting(user, row)) return reply.code(404).send({ error: "not_found", message: L(req, "会议不存在或已删除", "Meeting not found or deleted") });
 
     // Full transcript — fetched in ascending order with NO cap, so a late
     // joiner / refreshed viewer and the ended-meeting timeline both get the
@@ -483,24 +484,24 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
 
     const params = idParamSchema.safeParse(req.params);
-    if (!params.success) return reply.code(400).send({ error: "invalid_input", message: "无效的会议 id" });
+    if (!params.success) return reply.code(400).send({ error: "invalid_input", message: L(req, "无效的会议 id", "Invalid meeting id") });
 
     const parsed = meetingUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "无效的参数" });
+      return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "无效的参数", "Invalid parameters") });
     }
     if (parsed.data.title === undefined && parsed.data.visibility === undefined) {
-      return reply.code(400).send({ error: "invalid_input", message: "没有可更新的字段" });
+      return reply.code(400).send({ error: "invalid_input", message: L(req, "没有可更新的字段", "No fields to update") });
     }
 
     const row = await prisma.meetingSession.findUnique({ where: { id: params.data.id } });
-    if (!row || row.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "会议不存在或已删除" });
+    if (!row || row.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "会议不存在或已删除", "Meeting not found or deleted") });
     // View gate first: a private meeting is creator-only, so a non-creator
     // (incl. an admin) gets 404 — its existence isn't revealed — before any
     // edit-permission check runs.
-    if (!canViewMeeting(user, row)) return reply.code(404).send({ error: "not_found", message: "会议不存在或已删除" });
+    if (!canViewMeeting(user, row)) return reply.code(404).send({ error: "not_found", message: L(req, "会议不存在或已删除", "Meeting not found or deleted") });
     if (!canEditMeetingMeta(user, row)) {
-      return reply.code(403).send({ error: "forbidden", message: "只有主持人或管理员可以修改会议" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "只有主持人或管理员可以修改会议", "Only the host or an admin can edit the meeting") });
     }
 
     const updated = await prisma.meetingSession.update({
@@ -528,17 +529,17 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
 
     const params = idParamSchema.safeParse(req.params);
-    if (!params.success) return reply.code(400).send({ error: "invalid_input", message: "无效的会议 id" });
+    if (!params.success) return reply.code(400).send({ error: "invalid_input", message: L(req, "无效的会议 id", "Invalid meeting id") });
 
     const row = await prisma.meetingSession.findUnique({ where: { id: params.data.id } });
-    if (!row || row.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "会议不存在或已删除" });
+    if (!row || row.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "会议不存在或已删除", "Meeting not found or deleted") });
 
     // View gate first: a private meeting is creator-only, so a non-creator
     // (incl. an admin) gets 404 before the host/admin end-permission check.
-    if (!canViewMeeting(user, row)) return reply.code(404).send({ error: "not_found", message: "会议不存在或已删除" });
+    if (!canViewMeeting(user, row)) return reply.code(404).send({ error: "not_found", message: L(req, "会议不存在或已删除", "Meeting not found or deleted") });
 
     if (!user.isAdmin && row.createdById !== user.id) {
-      return reply.code(403).send({ error: "forbidden", message: "只有主持人或管理员可以结束会议" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "只有主持人或管理员可以结束会议", "Only the host or an admin can end the meeting") });
     }
 
     if (row.status === "ended") {
@@ -617,18 +618,18 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const params = idParamSchema.safeParse(req.params);
-    if (!params.success) return reply.code(400).send({ error: "invalid_input", message: "无效的会议 id" });
+    if (!params.success) return reply.code(400).send({ error: "invalid_input", message: L(req, "无效的会议 id", "Invalid meeting id") });
 
     const row = await prisma.meetingSession.findUnique({ where: { id: params.data.id } });
-    if (!row || row.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "会议不存在" });
+    if (!row || row.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "会议不存在", "Meeting not found") });
     // View gate first: a private meeting is creator-only, so a non-creator
     // (incl. an admin) gets 404 before the host/admin regenerate check.
-    if (!canViewMeeting(user, row)) return reply.code(404).send({ error: "not_found", message: "会议不存在" });
+    if (!canViewMeeting(user, row)) return reply.code(404).send({ error: "not_found", message: L(req, "会议不存在", "Meeting not found") });
     if (!user.isAdmin && row.createdById !== user.id) {
-      return reply.code(403).send({ error: "forbidden", message: "只有主持人或管理员可以重新生成纪要" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "只有主持人或管理员可以重新生成纪要", "Only the host or an admin can regenerate the minutes") });
     }
     if (row.status !== "ended") {
-      return reply.code(400).send({ error: "not_ended", message: "会议尚未结束，不能生成纪要" });
+      return reply.code(400).send({ error: "not_ended", message: L(req, "会议尚未结束，不能生成纪要", "The meeting has not ended. Minutes cannot be generated yet") });
     }
 
     // Clear the existing markdown so the generator actually re-runs
@@ -643,7 +644,7 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
 
     const result = await generateMeetingSummary(row.id, req.log);
     if (!result.summaryMarkdown || isMeetingSummaryFailure(result.summaryMarkdown)) {
-      return reply.code(502).send({ error: "summary_failed", message: "纪要生成失败，请稍后再试", reason: result.reason });
+      return reply.code(502).send({ error: "summary_failed", message: L(req, "纪要生成失败，请稍后再试", "Minutes generation failed. Try again later"), reason: result.reason });
     }
     const updated = await prisma.meetingSession.findUnique({ where: { id: row.id } });
     return { session: await serializeSession(updated ?? row) };
@@ -666,45 +667,45 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(req, reply);
     if (!user) return;
     const params = idParamSchema.safeParse(req.params);
-    if (!params.success) return reply.code(400).send({ error: "invalid_input", message: "无效的会议 id" });
+    if (!params.success) return reply.code(400).send({ error: "invalid_input", message: L(req, "无效的会议 id", "Invalid meeting id") });
     const bodySchema = z.object({
       roleId: z.string().min(1),
       folderId: z.string().min(1).nullable().optional(),
     });
     const body = bodySchema.safeParse(req.body);
     if (!body.success) {
-      return reply.code(400).send({ error: "invalid_input", message: body.error.issues[0]?.message ?? "无效的参数" });
+      return reply.code(400).send({ error: "invalid_input", message: body.error.issues[0]?.message ?? L(req, "无效的参数", "Invalid parameters") });
     }
 
     const row = await prisma.meetingSession.findUnique({ where: { id: params.data.id } });
-    if (!row || row.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "会议不存在" });
+    if (!row || row.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "会议不存在", "Meeting not found") });
     // View gate first: a private meeting is creator-only, so a non-creator
     // (incl. an admin) gets 404 before the host/admin save check.
-    if (!canViewMeeting(user, row)) return reply.code(404).send({ error: "not_found", message: "会议不存在" });
+    if (!canViewMeeting(user, row)) return reply.code(404).send({ error: "not_found", message: L(req, "会议不存在", "Meeting not found") });
     if (!user.isAdmin && row.createdById !== user.id) {
-      return reply.code(403).send({ error: "forbidden", message: "只有主持人或管理员可以保存纪要" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "只有主持人或管理员可以保存纪要", "Only the host or an admin can save the minutes") });
     }
     if (!row.summaryMarkdown || isMeetingSummaryFailure(row.summaryMarkdown)) {
-      return reply.code(400).send({ error: "no_summary", message: "纪要尚未生成或生成失败，请先重新生成" });
+      return reply.code(400).send({ error: "no_summary", message: L(req, "纪要尚未生成或生成失败，请先重新生成", "Minutes are not generated or failed. Regenerate them first") });
     }
 
     // Resolve role + optional folder. Verify they exist and that
     // the folder (if any) belongs to the chosen role.
     const role = await prisma.role.findUnique({ where: { id: body.data.roleId }, select: { id: true } });
-    if (!role) return reply.code(400).send({ error: "invalid_input", message: "目标角色不存在" });
+    if (!role) return reply.code(400).send({ error: "invalid_input", message: L(req, "目标角色不存在", "Target role not found") });
 
     // Match the article-creation permission model in routes/articles.ts:
     // role membership (or admin) is the gate for writing under a role.
     // Folder visibility is read-only by design and doesn't gate writes.
     const userRoleIds = await getUserRoleIds(user.id);
     if (!user.isAdmin && !userRoleIds.has(role.id)) {
-      return reply.code(403).send({ error: "forbidden", message: "无权在该角色下创建文档" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "无权在该角色下创建文档", "No permission to create documents under this role") });
     }
     let folderId: string | null = null;
     if (body.data.folderId) {
       const folder = await prisma.folder.findUnique({ where: { id: body.data.folderId }, select: { id: true, roleId: true, deletedAt: true } });
       if (!folder || folder.deletedAt != null || folder.roleId !== body.data.roleId) {
-        return reply.code(400).send({ error: "invalid_input", message: "目录不存在或不属于该角色" });
+        return reply.code(400).send({ error: "invalid_input", message: L(req, "目录不存在或不属于该角色", "Folder not found or not under this role") });
       }
       folderId = folder.id;
     }
@@ -754,10 +755,10 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     // Compose the article body: marker + meta block + the generated
     // summary. Title = meeting title.
     const meta = [
-      `> 来源：${ASSISTANT_NAME} 会议「${row.title}」`,
-      `> 开始时间：${row.createdAt.toISOString()}`,
-      row.endedAt ? `> 结束时间：${row.endedAt.toISOString()}` : null,
-      row.recordingUrl ? `> 录音：[下载](${recordingDownloadUrl(row.recordingUrl)})` : null,
+      L(req, `> 来源：${ASSISTANT_NAME} 会议「${row.title}」`, `> Source: ${ASSISTANT_NAME} meeting "${row.title}"`),
+      L(req, `> 开始时间：${row.createdAt.toISOString()}`, `> Started: ${row.createdAt.toISOString()}`),
+      row.endedAt ? L(req, `> 结束时间：${row.endedAt.toISOString()}`, `> Ended: ${row.endedAt.toISOString()}`) : null,
+      row.recordingUrl ? L(req, `> 录音：[下载](${recordingDownloadUrl(row.recordingUrl)})`, `> Recording: [Download](${recordingDownloadUrl(row.recordingUrl)})`) : null,
     ].filter(Boolean).join("\n");
     const contentMarkdown = `${sourceMarker}\n${meta}\n\n${row.summaryMarkdown}`;
 
@@ -777,7 +778,7 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
       const a = await tx.article.create({
         data: {
           id: newArticleId,
-          title: `${row.title} - 会议纪要`,
+          title: L(req, `${row.title} - 会议纪要`, `${row.title} - Meeting minutes`),
           contentMarkdown,
           roleId: role.id,
           folderId,
@@ -811,7 +812,7 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     // Strict regex: only cuid-shaped session ids + .wav. Blocks
     // path traversal / arbitrary file access via this endpoint.
     if (!/^[a-z0-9]+\.wav$/i.test(filename)) {
-      return reply.code(404).send({ error: "not_found", message: "文件不存在" });
+      return reply.code(404).send({ error: "not_found", message: L(req, "文件不存在", "File not found") });
     }
     const sessionId = filename.replace(/\.wav$/i, "");
     // Verify a MeetingSession exists with a matching recordingUrl.
@@ -823,21 +824,21 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
       select: { recordingUrl: true, createdById: true, visibility: true, deletedAt: true, title: true },
     });
     if (!row || row.deletedAt != null || row.recordingUrl !== `/meeting-recordings/${filename}`) {
-      return reply.code(404).send({ error: "not_found", message: "录音不存在" });
+      return reply.code(404).send({ error: "not_found", message: L(req, "录音不存在", "Recording not found") });
     }
     // Access gates purely on visibility: a private meeting's audio is for the
     // creator only (admins get no bypass), a public meeting's audio is for any
     // logged-in user. allowedRoleIds is NOT consulted — per product decision it
     // scopes only assistant retrieval, never access to the meeting's artifacts.
     if (!canViewMeeting(user, row)) {
-      return reply.code(403).send({ error: "forbidden", message: "无权访问该录音" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "无权访问该录音", "No permission to access this recording") });
     }
     const filePath = resolve(join(env.DATA_DIR, "meeting-recordings", filename));
     // Defense in depth: ensure resolved path stays inside the
     // recordings dir even if the regex is bypassed somehow.
     const base = resolve(join(env.DATA_DIR, "meeting-recordings"));
     if (!filePath.startsWith(base + "/") || !existsSync(filePath)) {
-      return reply.code(404).send({ error: "not_found", message: "录音文件已删除" });
+      return reply.code(404).send({ error: "not_found", message: L(req, "录音文件已删除", "Recording file deleted") });
     }
     const stat = statSync(filePath);
     reply.header("Content-Type", "audio/wav");
@@ -846,10 +847,10 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     // filename (was the opaque cuid). Title may be CJK → RFC 5987 filename*
     // carries the real name, with an ASCII filename= fallback for old clients.
     if (req.query.download) {
-      const base = (row.title || "").trim() || "会议录音";
+      const base = (row.title || "").trim() || L(req, "会议录音", "Meeting recording");
       const safe = [...base]
         .filter((ch) => ch >= " " && !'\\/:*?"<>|'.includes(ch))
-        .join("").replace(/\s+/g, " ").trim().slice(0, 80) || "会议录音";
+        .join("").replace(/\s+/g, " ").trim().slice(0, 80) || L(req, "会议录音", "Meeting recording");
       const ascii = [...safe].filter((ch) => ch >= " " && ch <= "~").join("").trim() || "meeting";
       reply.header(
         "Content-Disposition",
@@ -912,18 +913,18 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
 
     const params = idParamSchema.safeParse(req.params);
-    if (!params.success) return reply.code(400).send({ error: "invalid_input", message: "无效的会议 id" });
+    if (!params.success) return reply.code(400).send({ error: "invalid_input", message: L(req, "无效的会议 id", "Invalid meeting id") });
 
     const row = await prisma.meetingSession.findUnique({ where: { id: params.data.id } });
-    if (!row || row.deletedAt != null) return reply.code(404).send({ error: "not_found", message: "会议不存在或已删除" });
+    if (!row || row.deletedAt != null) return reply.code(404).send({ error: "not_found", message: L(req, "会议不存在或已删除", "Meeting not found or deleted") });
     // View gate first: a private meeting is creator-only, so a non-creator
     // (incl. an admin) gets 404 before the canEditMeetingMeta delete check.
-    if (!canViewMeeting(user, row)) return reply.code(404).send({ error: "not_found", message: "会议不存在或已删除" });
+    if (!canViewMeeting(user, row)) return reply.code(404).send({ error: "not_found", message: L(req, "会议不存在或已删除", "Meeting not found or deleted") });
     if (!canEditMeetingMeta(user, row)) {
-      return reply.code(403).send({ error: "forbidden", message: "只有主持人或管理员可以删除会议" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "只有主持人或管理员可以删除会议", "Only the host or an admin can delete the meeting") });
     }
     if (row.status !== "ended") {
-      return reply.code(400).send({ error: "not_ended", message: "请先结束会议再删除" });
+      return reply.code(400).send({ error: "not_ended", message: L(req, "请先结束会议再删除", "End the meeting before deleting it") });
     }
 
     // Belt-and-suspenders cancel of any pending auto-end timer (the
@@ -958,7 +959,7 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     // defense-in-depth pattern as /meeting-recordings.
     const m = /^([a-z0-9]+)(?:-(\d+))?\.mp3$/i.exec(filename);
     if (!m) {
-      return reply.code(404).send({ error: "not_found", message: "文件不存在" });
+      return reply.code(404).send({ error: "not_found", message: L(req, "文件不存在", "File not found") });
     }
     const commentId = m[1]!;
     const isSentenceClip = m[2] != null;
@@ -972,7 +973,7 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     if (isSentenceClip) {
       const seq = Number(m[2]);
       if (!Number.isInteger(seq) || seq < 0 || seq > 9999) {
-        return reply.code(404).send({ error: "not_found", message: "音频不存在" });
+        return reply.code(404).send({ error: "not_found", message: L(req, "音频不存在", "Audio not found") });
       }
     }
     // Authorize against the parent MeetingComment row. For the whole-comment
@@ -988,21 +989,21 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
       },
     });
     if (!row || row.session.deletedAt != null) {
-      return reply.code(404).send({ error: "not_found", message: "音频不存在" });
+      return reply.code(404).send({ error: "not_found", message: L(req, "音频不存在", "Audio not found") });
     }
     if (!isSentenceClip && row.ttsAudioUrl !== `/meeting-tts/${filename}`) {
-      return reply.code(404).send({ error: "not_found", message: "音频不存在" });
+      return reply.code(404).send({ error: "not_found", message: L(req, "音频不存在", "Audio not found") });
     }
     // Same scope as /meeting-recordings — TTS echoes what assistant said about the
     // meeting, so it inherits the meeting's visibility gate. allowedRoleIds is
     // NOT consulted (assistant-retrieval scope only, never an access gate).
     if (!canViewMeeting(user, row.session)) {
-      return reply.code(403).send({ error: "forbidden", message: "无权访问该音频" });
+      return reply.code(403).send({ error: "forbidden", message: L(req, "无权访问该音频", "No permission to access this audio") });
     }
     const filePath = resolve(join(env.DATA_DIR, "meeting-tts", filename));
     const base = resolve(join(env.DATA_DIR, "meeting-tts"));
     if (!filePath.startsWith(base + "/") || !existsSync(filePath)) {
-      return reply.code(404).send({ error: "not_found", message: "音频文件已删除" });
+      return reply.code(404).send({ error: "not_found", message: L(req, "音频文件已删除", "Audio file deleted") });
     }
     const stat = statSync(filePath);
     reply.header("Content-Type", "audio/mpeg");

@@ -3,6 +3,7 @@
 // - GET  /api/admin/group-qa/tuning   互动节奏参数(仅管理员)
 // - PUT  /api/admin/group-qa/tuning   保存互动节奏参数(仅管理员)
 // 看板可放开给成员看,但「互动节奏」是全局性行为设置,只有管理员能改(同 doc-audit-tuning)。
+import { L } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireAdminOrOpenPage } from "../services/admin-visibility/index.js";
@@ -26,14 +27,14 @@ export async function adminGroupQaRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/admin/group-qa/tuning", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     return getGroupQaTuning();
   });
 
   app.put("/api/admin/group-qa/tuning", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     const parsed = z.object({
       cooldownSec: z.number().int().min(5).max(3600).optional(),
       hourlyCap: z.number().int().min(1).max(100).optional(),
@@ -42,7 +43,7 @@ export async function adminGroupQaRoutes(app: FastifyInstance): Promise<void> {
       answerCap: z.number().int().min(40).max(1000).optional(),
       aggressiveness: z.number().int().min(1).max(3).optional(),
     }).safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     const next = await setGroupQaTuning(parsed.data, user.id);
     req.log.info({ event: "group_qa.tuning_updated", ...next, by: user.id }, "group-qa tuning updated");
     return next;
@@ -58,14 +59,14 @@ export async function adminGroupQaRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/admin/group-qa/like", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     return getGroupQaLike();
   });
 
   app.put("/api/admin/group-qa/like", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: "仅管理员可用" });
+    if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     const parsed = z.object({
       enabled: z.boolean().optional(),
       threshold: z.number().int().min(1).max(10).optional(),
@@ -77,7 +78,7 @@ export async function adminGroupQaRoutes(app: FastifyInstance): Promise<void> {
       emoji: z.string().max(32).optional(),
       emojiMode: z.string().max(16).optional(),
     }).safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? "参数错误" });
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
     const next = await setGroupQaLike(parsed.data, user.id);
     req.log.info({ event: "group_qa.like_updated", ...next, by: user.id }, "group-qa like updated");
     return next;
