@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { create } from "zustand";
+import { tr } from "@/i18n";
 
 // Imperative confirm/alert API matching the project's existing
 // imperative `toast` pattern (components/Toaster.tsx). One mount in
@@ -74,8 +75,8 @@ export const dialog = {
         kind: "confirm",
         title: options?.title,
         message,
-        confirmText: options?.confirmText ?? "确定",
-        cancelText: options?.cancelText ?? "取消",
+        confirmText: options?.confirmText ?? tr("common.confirm"),
+        cancelText: options?.cancelText ?? tr("common.cancel"),
         danger: options?.danger ?? false,
         resolve,
       });
@@ -89,7 +90,7 @@ export const dialog = {
         kind: "alert",
         title: options?.title,
         message,
-        okText: options?.okText ?? "我知道了",
+        okText: options?.okText ?? tr("shell.dialog.ok"),
         resolve,
       });
     });

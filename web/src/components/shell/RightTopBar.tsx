@@ -5,6 +5,7 @@ import { UserMenu } from "@/components/shell/UserMenu";
 import { usePageChromeStore } from "@/stores/pageChrome";
 import { useChatStore } from "@/stores/chat";
 import { getAssistantName } from "@/lib/assistantName";
+import { tr } from "@/i18n";
 
 // 右栏顶栏(取代原全宽 header)。左:页面标题 / 面包屑(动态页用 pageChrome,
 // 简单页靠下面的路由兜底);右:固定 [搜索 通知 头像]。文档详情等会经 pageChrome
@@ -13,29 +14,29 @@ import { getAssistantName } from "@/lib/assistantName";
 //(与左栏对话列表里的标题/回退完全一致)。具体标题取值见 RightTopBar 内的 chatTitle()。
 const ROUTE_TITLES: { test: (p: string) => boolean; title: string }[] = [
   { test: (p) => p === "/" || p === "/c/new" || p.startsWith("/c/"), get title() { return `${getAssistantName()}`; } },
-  { test: (p) => p === "/bookmarks", title: "收藏" },
-  { test: (p) => p === "/meeting" || p.startsWith("/meeting/"), title: "会议" },
-  { test: (p) => p === "/automation", title: "自动化" },
-  { test: (p) => p === "/dashboard", title: "数据看板" },
-  { test: (p) => p === "/experts", title: "专家" },
-  { test: (p) => p === "/me/escalations", title: "我的待办" },
-  { test: (p) => p === "/me/profile", title: "个人主页" },
-  { test: (p) => p === "/recycle-bin", title: "回收站" },
-  { test: (p) => p === "/about", title: "关于" },
-  { test: (p) => p.startsWith("/admin/users"), title: "用户" },
-  { test: (p) => p.startsWith("/admin/roles"), title: "角色" },
-  { test: (p) => p.startsWith("/admin/ai-provider"), title: "AI 提供方" },
-  { test: (p) => p.startsWith("/admin/voice"), title: "语音引擎" },
-  { test: (p) => p.startsWith("/admin/github"), title: "GitHub 仓库" },
-  { test: (p) => p.startsWith("/admin/backup"), title: "备份/还原" },
-  { test: (p) => p.startsWith("/admin/weekly-report"), title: "周报" },
-  { test: (p) => p.startsWith("/admin/feishu-tasks"), title: "飞书群任务" },
-  { test: (p) => p.startsWith("/admin/group-qa"), title: "群答疑记录" },
-  { test: (p) => p.startsWith("/admin/assistant-filter"), get title() { return `${getAssistantName()} 内容过滤`; } },
-  { test: (p) => p.startsWith("/admin/article-review"), title: "文档校验" },
-  { test: (p) => p.startsWith("/admin/page-visibility"), title: "页面可见性" },
-  { test: (p) => p.startsWith("/admin/web-notify"), title: "Web 通知" },
-  { test: (p) => p.startsWith("/admin/experts"), title: "专家设定" },
+  { test: (p) => p === "/bookmarks", get title() { return tr("shell.page.bookmarks"); } },
+  { test: (p) => p === "/meeting" || p.startsWith("/meeting/"), get title() { return tr("shell.page.meeting"); } },
+  { test: (p) => p === "/automation", get title() { return tr("shell.page.automation"); } },
+  { test: (p) => p === "/dashboard", get title() { return tr("shell.page.dashboard"); } },
+  { test: (p) => p === "/experts", get title() { return tr("shell.page.expertsPage"); } },
+  { test: (p) => p === "/me/escalations", get title() { return tr("shell.page.myTodos"); } },
+  { test: (p) => p === "/me/profile", get title() { return tr("shell.page.profile"); } },
+  { test: (p) => p === "/recycle-bin", get title() { return tr("shell.page.recycleBin"); } },
+  { test: (p) => p === "/about", get title() { return tr("shell.page.about"); } },
+  { test: (p) => p.startsWith("/admin/users"), get title() { return tr("shell.page.users"); } },
+  { test: (p) => p.startsWith("/admin/roles"), get title() { return tr("shell.page.roles"); } },
+  { test: (p) => p.startsWith("/admin/ai-provider"), get title() { return tr("shell.page.aiProviderTop"); } },
+  { test: (p) => p.startsWith("/admin/voice"), get title() { return tr("shell.page.voice"); } },
+  { test: (p) => p.startsWith("/admin/github"), get title() { return tr("shell.page.github"); } },
+  { test: (p) => p.startsWith("/admin/backup"), get title() { return tr("shell.page.backup"); } },
+  { test: (p) => p.startsWith("/admin/weekly-report"), get title() { return tr("shell.page.weeklyReport"); } },
+  { test: (p) => p.startsWith("/admin/feishu-tasks"), get title() { return tr("shell.page.feishuTasks"); } },
+  { test: (p) => p.startsWith("/admin/group-qa"), get title() { return tr("shell.page.groupQa"); } },
+  { test: (p) => p.startsWith("/admin/assistant-filter"), get title() { return tr("shell.page.assistantFilter", { name: getAssistantName() }); } },
+  { test: (p) => p.startsWith("/admin/article-review"), get title() { return tr("shell.page.articleReview"); } },
+  { test: (p) => p.startsWith("/admin/page-visibility"), get title() { return tr("shell.page.pageVisibility"); } },
+  { test: (p) => p.startsWith("/admin/web-notify"), get title() { return tr("shell.page.webNotify"); } },
+  { test: (p) => p.startsWith("/admin/experts"), get title() { return tr("shell.page.experts"); } },
 ];
 
 function routeTitle(pathname: string): string {
@@ -58,7 +59,7 @@ export function RightTopBar() {
     const item = conversations.find((c) => c.id === conversationId);
     const title = item ? item.title : activeTitle;
     const isFeishu = item ? item.isFeishu : activeIsFeishu;
-    return title?.trim() || (isFeishu ? "飞书对话" : "新对话");
+    return title?.trim() || (isFeishu ? tr("shell.top.feishuChat") : tr("shell.top.newChat"));
   }
   const isChatRoute = pathname === "/" || pathname.startsWith("/c/");
   const fallbackTitle = isChatRoute ? chatTitle() : routeTitle(pathname);

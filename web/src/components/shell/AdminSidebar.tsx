@@ -4,53 +4,56 @@ import { cn } from "@/lib/cn";
 import { useAdminAccess } from "@/lib/adminAccess";
 import { BrandHeader } from "@/components/shell/Brand";
 import { getAssistantName } from "@/lib/assistantName";
+import { tr, useT } from "@/i18n";
 
 // 系统管理侧栏。所有页面均为管理员专属(文件夹在工作区侧栏内联管理,不在此处),
 // 故非管理员看不到任何条目。数据看板不在此(已移到头像菜单,对所有用户可见)。
 // 条目按职能分组,每组带一个小标题,便于在条目变多后快速定位。
-const GROUPS: { title: string; items: { to: string; label: string }[] }[] = [
+const buildGroups = (): { title: string; items: { to: string; label: string }[] }[] => [
   {
-    title: "成员与权限",
+    title: tr("shell.admin.group.members"),
     items: [
-      { to: "/admin/users", label: "用户" },
-      { to: "/admin/roles", label: "角色" },
-      { to: "/admin/page-visibility", label: "页面可见性" },
+      { to: "/admin/users", label: tr("shell.page.users") },
+      { to: "/admin/roles", label: tr("shell.page.roles") },
+      { to: "/admin/page-visibility", label: tr("shell.page.pageVisibility") },
     ],
   },
   {
-    title: "团队知识库",
+    title: tr("app.productName"),
     items: [
-      { to: "/admin/assistant-filter", get label() { return `${getAssistantName()} 内容过滤`; } },
-      { to: "/admin/article-review", label: "文档校验" },
-      { to: "/admin/group-qa", label: "群答疑记录" },
-      { to: "/admin/experts", label: "专家设定" },
+      { to: "/admin/assistant-filter", get label() { return tr("shell.page.assistantFilter", { name: getAssistantName() }); } },
+      { to: "/admin/article-review", label: tr("shell.page.articleReview") },
+      { to: "/admin/group-qa", label: tr("shell.page.groupQa") },
+      { to: "/admin/experts", label: tr("shell.page.experts") },
     ],
   },
   {
-    title: "AI 与语音",
+    title: tr("shell.admin.group.aiVoice"),
     items: [
-      { to: "/admin/ai-provider", label: "AI 引擎" },
-      { to: "/admin/voice", label: "语音引擎" },
+      { to: "/admin/ai-provider", label: tr("shell.page.aiProvider") },
+      { to: "/admin/voice", label: tr("shell.page.voice") },
     ],
   },
   {
-    title: "集成与通知",
+    title: tr("shell.admin.group.integrations"),
     items: [
-      { to: "/admin/github", label: "GitHub 仓库" },
-      { to: "/admin/feishu-tasks", label: "飞书群任务" },
-      { to: "/admin/web-notify", label: "Web 通知" },
+      { to: "/admin/github", label: tr("shell.page.github") },
+      { to: "/admin/feishu-tasks", label: tr("shell.page.feishuTasks") },
+      { to: "/admin/web-notify", label: tr("shell.page.webNotify") },
     ],
   },
   {
-    title: "数据与运维",
+    title: tr("shell.admin.group.ops"),
     items: [
-      { to: "/admin/weekly-report", label: "周报" },
-      { to: "/admin/backup", label: "备份/还原" },
+      { to: "/admin/weekly-report", label: tr("shell.page.weeklyReport") },
+      { to: "/admin/backup", label: tr("shell.page.backup") },
     ],
   },
 ];
 
 export function AdminSidebar() {
+  const t = useT();
+  const GROUPS = buildGroups();
   const access = useAdminAccess();
   // 管理员看到全部条目;普通用户只看到「已放开给所有成员」的页面;空分组隐藏。
   const pageKeyOf = (to: string) => to.replace("/admin/", "");
@@ -72,8 +75,8 @@ export function AdminSidebar() {
         <BrandHeader />
         <Link
           to="/"
-          aria-label="返回首页"
-          title="返回首页"
+          aria-label={t("shell.nav.backHome")}
+          title={t("shell.nav.backHome")}
           className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-blue-50/60 hover:text-primary"
         >
           <Home className="h-[18px] w-[18px]" />

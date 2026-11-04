@@ -3,6 +3,7 @@
 //
 // 展示一律按北京时间(见 lib/tz.ts),与服务端按北京日分桶的看板/周报口径一致。
 import { beijingParts } from "./tz";
+import { tr } from "@/i18n";
 
 export function fmtDate(iso: string): string {
   const { year, month, day } = beijingParts(new Date(iso));
@@ -17,15 +18,15 @@ export function fmtDateTime(iso: string): string {
 }
 
 export function fmtRelativeTime(iso: string | null): string {
-  if (!iso) return "从未";
+  if (!iso) return tr("shell.time.never");
   // 相对差值基于绝对瞬时,与时区无关;仅 >30 天回退到的 fmtDate 才涉及北京日历。
   const diff = Date.now() - new Date(iso).getTime();
   const min = Math.floor(diff / 60_000);
-  if (min < 1) return "刚刚";
-  if (min < 60) return `${min} 分钟前`;
+  if (min < 1) return tr("shell.time.justNow");
+  if (min < 60) return tr("shell.time.minAgo", { n: min });
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} 小时前`;
+  if (hr < 24) return tr("shell.time.hrAgo", { n: hr });
   const day = Math.floor(hr / 24);
-  if (day < 30) return `${day} 天前`;
+  if (day < 30) return tr("shell.time.dayAgo", { n: day });
   return fmtDate(iso);
 }

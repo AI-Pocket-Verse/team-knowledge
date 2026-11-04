@@ -33,6 +33,7 @@ import {
   DeleteFolderDialog, DeleteDocDialog,
 } from "./RailDialogs";
 import { getAssistantName } from "@/lib/assistantName";
+import { useT, tr } from "@/i18n";
 
 // ── Resizable left-rail width (px) ──────────────────────────────────────────
 // The EXPANDED rail is draggable between MIN and MAX (default 300). Dragging
@@ -132,8 +133,8 @@ export function folderDragIntent(e: DragOverEvent | DragEndEvent): FolderDragInt
       }
     }
     if (band === "nest") {
-      if (a.hasChildren) return { kind: "denied", reason: "含子目录的目录不能移动到别的目录" };
-      if ((o?.parentId ?? null) !== null) return { kind: "denied", reason: "不能放进子目录里（最多两级）" };
+      if (a.hasChildren) return { kind: "denied", reason: tr("workspace.rail.denyHasChildren") };
+      if ((o?.parentId ?? null) !== null) return { kind: "denied", reason: tr("workspace.rail.denyDepth") };
       if ((a.parentId ?? null) === targetId) return null; // already its child
       return { kind: "nest", targetId };
     }
@@ -219,7 +220,7 @@ function useGuardedNavClick() {
       // safe here — nothing downstream depends on the synchronous return.
       e.preventDefault();
       void dialog
-        .confirm("有未保存的修改，确定离开？未保存的内容将丢失。", { confirmText: "离开", danger: true })
+        .confirm(tr("workspace.leaveConfirm"), { confirmText: tr("workspace.leave"), danger: true })
         .then((ok) => {
           if (!ok) return;
           useUnsavedGuard.getState().setDirty(false);
@@ -255,6 +256,7 @@ export function WorkspaceLeftRail() {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [collapsed, setCollapsed] = usePersistedBool("tm.ws.leftRail.collapsed", false);
   const navigate = useNavigate();
+  const t = useT();
 
   // 左栏模式:文档(知识库树)/ 对话(多任务会话列表)。展开态顶部分段切换。
   const [railMode, setRailMode] = useState<"docs" | "chats">("docs");
@@ -575,7 +577,7 @@ export function WorkspaceLeftRail() {
       await fetchTree(roleId);
       requestRoleRefresh(roleId); // live-sync the right-side role view
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "移动目录失败");
+      toast.error(err instanceof Error ? err.message : t("workspace.rail.moveFolderFailed"));
     }
   }
 
@@ -644,7 +646,7 @@ export function WorkspaceLeftRail() {
         requestRoleRefresh(roleId); // live-sync the right-side role view
       } catch {
         revertRoleTree(roleId, prev, patched);
-        toast.error("目录排序失败，已恢复");
+        toast.error(t("workspace.rail.reorderFolderFailed"));
       }
       return;
     }
@@ -699,9 +701,9 @@ export function WorkspaceLeftRail() {
       await api.articles.move(docId, targetFolderId);
       await fetchTree(roleId);
       requestRoleRefresh(roleId); // live-sync the right-side role/folder view
-      toast.success(targetFolderId ? "已移动到目标目录" : "已移动到角色根目录");
+      toast.success(targetFolderId ? t("workspace.rail.movedToFolder") : t("workspace.rail.movedToRoot"));
     } catch {
-      toast.error("移动文档失败");
+      toast.error(t("workspace.rail.moveDocFailed"));
     }
   }
 
@@ -735,7 +737,7 @@ export function WorkspaceLeftRail() {
       requestRoleRefresh(roleId); // live-sync the right-side role/folder view
     } catch {
       revertRoleTree(roleId, prev, patched);
-      toast.error("文档排序失败，已恢复");
+      toast.error(t("workspace.rail.reorderDocFailed"));
     }
   }
 
@@ -796,20 +798,20 @@ export function WorkspaceLeftRail() {
           <button
             type="button"
             onClick={() => setCollapsed((v) => !v)}
-            aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
+            aria-label={collapsed ? t("workspace.rail.expand") : t("workspace.rail.collapse")}
             aria-pressed={collapsed}
-            title={collapsed ? "展开侧边栏" : "收起侧边栏"}
+            title={collapsed ? t("workspace.rail.expand") : t("workspace.rail.collapse")}
             className={`group relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-blue-50/60 hover:text-primary ${collapsed ? "" : "ml-auto"}`}
           >
             <RailToggleIcon collapsed={collapsed} />
-            {collapsed && <CollapsedTooltip label="展开侧边栏" />}
+            {collapsed && <CollapsedTooltip label={t("workspace.rail.expand")} />}
           </button>
         </div>
         {/* assistant +助手会议:两种模式(文档/对话)都常驻在最上。 */}
         <div className="flex shrink-0 flex-col gap-0.5">
           <QuickLink to="/" label={getAssistantName()} Icon={BotIcon} collapsed={collapsed} />
-          <QuickLink to="/meeting" label="会议" Icon={MeetingIcon} collapsed={collapsed} badge={hasActiveMeeting} />
-          <QuickLink to="/automation" label="自动化" Icon={AutomationIcon} collapsed={collapsed} />
+          <QuickLink to="/meeting" label={t("shell.page.meeting")} Icon={MeetingIcon} collapsed={collapsed} badge={hasActiveMeeting} />
+          <QuickLink to="/automation" label={t("shell.page.automation")} Icon={AutomationIcon} collapsed={collapsed} />
           {/* 收起态用一条细线把主导航与下面的角色图标分开;展开态由下面的「文档/对话」切换条自然分隔,不再需要线。 */}
           {collapsed && <div className="mx-1 my-2 border-t border-line" />}
         </div>
@@ -824,7 +826,7 @@ export function WorkspaceLeftRail() {
                 onClick={() => setRailMode(m)}
                 className={`flex-1 rounded-md py-1.5 font-medium transition ${railMode === m ? "bg-white text-fg shadow-sm" : "text-muted"}`}
               >
-                {m === "docs" ? "文档" : "对话"}
+                {m === "docs" ? t("workspace.rail.docs") : t("workspace.rail.chats")}
               </button>
             ))}
           </div>
@@ -864,7 +866,7 @@ export function WorkspaceLeftRail() {
         >
           <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
             {roles.length === 0 && !collapsed && (
-              <div className="px-3 py-1 text-sm text-muted">暂无可见角色</div>
+              <div className="px-3 py-1 text-sm text-muted">{t("workspace.rail.noRoles")}</div>
             )}
             {roles.map((r) => {
               const tree = treesByRole[r.id];
@@ -902,7 +904,7 @@ export function WorkspaceLeftRail() {
               dropDenied ? (
                 // Cross-role drag — show ONLY「不能拖动」, nothing else.
                 <div className="pointer-events-none cursor-not-allowed rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-sm text-rose-600 shadow-glassLg">
-                  不能拖动
+                  {t("workspace.rail.noDrag")}
                 </div>
               ) : (
                 <div className="pointer-events-none flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-1.5 text-sm text-fg/90 shadow-glassLg">
@@ -922,8 +924,8 @@ export function WorkspaceLeftRail() {
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label="拖动调整侧边栏宽度，双击复位为默认宽度"
-        title="拖动调整宽度 · 双击复位"
+        aria-label={t("workspace.rail.resizeAria")}
+        title={t("workspace.rail.resizeTitle")}
         onPointerDown={startResize}
         onDoubleClick={resetRailWidth}
         style={{ right: -3, touchAction: "none" }}
@@ -952,6 +954,7 @@ function QuickLink({
   // prop. Tracking hover lets the icon mirror its active appearance
   // (violet + filled silhouette) on mouse-over, matching the row's
   // text-color shift so icon and label change together.
+  const t = useT();
   const [hovered, setHovered] = useState(false);
   const guardedNavClick = useGuardedNavClick();
   // Collapsed rail: icon-only, so the dot rides the icon's top-right
@@ -961,15 +964,15 @@ function QuickLink({
   // (self-center), not pinned to the row's corner.
   const CornerDot = (
     <span
-      aria-label="正在进行的会议"
-      title="正在进行的会议"
+      aria-label={t("workspace.rail.activeMeeting")}
+      title={t("workspace.rail.activeMeeting")}
       className="absolute right-1 top-1 inline-block h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white animate-pulse"
     />
   );
   const InlineDot = (
     <span
-      aria-label="正在进行的会议"
-      title="正在进行的会议"
+      aria-label={t("workspace.rail.activeMeeting")}
+      title={t("workspace.rail.activeMeeting")}
       className="ml-1.5 inline-block h-2 w-2 shrink-0 self-center rounded-full bg-rose-500 ring-2 ring-white animate-pulse"
     />
   );
@@ -1069,6 +1072,7 @@ function RoleNode({
   role, tree, isExpanded, expandedFolders, onToggleRole, onToggleFolder,
   onTreeChanged, onPinToggled, activeRoleId, activeFolderId, activeDocId, activeDragKind, nestTargetId, docTargetId, collapsed,
 }: RoleNodeProps) {
+  const t = useT();
   const { from } = resolveRoleColor(role.color);
   const canManage = role.ownership === "owned";
   const isActiveRole = role.id === activeRoleId;
@@ -1101,7 +1105,7 @@ function RoleNode({
   // 个人置顶切换(每人各自;任意可见角色皆可,不需管理权)。切完重取列表刷新顺序。
   const togglePin = useCallback(async () => {
     try { await api.workspace.pinRole(role.id, !role.pinned); onPinToggled(); }
-    catch { toast.error("操作失败,请重试"); }
+    catch { toast.error(t("workspace.rail.actionFailed")); }
   }, [role.id, role.pinned, onPinToggled]);
 
   if (collapsed) {
@@ -1120,7 +1124,7 @@ function RoleNode({
       >
         <FolderIcon color={from} />
         {tree && treeHasReviewIssues(tree) && (
-          <span title="该角色下有待优化文档" className="absolute right-1 top-1 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-surface" />
+          <span title={t("workspace.rail.roleIssues")} className="absolute right-1 top-1 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-surface" />
         )}
         <CollapsedTooltip label={role.name} />
       </NavLink>
@@ -1161,7 +1165,7 @@ function RoleNode({
           <FolderIcon color={from} />
           <span className="min-w-0 max-w-full truncate">{role.name}</span>
           {role.pinned && <RolePinnedMark />}
-          {tree && treeHasReviewIssues(tree) && <ReviewBadge title="该角色下有待优化文档" />}
+          {tree && treeHasReviewIssues(tree) && <ReviewBadge title={t("workspace.rail.roleIssues")} />}
         </NavLink>
         {/* Right-side button cluster: + (if can manage) → chevron */}
         <div className="absolute inset-y-0 right-1 flex items-center gap-0.5">
@@ -1170,8 +1174,8 @@ function RoleNode({
               ref={addBtnRef}
               type="button"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setAddOpen((v) => !v); }}
-              aria-label="新建"
-              title="新建目录 / 文档 / 导入"
+              aria-label={t("workspace.rail.new")}
+              title={t("workspace.rail.newRoleTitle")}
               className="flex h-6 w-6 items-center justify-center rounded text-muted opacity-0 transition group-hover:opacity-100 hover:bg-blue-100 hover:text-primary"
             >
               <PlusIcon />
@@ -1180,7 +1184,7 @@ function RoleNode({
           <button
             type="button"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleRole(); }}
-            aria-label={isExpanded ? "收起" : "展开"}
+            aria-label={isExpanded ? t("workspace.rail.collapseNode") : t("workspace.rail.expandNode")}
             aria-expanded={isExpanded}
             className="flex h-6 w-6 items-center justify-center rounded text-muted transition hover:bg-blue-100 hover:text-primary"
           >
@@ -1199,7 +1203,7 @@ function RoleNode({
         {ctxAt && (
           <FloatingActionMenu
             items={[
-              { label: role.pinned ? "取消置顶" : "置顶", onClick: () => void togglePin() },
+              { label: role.pinned ? t("workspace.unpin") : t("workspace.pin"), onClick: () => void togglePin() },
               ...(canManage ? addItems.map((it) => ({ label: it.title, onClick: it.run })) : []),
             ]}
             at={ctxAt}
@@ -1211,7 +1215,7 @@ function RoleNode({
       {isExpanded && tree && (
         <div className="mt-0.5 flex flex-col gap-0.5 pl-[30px]">
           {tree.folders.length === 0 && tree.directArticles.length === 0 && (
-            <div className="px-3 py-1 text-sm text-muted">暂无目录或文档</div>
+            <div className="px-3 py-1 text-sm text-muted">{t("workspace.rail.noContent")}</div>
           )}
           {/* Folder reorder is gated on role-level manage rights; the
               SortableContext still wraps the list either way so the ids
@@ -1284,6 +1288,7 @@ function FolderNodeRow({
   nestTargetId?: string | null;
   docTargetId?: string | null;
 }) {
+  const t = useT();
   const canManage = folder.permissions.canEdit;
   const isNestTarget = !!nestTargetId && folder.id === nestTargetId;
   const isActive = folder.id === activeFolderId;
@@ -1370,7 +1375,7 @@ function FolderNodeRow({
         >
           <FolderSmallIcon />
           <span className="min-w-0 max-w-full truncate">{folder.name}</span>
-          {folderHasReviewIssues(folder) && <ReviewBadge title="该目录下有待优化文档" />}
+          {folderHasReviewIssues(folder) && <ReviewBadge title={t("workspace.folder.hasIssues")} />}
         </NavLink>
         <div className="absolute inset-y-0 right-1 flex items-center gap-0.5">
           {canManage && (
@@ -1378,8 +1383,8 @@ function FolderNodeRow({
               ref={addBtnRef}
               type="button"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setAddOpen((v) => !v); }}
-              aria-label="新建"
-              title={depth === 0 ? "在此目录新建子目录 / 文档 / 导入" : "在此目录新建文档 / 导入"}
+              aria-label={t("workspace.rail.new")}
+              title={depth === 0 ? t("workspace.rail.newInFolder") : t("workspace.rail.newInSubfolder")}
               className="flex h-6 w-6 items-center justify-center rounded text-muted opacity-0 transition group-hover:opacity-100 hover:bg-blue-100 hover:text-primary"
             >
               <PlusIcon />
@@ -1388,8 +1393,8 @@ function FolderNodeRow({
           {canManage && (
             <RowActionsButton
               actions={[
-                { label: "重命名", onClick: () => setRenameOpen(true) },
-                { label: "删除", onClick: () => setDeleteOpen(true), danger: true },
+                { label: t("workspace.rename"), onClick: () => setRenameOpen(true) },
+                { label: t("common.delete"), onClick: () => setDeleteOpen(true), danger: true },
               ]}
             />
           )}
@@ -1397,7 +1402,7 @@ function FolderNodeRow({
             <button
               type="button"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle(); }}
-              aria-label={isExpanded ? "收起" : "展开"}
+              aria-label={isExpanded ? t("workspace.rail.collapseNode") : t("workspace.rail.expandNode")}
               className="flex h-6 w-6 items-center justify-center rounded text-muted transition hover:bg-blue-100 hover:text-primary"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={cn("transition-transform", isExpanded && "rotate-90")}>
@@ -1435,8 +1440,8 @@ function FolderNodeRow({
             items={[
               ...addItems.map((it) => ({ label: it.title, onClick: it.run })),
               null,
-              { label: "重命名", onClick: () => setRenameOpen(true) },
-              { label: "删除", onClick: () => setDeleteOpen(true), danger: true },
+              { label: t("workspace.rename"), onClick: () => setRenameOpen(true) },
+              { label: t("common.delete"), onClick: () => setDeleteOpen(true), danger: true },
             ]}
             at={ctxAt}
             onClose={closeCtx}
@@ -1507,6 +1512,7 @@ function DocRow({
   onTreeChanged: () => void;
   isActive: boolean;
 }) {
+  const t = useT();
   const canManage = doc.permissions.canEdit;
   const [renameOpen, setRenameOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
@@ -1525,7 +1531,7 @@ function DocRow({
     transform, transition, isDragging,
   } = useSortable({
     id: docSortId(doc.id),
-    data: { kind: "doc" as const, roleId: doc.roleId, folderId: doc.folderId, label: doc.title || "（未命名）" },
+    data: { kind: "doc" as const, roleId: doc.roleId, folderId: doc.folderId, label: doc.title || t("workspace.rail.untitled") },
     disabled: !canManage,
   });
   const dragStyle: React.CSSProperties = {
@@ -1566,16 +1572,16 @@ function DocRow({
         }
       >
         <DocIcon />
-        <span className="min-w-0 max-w-full truncate">{doc.title || "（未命名）"}</span>
-        {docHasReviewBadge(doc) && <ReviewBadge title="该文档存在 AI 校验发现的待优化问题" />}
+        <span className="min-w-0 max-w-full truncate">{doc.title || t("workspace.rail.untitled")}</span>
+        {docHasReviewBadge(doc) && <ReviewBadge title={t("workspace.rail.docIssues")} />}
       </NavLink>
       {canManage && (
         <div className="absolute inset-y-0 right-1 flex items-center">
           <RowActionsButton
             actions={[
-              { label: "重命名", onClick: () => setRenameOpen(true) },
-              { label: "移动", onClick: () => setMoveOpen(true) },
-              { label: "删除", onClick: () => setDeleteOpen(true), danger: true },
+              { label: t("workspace.rename"), onClick: () => setRenameOpen(true) },
+              { label: t("workspace.move.submit"), onClick: () => setMoveOpen(true) },
+              { label: t("common.delete"), onClick: () => setDeleteOpen(true), danger: true },
             ]}
           />
         </div>
@@ -1600,7 +1606,7 @@ function DocRow({
       <DeleteDocDialog
         open={deleteOpen}
         docId={doc.id}
-        docTitle={doc.title || "（未命名）"}
+        docTitle={doc.title || t("workspace.rail.untitled")}
         roleId={doc.roleId}
         folderId={doc.folderId}
         onOpenChange={setDeleteOpen}
@@ -1609,9 +1615,9 @@ function DocRow({
       {ctxAt && (
         <FloatingActionMenu
           items={[
-            { label: "重命名", onClick: () => setRenameOpen(true) },
-            { label: "移动", onClick: () => setMoveOpen(true) },
-            { label: "删除", onClick: () => setDeleteOpen(true), danger: true },
+            { label: t("workspace.rename"), onClick: () => setRenameOpen(true) },
+            { label: t("workspace.move.submit"), onClick: () => setMoveOpen(true) },
+            { label: t("common.delete"), onClick: () => setDeleteOpen(true), danger: true },
           ]}
           at={ctxAt}
           onClose={closeCtx}
@@ -1703,6 +1709,7 @@ function FloatingActionMenu({
 }
 
 function RowActionsButton({ actions }: { actions: RowAction[] }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   // 视口内锚定 + 实测高度翻转/限高:右对齐按钮;靠近底部自动上翻;条目再多
@@ -1726,8 +1733,8 @@ function RowActionsButton({ actions }: { actions: RowAction[] }) {
         ref={btnRef}
         type="button"
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen((v) => !v); }}
-        aria-label="更多操作"
-        title="更多操作"
+        aria-label={t("workspace.more")}
+        title={t("workspace.more")}
         className="flex h-6 w-6 items-center justify-center rounded text-muted opacity-0 transition group-hover:opacity-100 hover:bg-blue-100 hover:text-primary"
       >
         <DotsIcon />
@@ -1816,8 +1823,9 @@ function MeetingIcon({ filled }: { filled?: boolean }) {
 // "look like a folder" at sidebar scale.
 // 角色已个人置顶的小标记(展示在角色名后)。
 function RolePinnedMark() {
+  const t = useT();
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="已置顶" className="shrink-0 text-primary/70">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label={t("workspace.conv.pinned")} className="shrink-0 text-primary/70">
       <path d="M12 17v5" />
       <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
     </svg>

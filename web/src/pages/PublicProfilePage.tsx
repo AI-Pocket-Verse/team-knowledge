@@ -9,11 +9,12 @@ import { Avatar } from "@/components/dashboard/UserActivityDrawer";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
 import { RoleBadge } from "@/components/admin/RoleBadge";
 import { DelayedLoader } from "@/components/DelayedLoader";
+import { tr, useT } from "@/i18n";
 
 type TabKey = "articles" | "activity";
 const TABS: { key: TabKey; label: string }[] = [
-  { key: "articles", label: "发布的文档" },
-  { key: "activity", label: "动态" },
+  { key: "articles", get label() { return tr("profile.public.tab.articles"); } },
+  { key: "activity", get label() { return tr("profile.public.tab.activity"); } },
 ];
 
 /**
@@ -24,6 +25,7 @@ const TABS: { key: TabKey; label: string }[] = [
  * Email is never shown. 404s render a friendly "用户不存在" state.
  */
 export function PublicProfilePage() {
+  const t = useT();
   const { userId } = useParams<{ userId: string }>();
   const me = useAuth((s) => s.user);
   const [profile, setProfile] = useState<PublicUserProfileResponse | null>(null);
@@ -52,7 +54,7 @@ export function PublicProfilePage() {
   if (notFound) {
     return (
       <div className="rounded-xl border border-line bg-white px-8 py-12 text-center text-sm text-muted">
-        用户不存在
+        {t("profile.public.notFound")}
       </div>
     );
   }
@@ -71,17 +73,17 @@ export function PublicProfilePage() {
             <div className="flex flex-wrap items-center gap-2">
               <p className="truncate text-lg font-semibold text-fg">{profile.displayName}</p>
               {profile.isAdmin && (
-                <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs text-primary">管理员</span>
+                <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs text-primary">{t("profile.admin")}</span>
               )}
               {profile.roles.map((r) => (
                 <span key={r} className="rounded-full bg-surface px-2 py-0.5 text-xs text-muted">{r}</span>
               ))}
             </div>
             <div className="mt-1 flex items-center gap-3 text-xs text-muted">
-              <span>注册 {fmtDate(profile.createdAt)}</span>
-              <span>发布 {profile.publishedCount} 篇</span>
+              <span>{t("profile.public.joined", { date: fmtDate(profile.createdAt) })}</span>
+              <span>{t("profile.public.published", { n: profile.publishedCount })}</span>
             </div>
-            {isMe && <p className="mt-1 text-xs text-muted/70">这是你的公开主页</p>}
+            {isMe && <p className="mt-1 text-xs text-muted/70">{t("profile.public.mine")}</p>}
           </div>
         </div>
       </section>
@@ -112,7 +114,7 @@ export function PublicProfilePage() {
               fetchPage={(p) => api.users.activity(userId, p)}
               resetKey={userId}
               hideUser
-              emptyHint="暂无公开动态。"
+              emptyHint={t("profile.public.noActivity")}
             />
           )}
         </div>
@@ -125,6 +127,7 @@ export function PublicProfilePage() {
 // to /d/:id. Row style mirrors the role/folder feed lists (RoleBadge +
 // title + meta line).
 function ArticlesTab({ userId }: { userId: string }) {
+  const t = useT();
   const [rows, setRows] = useState<FeedArticleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -144,7 +147,7 @@ function ArticlesTab({ userId }: { userId: string }) {
   if (loading) return <div className="px-4 py-8"><DelayedLoader /></div>;
   if (error) return <div className="px-4 py-6 text-sm text-rose-600">{error}</div>;
   if (rows.length === 0) {
-    return <div className="px-4 py-8 text-center text-sm text-muted">还没有发布过文档。</div>;
+    return <div className="px-4 py-8 text-center text-sm text-muted">{t("profile.public.noArticles")}</div>;
   }
   return (
     <ul className="divide-y divide-line/60">
@@ -157,7 +160,7 @@ function ArticlesTab({ userId }: { userId: string }) {
             <RoleBadge name={a.roleName} color={a.roleColor} variant="soft" />
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium text-fg group-hover:text-primary transition">
-                {a.title || "（未命名）"}
+                {a.title || t("profile.feed.untitled")}
               </div>
               <div className="mt-0.5 flex items-center gap-4 truncate text-xs text-muted">
                 {a.folderName && <span className="truncate">{a.folderName}</span>}

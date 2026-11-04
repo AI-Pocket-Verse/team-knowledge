@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { useAuth, useIsAdmin } from "@/stores/auth";
 import { DelayedLoader } from "@/components/DelayedLoader";
 import { HomeChatRoute } from "@/components/chat/HomeChatRoute";
+import { useT } from "@/i18n";
 
 // Landing surface at `/`. Two columns:
 //   - left: empty / welcome (catalog is browsed from the left rail)
@@ -12,6 +13,7 @@ import { HomeChatRoute } from "@/components/chat/HomeChatRoute";
 //     below. Shares state with the floating AiBubble via useChatStore,
 //     so the user can continue the same conversation from either UI.
 export function WorkspaceEntry() {
+  const t = useT();
   const user = useAuth((s) => s.user);
   const isAdmin = useIsAdmin();
   const [roles, setRoles] = useState<WorkspaceRole[] | null>(null);
@@ -54,18 +56,18 @@ export function WorkspaceEntry() {
         <div className="w-[400px] shrink-0">
           <div className="rounded-xl border border-line bg-white p-8 text-center shadow-glass">
             <h2 className="text-lg font-semibold">
-              {isAdmin ? "还没有角色 / 目录" : "暂无可访问的工作区"}
+              {isAdmin ? t("workspace.entry.noRoles") : t("workspace.entry.noAccess")}
             </h2>
             <p className="mt-3 text-sm text-muted">
               {isAdmin ? (
-                <>前往管理后台创建角色 + 目录，团队就能开工。</>
+                <>{t("workspace.entry.adminHint")}</>
               ) : (
-                <>你 {user?.displayName ? `(${user.displayName}) ` : ""}还没有角色权限，请联系管理员分配角色。</>
+                <>{user?.displayName ? t("workspace.entry.noRoleNamed", { name: user.displayName }) : t("workspace.entry.noRole")}</>
               )}
             </p>
             {isAdmin && (
               <div className="mt-4 flex justify-center gap-3 text-sm">
-                <Link to="/admin/roles" className="text-primary hover:underline">前往 角色管理 →</Link>
+                <Link to="/admin/roles" className="text-primary hover:underline">{t("workspace.entry.goRoles")}</Link>
               </div>
             )}
           </div>

@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { tr } from "@/i18n";
 
 // Top-level render guard. A throw anywhere in the wrapped subtree used to
 // white-screen the whole SPA (React unmounts the entire tree when a render
@@ -64,9 +65,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-10 text-center"
         >
           <div className="text-5xl">😵</div>
-          <h1 className="text-xl font-semibold text-fg">页面出错了</h1>
+          <h1 className="text-xl font-semibold text-fg">{tr("shell.error.title")}</h1>
           <p className="max-w-sm text-sm text-muted">
-            抱歉，页面遇到了一点小问题。你可以重试，或刷新页面后再试一次。
+            {tr("shell.error.body")}
           </p>
           <div className="mt-2 flex items-center gap-3">
             <button
@@ -74,14 +75,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               onClick={this.handleRetry}
               className="rounded-lg border border-line bg-white px-4 py-1.5 text-sm transition hover:bg-blue-50 hover:text-primary"
             >
-              重试
+              {tr("common.retry")}
             </button>
             <button
               type="button"
               onClick={this.handleReload}
               className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-fg shadow-sm transition hover:bg-primary/90"
             >
-              刷新页面
+              {tr("shell.error.reload")}
             </button>
           </div>
         </div>

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth as useSsoUser } from "@team-knowledge/auth-client-web";
 import { useAuth } from "@/stores/auth";
 import { useAdminAccess, firstAdminPath } from "@/lib/adminAccess";
-import { useI18n, type LangPref } from "@/i18n";
+import { tr, useI18n, useT, type LangPref } from "@/i18n";
 
 /**
  * Top-right identity menu — a team-knowledge-local Feishu-style dropdown (no longer
@@ -33,7 +33,7 @@ export function UserMenu() {
   const localUser = useAuth((s) => s.user);
   const { user: ssoUser, isLocal } = useSsoUser();
   const openId = ssoUser?.open_id ?? null;
-  const displayName = localUser?.displayName || ssoUser?.name || "未登录";
+  const displayName = localUser?.displayName || ssoUser?.name || tr("shell.user.signedOut");
   // 真实飞书头像:本地 user 优先,回退 SSO 头像;都没有则 Avatar 回退渐变首字母。
   const avatarUrl = localUser?.avatarUrl || ssoUser?.avatar_url || null;
 
@@ -61,11 +61,11 @@ export function UserMenu() {
   // route is itself gated by <RequireManagement>; hiding the entry just keeps the
   // menu clean for non-admins). 回收站 + 关于 last, directly above 退出登录.
   const items: { label: string; icon: React.ReactNode; onClick: () => void }[] = [
-    { label: "数据看板", icon: <ChartIcon />, onClick: () => navigate("/dashboard") },
-    { label: "个人主页", icon: <PersonIcon />, onClick: () => navigate("/me/profile") },
-    ...(adminAccess.canEnter ? [{ label: "管理后台", icon: <AdminIcon />, onClick: () => navigate(firstAdminPath(adminAccess.isAdmin, adminAccess.openPages)) }] : []),
-    { label: "回收站", icon: <RecycleIcon />, onClick: () => navigate("/recycle-bin") },
-    { label: "关于", icon: <AboutIcon />, onClick: () => navigate("/about") },
+    { label: t("shell.page.dashboard"), icon: <ChartIcon />, onClick: () => navigate("/dashboard") },
+    { label: t("shell.page.profile"), icon: <PersonIcon />, onClick: () => navigate("/me/profile") },
+    ...(adminAccess.canEnter ? [{ label: t("shell.page.admin"), icon: <AdminIcon />, onClick: () => navigate(firstAdminPath(adminAccess.isAdmin, adminAccess.openPages)) }] : []),
+    { label: t("shell.page.recycleBin"), icon: <RecycleIcon />, onClick: () => navigate("/recycle-bin") },
+    { label: t("shell.page.about"), icon: <AboutIcon />, onClick: () => navigate("/about") },
   ];
 
   return (
@@ -132,7 +132,7 @@ export function UserMenu() {
             <div className="border-t border-line pt-1">
               <MenuRow
                 icon={<LogoutIcon />}
-                label="退出登录"
+                label={t("shell.user.logout")}
                 danger
                 onClick={() => { setOpen(false); void logout(); }}
               />
@@ -225,6 +225,7 @@ function IdentityIds({ userId, openId }: { userId: string | null; openId: string
 }
 
 function CopyId({ label, value }: { label: string; value: string | null }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   if (!value) return null;
   const copy = () => {
@@ -242,13 +243,13 @@ function CopyId({ label, value }: { label: string; value: string | null }) {
     <button
       type="button"
       onClick={copy}
-      title={`点击复制 ${label}:${value}`}
+      title={t("shell.user.copyTip", { label, value })}
       className="flex w-full items-center gap-1.5 text-left"
     >
       <span className="w-[52px] shrink-0 text-[10px] uppercase tracking-wide text-muted">{label}</span>
       <span className="flex-1 truncate font-mono text-[11px] text-muted">{value}</span>
       <span className={`shrink-0 text-[10px] ${copied ? "text-emerald-500" : "text-primary"}`}>
-        {copied ? "已复制" : "复制"}
+        {copied ? t("common.copied") : t("common.copy")}
       </span>
     </button>
   );

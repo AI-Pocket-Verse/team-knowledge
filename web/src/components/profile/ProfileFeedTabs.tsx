@@ -10,14 +10,15 @@ import { formatTimestamp } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
 import { getAssistantName } from "@/lib/assistantName";
+import { tr, useT } from "@/i18n";
 
 type TabKey = "activity" | "articles" | "collaborations" | "bookmarks" | "likes";
 const TABS: { key: TabKey; label: string }[] = [
-  { key: "activity",       label: "动态" },
-  { key: "articles",       label: "我的文档" },
-  { key: "collaborations", label: "我能编辑的" },
-  { key: "bookmarks",      label: "收藏" },
-  { key: "likes",          label: "点赞" },
+  { key: "activity",       get label() { return tr("profile.tab.activity"); } },
+  { key: "articles",       get label() { return tr("profile.tab.articles"); } },
+  { key: "collaborations", get label() { return tr("profile.tab.collaborations"); } },
+  { key: "bookmarks",      get label() { return tr("profile.tab.bookmarks"); } },
+  { key: "likes",          get label() { return tr("profile.tab.likes"); } },
 ];
 
 interface FeedRowProps {
@@ -26,6 +27,7 @@ interface FeedRowProps {
 }
 
 function FeedRow({ row, rightSlot }: FeedRowProps) {
+  const t = useT();
   return (
     // Hover paints a lavender row tint that previews "this row is the
     // primary thing to click" — matches the sub.png table feel. The
@@ -38,7 +40,7 @@ function FeedRow({ row, rightSlot }: FeedRowProps) {
             to={`/d/${row.id}`}
             className="truncate text-sm font-medium hover:text-primary"
           >
-            {row.title || "（未命名）"}
+            {row.title || t("profile.feed.untitled")}
           </Link>
         </div>
         <div className="mt-1 flex items-center gap-2 text-xs text-muted">
@@ -171,11 +173,12 @@ export function ProfileFeedTabs() {
 // dashboard uses per user, but self-scoped via GET /api/me/activity.
 // Paginated 10/page; `hideUser` drops the redundant name (it's always me).
 function ActivityTab() {
+  const t = useT();
   return (
     <ActivityFeed
       fetchPage={(p) => api.myActivity({ page: p })}
       hideUser
-      emptyHint={`还没有任何动态。去发布文档、评论或向 ${getAssistantName()} 提问试试。`}
+      emptyHint={t("profile.feed.activityEmpty", { name: getAssistantName() })}
     />
   );
 }
@@ -200,6 +203,7 @@ function useRowBusy() {
 }
 
 function ArticlesTab() {
+  const t = useT();
   const [rows, setRows] = useState<FeedArticleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const { isBusy, run } = useRowBusy();
@@ -238,16 +242,16 @@ function ArticlesTab() {
   }
 
   async function remove(id: string) {
-    const ok = await dialog.confirm("该操作无法撤销。", {
-      title: "确认删除该文档？",
-      confirmText: "删除",
+    const ok = await dialog.confirm(t("profile.feed.irreversible"), {
+      title: t("profile.feed.confirmDelete"),
+      confirmText: t("common.delete"),
       danger: true,
     });
     if (!ok) return;
     await run(id, async () => {
       try {
         await api.articles.delete(id);
-        toast.success("已删除");
+        toast.success(t("profile.feed.deleted"));
         await refresh();
       } catch (err) {
         toast.error((err as Error).message);
@@ -255,8 +259,8 @@ function ArticlesTab() {
     });
   }
 
-  if (loading) return <div className="px-4 py-8 text-sm text-muted">加载中…</div>;
-  if (rows.length === 0) return <div className="px-4 py-8 text-center text-sm text-muted">你还没有发布过文档。</div>;
+  if (loading) return <div className="px-4 py-8 text-sm text-muted">{t("common.loading")}</div>;
+  if (rows.length === 0) return <div className="px-4 py-8 text-center text-sm text-muted">{t("profile.feed.noArticles")}</div>;
   return (
     <div>
       {rows.map((row) => {
@@ -269,7 +273,7 @@ function ArticlesTab() {
               <div className="flex gap-0.5">
                 {row.permissions.canEdit && (
                   <IconButton
-                    title="打开"
+                    title={t("profile.feed.open")}
                     onClick={() => nav(`/d/${row.id}`)}
                   >
                     {ICON_EDIT}
@@ -280,12 +284,12 @@ function ArticlesTab() {
                     canEdit, since collaborators have canEdit but can't
                     re-grant). */}
                 {row.permissions.canManageEditors && (
-                  <IconButton title="协作者" onClick={() => setCollabArticle(row)}>
+                  <IconButton title={t("profile.feed.collaborators")} onClick={() => setCollabArticle(row)}>
                     {ICON_USERS}
                   </IconButton>
                 )}
                 {row.permissions.canEdit && (
-                  <IconButton title="删除" variant="danger" disabled={rowBusy} onClick={() => remove(row.id)}>
+                  <IconButton title={t("common.delete")} variant="danger" disabled={rowBusy} onClick={() => remove(row.id)}>
                     {ICON_TRASH}
                   </IconButton>
                 )}
@@ -299,7 +303,7 @@ function ArticlesTab() {
           open
           onOpenChange={(open) => { if (!open) setCollabArticle(null); }}
           articleId={collabArticle.id}
-          articleTitle={collabArticle.title || "（未命名）"}
+          articleTitle={collabArticle.title || t("profile.feed.untitled")}
         />
       )}
     </div>
@@ -307,6 +311,7 @@ function ArticlesTab() {
 }
 
 function CollaborationsTab() {
+  const t = useT();
   const [rows, setRows] = useState<CollaborationRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -327,14 +332,14 @@ function CollaborationsTab() {
     return () => { cancelled = true; };
   }, []);
 
-  if (loading) return <div className="px-4 py-8 text-sm text-muted">加载中…</div>;
+  if (loading) return <div className="px-4 py-8 text-sm text-muted">{t("common.loading")}</div>;
   if (rows.length === 0) {
     // Friendly empty state — "you don't have any collaborations" is
     // genuinely uncommon (the author has to grant you) so we briefly
     // explain how grants happen.
     return (
       <div className="px-4 py-8 text-center text-sm text-muted">
-        你还没有被任何文档作者添加为协作者。
+        {t("profile.feed.noCollabs")}
       </div>
     );
   }
@@ -357,8 +362,8 @@ function CollaborationsTab() {
             a.permissions.canEdit && (
               <Link
                 to={`/d/${a.id}`}
-                title="打开"
-                aria-label="打开"
+                title={t("profile.feed.open")}
+                aria-label={t("profile.feed.open")}
                 className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-muted transition hover:bg-blue-100 hover:text-primary"
               >
                 {ICON_EDIT}
@@ -372,6 +377,7 @@ function CollaborationsTab() {
 }
 
 function BookmarksTab() {
+  const t = useT();
   const [rows, setRows] = useState<{ article: ArticleWithRelations; createdAt: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const { isBusy, run } = useRowBusy();
@@ -406,7 +412,7 @@ function BookmarksTab() {
     await run(id, async () => {
       try {
         await api.bookmarks.remove(id);
-        toast.success("已取消收藏");
+        toast.success(t("profile.feed.unbookmarked"));
         await refresh();
       } catch (err) {
         toast.error((err as Error).message);
@@ -414,8 +420,8 @@ function BookmarksTab() {
     });
   }
 
-  if (loading) return <div className="px-4 py-8 text-sm text-muted">加载中…</div>;
-  if (rows.length === 0) return <div className="px-4 py-8 text-center text-sm text-muted">还没有收藏任何文档。</div>;
+  if (loading) return <div className="px-4 py-8 text-sm text-muted">{t("common.loading")}</div>;
+  if (rows.length === 0) return <div className="px-4 py-8 text-center text-sm text-muted">{t("profile.feed.noBookmarks")}</div>;
   return (
     <div>
       {rows.map(({ article: a }) => (
@@ -433,7 +439,7 @@ function BookmarksTab() {
             permissions: a.permissions,
           }}
           rightSlot={
-            <IconButton title="取消收藏" disabled={isBusy(a.id)} onClick={() => unbookmark(a.id)}>
+            <IconButton title={t("profile.feed.unbookmark")} disabled={isBusy(a.id)} onClick={() => unbookmark(a.id)}>
               {ICON_BOOKMARK_OFF}
             </IconButton>
           }
@@ -444,6 +450,7 @@ function BookmarksTab() {
 }
 
 function LikesTab() {
+  const t = useT();
   // The outer entry's `likedAt` is the like timestamp; row.updatedAt
   // is the article timestamp. Renaming from the older `createdAt`
   // collision per audit findings.
@@ -481,7 +488,7 @@ function LikesTab() {
     await run(id, async () => {
       try {
         await api.likes.remove(id);
-        toast.success("已取消点赞");
+        toast.success(t("profile.feed.unliked"));
         await refresh();
       } catch (err) {
         toast.error((err as Error).message);
@@ -489,8 +496,8 @@ function LikesTab() {
     });
   }
 
-  if (loading) return <div className="px-4 py-8 text-sm text-muted">加载中…</div>;
-  if (rows.length === 0) return <div className="px-4 py-8 text-center text-sm text-muted">还没有点赞任何文档。</div>;
+  if (loading) return <div className="px-4 py-8 text-sm text-muted">{t("common.loading")}</div>;
+  if (rows.length === 0) return <div className="px-4 py-8 text-center text-sm text-muted">{t("profile.feed.noLikes")}</div>;
   return (
     <div>
       {rows.map(({ row }) => (
@@ -498,7 +505,7 @@ function LikesTab() {
           key={row.id}
           row={row}
           rightSlot={
-            <IconButton title="取消点赞" disabled={isBusy(row.id)} onClick={() => unlike(row.id)}>
+            <IconButton title={t("profile.feed.unlike")} disabled={isBusy(row.id)} onClick={() => unlike(row.id)}>
               {ICON_HEART_OFF}
             </IconButton>
           }

@@ -1,15 +1,18 @@
 import { CHANGELOG, CURRENT_VERSION, type ChangelogKind } from "@/lib/changelog";
+import { changelogItems } from "@team-knowledge/shared";
+import { tr, useI18n } from "@/i18n";
 
 // 关于 page — shows the product, current version, and the changelog.
 // Reached from the user-avatar menu (entry sits above 退出登录).
 
 const KIND_BADGE: Record<ChangelogKind, { label: string; cls: string }> = {
-  major: { label: "大版本", cls: "bg-accent-soft text-primary" },
-  minor: { label: "功能", cls: "bg-emerald-50 text-emerald-700" },
-  patch: { label: "修复", cls: "bg-surface text-muted" },
+  major: { get label() { return tr("profile.about.kind.major"); }, cls: "bg-accent-soft text-primary" },
+  minor: { get label() { return tr("profile.about.kind.minor"); }, cls: "bg-emerald-50 text-emerald-700" },
+  patch: { get label() { return tr("profile.about.kind.patch"); }, cls: "bg-surface text-muted" },
 };
 
 export function AboutPage() {
+  const { t, lang } = useI18n();
   return (
     <div className="flex flex-col gap-6">
       <header className="flex items-center gap-4">
@@ -17,15 +20,15 @@ export function AboutPage() {
           A
         </div>
         <div>
-          <h1 className="text-xl font-semibold text-fg">团队知识库</h1>
+          <h1 className="text-xl font-semibold text-fg">{t("app.productName")}</h1>
           <p className="mt-0.5 text-sm text-muted">
-            当前版本 <span className="font-medium text-fg">v{CURRENT_VERSION}</span>
+            {t("profile.about.version")} <span className="font-medium text-fg">v{CURRENT_VERSION}</span>
           </p>
         </div>
       </header>
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-muted">更新日志</h2>
+        <h2 className="mb-3 text-sm font-semibold text-muted">{t("profile.about.changelog")}</h2>
         <ol className="relative flex flex-col gap-4 border-l border-line pl-5">
           {CHANGELOG.map((entry) => {
             const badge = KIND_BADGE[entry.kind];
@@ -42,7 +45,7 @@ export function AboutPage() {
                     {entry.date && <span className="ml-auto text-xs text-muted">{entry.date}</span>}
                   </div>
                   <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-fg/80">
-                    {entry.items.map((it, i) => (
+                    {changelogItems(entry, lang).map((it, i) => (
                       <li key={i}>{it}</li>
                     ))}
                   </ul>

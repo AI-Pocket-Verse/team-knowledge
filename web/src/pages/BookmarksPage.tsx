@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { fmtDate } from "@/lib/relativeTime";
 import { DelayedLoader } from "@/components/DelayedLoader";
 import { toast } from "@/components/Toaster";
+import { useT } from "@/i18n";
 
 interface Row {
   article: ArticleWithRelations;
@@ -12,6 +13,7 @@ interface Row {
 }
 
 export function BookmarksPage() {
+  const t = useT();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,10 +55,10 @@ export function BookmarksPage() {
   return (
     <div className="flex flex-col gap-4">
       {/* 标题「收藏」已在右区顶栏显示;这里只留数量小字(飞书:标题不重复)。 */}
-      {rows.length > 0 && <p className="text-sm text-muted">共 {rows.length} 篇</p>}
+      {rows.length > 0 && <p className="text-sm text-muted">{t("profile.bookmarks.count", { n: rows.length })}</p>}
       {rows.length === 0 ? (
         <div className="rounded-xl border border-line bg-white px-8 py-10 text-center text-sm text-muted shadow-glass">
-          尚未收藏任何文档。在文档页点击 ★ 即可收藏。
+          {t("profile.bookmarks.empty")}
         </div>
       ) : (
         <ul className="rounded-xl border border-line bg-white divide-y divide-line overflow-hidden shadow-glass">
@@ -67,7 +69,7 @@ export function BookmarksPage() {
                 onClick={() => unbookmark(a.id)}
                 disabled={busy.has(a.id)}
                 className="text-amber-500 disabled:opacity-50"
-                aria-label="取消收藏"
+                aria-label={t("profile.feed.unbookmark")}
               >★</button>
               <Link to={`/d/${a.id}`} className="font-medium text-fg hover:text-primary flex-1">
                 {a.title}

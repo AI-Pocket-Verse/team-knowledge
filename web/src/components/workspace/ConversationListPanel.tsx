@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import type { ConversationListItem } from "@/lib/api";
 import { dialog } from "@/components/Dialog";
 import { useAnchoredMenu } from "@/lib/useAnchoredMenu";
+import { useT } from "@/i18n";
 
 // 左栏「对话」模式的会话列表:顶部「＋ 新对话」+ 会话项(标题/飞书标记/置顶标 + 悬停 ⋯ 菜单)。
 // ⋯ 菜单(仿 ChatGPT):重命名 / 置顶·取消置顶 / 删除。改名走行内编辑(input),删除走 dialog.confirm。
@@ -20,6 +21,7 @@ export function ConversationListPanel({
   loadingMore?: boolean;
   onLoadMore?: () => void;
 }) {
+  const t = useT();
   // 行内重命名:editingId 为正在编辑的会话 id,draft 为输入草稿。
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -56,7 +58,7 @@ export function ConversationListPanel({
   }
   function confirmDelete(id: string) {
     void dialog
-      .confirm("删除这条对话?对话内的消息将一并删除,且无法恢复。", { confirmText: "删除", danger: true })
+      .confirm(t("workspace.conv.confirmDelete"), { confirmText: t("common.delete"), danger: true })
       .then((ok) => { if (ok) onDelete(id); });
   }
 
@@ -69,15 +71,15 @@ export function ConversationListPanel({
         onClick={onNew}
         className="mx-2 mb-2 flex h-9 items-center justify-center gap-1.5 rounded-lg border border-dashed border-primary bg-accent-soft text-sm font-medium text-primary transition hover:opacity-90"
       >
-        ＋ 新对话
+        {t("workspace.conv.new")}
       </button>
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
         {items.length === 0 ? (
-          <p className="px-3 py-4 text-center text-xs text-muted">还没有对话,点「＋ 新对话」开始</p>
+          <p className="px-3 py-4 text-center text-xs text-muted">{t("workspace.conv.empty")}</p>
         ) : (
           <>
           {items.map((c) => {
-            const title = c.title?.trim() || (c.isFeishu ? "飞书对话" : "新对话");
+            const title = c.title?.trim() || (c.isFeishu ? t("workspace.conv.feishuChat") : t("workspace.conv.newChat"));
             const on = c.id === activeId;
             const editing = editingId === c.id;
             const menuOpen = menuId === c.id;
@@ -113,24 +115,24 @@ export function ConversationListPanel({
                     }}
                     onBlur={() => commitRename(c.id)}
                     maxLength={60}
-                    aria-label="对话标题"
+                    aria-label={t("workspace.conv.titleLabel")}
                     className="min-w-0 flex-1 rounded border border-primary bg-white px-1.5 py-0.5 text-sm outline-none"
                   />
                 ) : (
                   <span className="min-w-0 flex-1 truncate">{title}</span>
                 )}
                 {!editing && c.pinned && !c.isFeishu && (
-                  <span className="shrink-0 text-muted" title="已置顶"><PinIcon /></span>
+                  <span className="shrink-0 text-muted" title={t("workspace.conv.pinned")}><PinIcon /></span>
                 )}
                 {!editing && (c.isFeishu ? (
-                  <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium leading-tight text-primary">飞书</span>
+                  <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium leading-tight text-primary">{t("workspace.conv.feishu")}</span>
                 ) : (
                   <button
                     type="button"
-                    aria-label="更多操作"
+                    aria-label={t("workspace.more")}
                     aria-haspopup="menu"
                     aria-expanded={menuOpen}
-                    title="更多操作"
+                    title={t("workspace.more")}
                     onClick={(e) => {
                       e.stopPropagation();
                       anchorRef.current = e.currentTarget;
@@ -151,7 +153,7 @@ export function ConversationListPanel({
               disabled={loadingMore}
               className="mx-1 mb-1 mt-0.5 h-8 shrink-0 rounded-lg text-xs text-muted transition hover:bg-surface disabled:opacity-60"
             >
-              {loadingMore ? "加载中…" : "加载更多"}
+              {loadingMore ? t("common.loading") : t("workspace.conv.loadMore")}
             </button>
           )}
           </>
@@ -169,10 +171,10 @@ export function ConversationListPanel({
             top: placement?.top, left: placement?.left, maxHeight: placement?.maxHeight,
           }}
         >
-          <MenuRow icon={<RenameIcon />} label="重命名" onClick={() => { setMenuId(null); startRename(menuConv); }} />
-          <MenuRow icon={<PinIcon />} label={menuConv.pinned ? "取消置顶" : "置顶"} onClick={() => { setMenuId(null); onPin(menuConv.id, !menuConv.pinned); }} />
+          <MenuRow icon={<RenameIcon />} label={t("workspace.rename")} onClick={() => { setMenuId(null); startRename(menuConv); }} />
+          <MenuRow icon={<PinIcon />} label={menuConv.pinned ? t("workspace.unpin") : t("workspace.pin")} onClick={() => { setMenuId(null); onPin(menuConv.id, !menuConv.pinned); }} />
           <div className="my-1 border-t border-line" />
-          <MenuRow icon={<TrashIcon />} label="删除" danger onClick={() => { setMenuId(null); confirmDelete(menuConv.id); }} />
+          <MenuRow icon={<TrashIcon />} label={t("common.delete")} danger onClick={() => { setMenuId(null); confirmDelete(menuConv.id); }} />
         </div>
       )}
     </div>
