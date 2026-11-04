@@ -4,7 +4,7 @@
 //   POST /api/agents/escalations/:id/resolve  站内回流(负责人在待办里拍板)
 //   GET  /api/me/escalations                  我作为负责人的待办升级单
 // 注:编排非流式(orchestrate 全程 await),故 chat 走 JSON(非 SSE);token 级流式留作后续细化。
-import { L } from "../utils/lang.js";
+import { L, requestLang } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -82,7 +82,7 @@ export async function expertsRoutes(app: FastifyInstance): Promise<void> {
     // 图片归属校验(必须是该用户自己的上传、且确为图片)→ 绝对路径。失败按输入错误回(SSE 未开)。
     let chatImages: { urls: string[]; absPaths: string[] };
     try {
-      chatImages = await resolveChatImages(user.id, parsed.data.images ?? []);
+      chatImages = await resolveChatImages(user.id, parsed.data.images ?? [], requestLang(req));
     } catch (e) {
       return reply.code(400).send({ error: "invalid_input", message: (e as Error).message });
     }
@@ -137,6 +137,7 @@ export async function expertsRoutes(app: FastifyInstance): Promise<void> {
           targetRoleIds: parsed.data.targetRoleIds,
           conversationId: conv.id,
           requestingUserId: user.id,   // 升级单初始指派给提问者
+          lang: requestLang(req),
           mentions: resolved, images: chatImages.absPaths, history,
           summary: conv.summary ?? undefined, chatPreference: user.chatPreference ?? undefined,
           runExpertLlm: callExpertLlm,

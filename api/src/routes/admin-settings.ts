@@ -1,4 +1,4 @@
-import { L } from "../utils/lang.js";
+import { L, requestLang } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireUser } from "../utils/guards.js";
@@ -16,7 +16,7 @@ import { getModelDisplayAdmin, setModelDisplayConfig } from "../services/llm/mod
 import { getReviewSettings, setReviewSettings } from "../services/article-review/config.js";
 import { getDocAuditTuning, setDocAuditTuning } from "../services/doc-audit/config.js";
 import { getWebNotifySettings, setWebNotifySettings } from "../utils/notify/webNotifySettings.js";
-import { ELIGIBLE_PAGES, getVisibilityMap, setPageVisibility, requireAdminOrOpenPage } from "../services/admin-visibility/index.js";
+import { ELIGIBLE_PAGES, eligiblePages, getVisibilityMap, setPageVisibility, requireAdminOrOpenPage } from "../services/admin-visibility/index.js";
 import { maskSecret, isMaskedSecret } from "../services/volcAuth.js";
 import { invalidateSttProviderCache } from "../services/stt/registry.js";
 import { invalidateTtsProviderCache } from "../services/tts/registry.js";
@@ -183,7 +183,7 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: "invalid_input", message: L(req, `${which} 路径需为绝对路径（以 / 开头）`, `${which} path must be absolute (starting with /)`) });
       }
       if (val) {
-        const check = await verifyCliBinary(which, val);
+        const check = await verifyCliBinary(which, val, requestLang(req));
         if (!check.ok) {
           req.log.warn({ event: "llm.binaries_rejected", which, path: val, by: user.id, reason: check.error }, "llm cli path rejected");
           return reply.code(400).send({ error: check.error, message: check.message });
@@ -446,7 +446,7 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     if (!user.isAdmin) return reply.code(403).send({ error: "forbidden", message: L(req, "仅管理员可用", "Admins only") });
     const map = await getVisibilityMap();
-    return { pages: ELIGIBLE_PAGES.map((p) => ({ key: p.key, label: p.label, visibility: map[p.key] })) };
+    return { pages: eligiblePages(requestLang(req)).map((p) => ({ key: p.key, label: p.label, visibility: map[p.key] })) };
   });
 
   app.patch("/api/admin/page-visibility", async (req, reply) => {
@@ -461,6 +461,6 @@ export async function adminSettingsRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: L(req, "参数错误(key 必须是可配置页面)", "Invalid parameters (key must be a configurable page)") });
     const map = await setPageVisibility(parsed.data.key, parsed.data.visibility, user.id);
     req.log.info({ event: "admin.page_visibility_updated", ...parsed.data, by: user.id }, "page visibility updated");
-    return { pages: ELIGIBLE_PAGES.map((p) => ({ key: p.key, label: p.label, visibility: map[p.key] })) };
+    return { pages: eligiblePages(requestLang(req)).map((p) => ({ key: p.key, label: p.label, visibility: map[p.key] })) };
   });
 }

@@ -3,7 +3,7 @@
 //   GET  /api/admin/article-review/dismissed  列出忽略集(关联文章标题;跳过已删/不存在文章)
 //   POST /api/admin/article-review/undismiss  撤销某文章某条问题的忽略,并触发复检使其(如仍存在)重新冒出
 // 一键优化 / 应用 / 忽略(整篇)沿用 routes/articles.ts 的 /articles/:id/review/*(管理员有编辑权)。
-import { L } from "../utils/lang.js";
+import { L, requestLang } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -87,7 +87,7 @@ export async function adminArticleReviewRoutes(app: FastifyInstance): Promise<vo
     // (否则 reviewedAt 仍 >= updatedAt,撤销忽略后问题永远不会再冒出来)。$executeRaw 不 bump updatedAt。
     await prisma.$executeRaw`UPDATE "Article" SET "reviewedHash" = NULL, "reviewedAt" = NULL WHERE "id" = ${parsed.data.articleId}`;
     // 立即异步复检一次(快速反馈);失败也无妨,扫描器兜底。
-    trackBestEffort(reviewArticle(parsed.data.articleId, { notify: false }));
+    trackBestEffort(reviewArticle(parsed.data.articleId, { notify: false, lang: requestLang(req) }));
     return { ok: true };
   });
 }

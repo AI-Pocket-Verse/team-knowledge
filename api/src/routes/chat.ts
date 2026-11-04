@@ -276,6 +276,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         images: parsed.data.images ?? [],
         signal: ac.signal,
         log: req.log,
+        lang: requestLang(req),
         onChunk: (c) => {
           const w = ensureSse();
           if (c.type === "cited") w.send("cited", { articleIds: c.articleIds, refs: c.refs });
@@ -384,7 +385,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     try {
       // 名额在渲染进程结束后才释放(onExit);超时会结束渲染进程并回 503。
       png = await renderChatSharePng(messagesForRender, {
-        title: parsed.data.title, dateLabel, skippedImages, timeoutMs: SHARE_IMAGE_RENDER_MS, onExit: finishUser,
+        title: parsed.data.title, dateLabel, skippedImages, timeoutMs: SHARE_IMAGE_RENDER_MS, onExit: finishUser, lang: requestLang(req),
       });
     } catch (e) {
       req.log.warn({ err: (e as Error).message }, "share image render failed");

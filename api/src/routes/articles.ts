@@ -7,7 +7,7 @@ import { addDismissed } from "../services/article-review/dismiss.js";
 import { clearReviewNotifications } from "../services/article-review/notify.js";
 import { callReviewLlm, fetchRelatedDocs, contentHash, type ReviewLlmDiag } from "../services/article-review/review.js";
 import { hashReviewFindings, type HashedReviewFinding } from "../services/article-review/findings.js";
-import { OPTIMIZE_SYSTEM, buildOptimizeUserMessage } from "../services/article-review/prompt.js";
+import { optimizeSystem, buildOptimizeUserMessage } from "../services/article-review/prompt.js";
 import { parseOptimizeEdits, applyOptimizeEdits } from "../services/article-review/optimize-patch.js";
 import { markRoleSkillStale } from "../services/role-skill/stale.js";
 import {
@@ -588,7 +588,7 @@ export async function articleRoutes(app: FastifyInstance): Promise<void> {
       // 不再把 token 逐字转发给前端(输出是补丁 JSON,「已生成 N 字」无意义);心跳注释单独保活,
       // 前端遮罩改用「已用时」计时器。callReviewLlm 内部仍累积完整输出并返回。
       const text = await callReviewLlm(
-        OPTIMIZE_SYSTEM,
+        optimizeSystem(requestLang(req)),
         buildOptimizeUserMessage({ title: ctx.article.title, body: ctx.article.contentMarkdown }, findings, related),
         ac.signal,
         undefined,

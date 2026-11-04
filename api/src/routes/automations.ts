@@ -1,5 +1,5 @@
 // 自动化(定时 AI 任务)API。全部 requireUser + 归属个人;写操作经 service 做归属校验与调度重算。
-import { L } from "../utils/lang.js";
+import { L, requestLang } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireUser } from "../utils/guards.js";
@@ -9,7 +9,7 @@ import {
   type AutomationInput,
 } from "../services/automation/service.js";
 import { runAutomation, isAutomationRunning } from "../services/automation/run.js";
-import { AUTOMATION_TEMPLATES } from "../services/automation/templates.js";
+import { automationTemplates } from "../services/automation/templates.js";
 
 const inputSchema = z.object({
   name: z.string().min(1).max(100),
@@ -26,8 +26,8 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/automations", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    const { automations, recentRuns, runsHasMore } = await listAutomations(user.id);
-    return { automations, recentRuns, runsHasMore, templates: AUTOMATION_TEMPLATES };
+    const { automations, recentRuns, runsHasMore } = await listAutomations(user.id, requestLang(req));
+    return { automations, recentRuns, runsHasMore, templates: automationTemplates(requestLang(req)) };
   });
 
   // 运行记录分页(「已完成」加载更多):每页 10 条,cursor=上一页最后一条 id。放在 /:id 之前。
@@ -60,7 +60,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>("/api/automations/:id", async (req, reply) => {
     const user = await requireUser(req, reply);
     if (!user) return;
-    const a = await getAutomation(user.id, req.params.id);
+    const a = await getAutomation(user.id, req.params.id, requestLang(req));
     if (!a) return reply.code(404).send({ error: "not_found", message: L(req, "任务不存在", "Job not found") });
     return a;
   });
@@ -71,7 +71,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
     const parsed = inputSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数不合法", "Invalid parameters") });
     try {
-      return await createAutomation(user.id, parsed.data as AutomationInput);
+      return await createAutomation(user.id, parsed.data as AutomationInput, requestLang(req));
     } catch (e) {
       if (isInputError(e)) return reply.code(400).send({ error: "invalid_input", message: e.message });
       throw e;
@@ -84,7 +84,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
     const parsed = inputSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数不合法", "Invalid parameters") });
     try {
-      const a = await updateAutomation(user.id, req.params.id, parsed.data as AutomationInput);
+      const a = await updateAutomation(user.id, req.params.id, parsed.data as AutomationInput, requestLang(req));
       if (!a) return reply.code(404).send({ error: "not_found", message: L(req, "任务不存在", "Job not found") });
       return a;
     } catch (e) {
@@ -106,7 +106,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
     app.post<{ Params: { id: string } }>(`/api/automations/:id/${path}`, async (req, reply) => {
       const user = await requireUser(req, reply);
       if (!user) return;
-      const a = await setAutomationEnabled(user.id, req.params.id, enabled);
+      const a = await setAutomationEnabled(user.id, req.params.id, enabled, requestLang(req));
       if (!a) return reply.code(404).send({ error: "not_found", message: L(req, "任务不存在", "Job not found") });
       return a;
     });
@@ -118,7 +118,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     const parsed = z.object({ pinned: z.boolean() }).safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: L(req, "参数不合法", "Invalid parameters") });
-    const a = await setAutomationPinned(user.id, req.params.id, parsed.data.pinned);
+    const a = await setAutomationPinned(user.id, req.params.id, parsed.data.pinned, requestLang(req));
     if (!a) return reply.code(404).send({ error: "not_found", message: L(req, "任务不存在", "Job not found") });
     return a;
   });
@@ -130,7 +130,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
     if (!user) return;
     if (!(await ownsAutomation(user.id, req.params.id))) return reply.code(404).send({ error: "not_found", message: L(req, "任务不存在", "Job not found") });
     if (isAutomationRunning(req.params.id)) return reply.code(202).send({ started: false, alreadyRunning: true });
-    void runAutomation(req.params.id, { isTest: true, log: req.log }).catch((e) => req.log.error({ err: e }, "[automation] test run failed"));
+    void runAutomation(req.params.id, { isTest: true, log: req.log, lang: requestLang(req) }).catch((e) => req.log.error({ err: e }, "[automation] test run failed"));
     return reply.code(202).send({ started: true });
   });
 }

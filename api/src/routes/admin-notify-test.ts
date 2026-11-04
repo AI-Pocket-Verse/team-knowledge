@@ -4,7 +4,7 @@
 // - PATCH /api/admin/notify-test/scenarios/:key   更新配置 { enabled?, chatIds? }
 // - POST  /api/admin/notify-test/send             手动触发(异步)→ 202 { jobId }
 // - GET   /api/admin/notify-test/send/:jobId      查询发送结果(前端轮询)
-import { L } from "../utils/lang.js";
+import { L, requestLang } from "../utils/lang.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireAdmin } from "../utils/guards.js";
@@ -31,7 +31,7 @@ export async function adminNotifyTestRoutes(app: FastifyInstance): Promise<void>
   app.get("/api/admin/notify-test/scenarios", async (req, reply) => {
     const user = await requireAdmin(req, reply);
     if (!user) return;
-    return { scenarios: await listScenarios() };
+    return { scenarios: await listScenarios(requestLang(req)) };
   });
 
   // 更新单个任务的配置(目标群多选 / 自动任务开关),立即生效:
@@ -52,7 +52,7 @@ export async function adminNotifyTestRoutes(app: FastifyInstance): Promise<void>
       // 触发时刻改了 → 调度器立即按新配置重排下一次(非定时场景为 no-op)。
       if (parsed.data.schedule) rescheduleNotifyCron(key);
       // 回最新完整场景(含按新配置生成的 schedule 文案 / cronSchedule / running)。
-      const scenario = (await listScenarios()).find((s) => s.key === key)!;
+      const scenario = (await listScenarios(requestLang(req))).find((s) => s.key === key)!;
       return { scenario };
     } catch (e) {
       return reply.code(400).send({ error: "invalid_input", message: (e as Error).message });
@@ -67,14 +67,14 @@ export async function adminNotifyTestRoutes(app: FastifyInstance): Promise<void>
     if (!user) return;
     const parsed = sendSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "invalid_input", message: parsed.error.issues[0]?.message ?? L(req, "参数错误", "Invalid parameters") });
-    const meta = scenarioMetaByKey(parsed.data.key);
+    const meta = scenarioMetaByKey(parsed.data.key, requestLang(req));
     if (!meta) return reply.code(400).send({ error: "invalid_input", message: L(req, `未知的通知场景:${parsed.data.key}`, `Unknown notification scenario: ${parsed.data.key}`) });
     const cfg = await getScenarioNotifyConfig(meta.key);
     if (cfg.chatIds.length === 0) {
       return reply.code(400).send({ error: "no_target", message: L(req, `「${meta.title}」未勾选目标群聊,请先在下方勾选至少一个群。`, `No target group chat selected for "${meta.title}". Select at least one group below first.`) });
     }
     try {
-      const job = startSendJob(meta.key);
+      const job = startSendJob(meta.key, { lang: requestLang(req) });
       reply.code(202);
       return { jobId: job.id };
     } catch (e) {

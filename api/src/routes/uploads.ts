@@ -1,4 +1,4 @@
-import { L } from "../utils/lang.js";
+import { L, requestLang } from "../utils/lang.js";
 import type { FastifyInstance } from "fastify";
 import { BLOCKED_UPLOAD_EXT } from "../utils/uploadPolicy.js";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -69,7 +69,7 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
     // 飞书入站图片共用同一内核(services/uploads/image-store.ts)。articleId
     // 起始为 null;嵌入文章保存时由 bindUploadsToArticle 绑定。
     try {
-      const stored = await storeImageBuffer(buffer, user.id, file.mimetype);
+      const stored = await storeImageBuffer(buffer, user.id, file.mimetype, { lang: requestLang(req) });
       reply.code(201);
       return { url: stored.url, bytes: stored.bytes };
     } catch (e) {
