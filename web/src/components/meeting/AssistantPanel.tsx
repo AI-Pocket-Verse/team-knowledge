@@ -327,7 +327,7 @@ export function AssistantPanel({
                           title={r.title}
                           className="max-w-[14rem] truncate text-primary hover:underline"
                         >
-                          《{r.title}》
+                          {t("meeting.docRef", { title: r.title })}
                         </Link>
                       ))}
                       {c.citedArticleIds.length > c.citedRefs.length && (

@@ -4,7 +4,7 @@
 
 带 AI 助手的团队知识库：按「角色 → 目录 → 文档」组织团队知识，AI 助手基于知识库回答问题并标注出处，还能参与会议、定期体检文档、把知识整理成可直接给 Claude / Codex 使用的 skill。可以自建部署，数据都在你自己的服务器上。
 
-![工作台：左侧是角色与目录树，右侧打开一篇文档](docs/screenshots/workspace.png)
+![工作台：左侧是角色与目录树，右侧打开一篇文档](docs/screenshots/zh/workspace.png)
 
 - **知识库**：角色、两级目录、文档三层组织，登录成员可阅读全部文档，角色决定编辑权；Markdown 编辑器打开即编辑、自动保存；历史版本回滚、回收站；全文检索、点赞评论收藏、协同编辑者；拖入 .md 导入
 - **AI 问答**：基于知识库检索作答并附引用，多轮对话、图片提问、生成图片；可以按「专家」限定检索范围
@@ -21,35 +21,41 @@
 
 界面支持中文与英文，只有浅色主题，面向桌面浏览器（建议窗口宽度 1024px 以上），暂不适配手机窄屏与深色模式。前端不从外部加载字体等资源，内网也能正常使用。
 
+## 演示
+
+两分钟走一遍主要功能：向助手提问、打开并编辑文档、评论与搜索、角色 Skill、会议与 AI 纪要、自动化、文档校验、数据看板、切换 AI 引擎与模型、切换界面语言。等待 AI 回答的部分加速 5 倍，其余为实际速度。
+
+![功能演示](docs/demo/demo-zh.gif)
+
 ## 截图
 
 **AI 问答**：检索知识库作答，回答下方列出引用的文档，点击即可跳转原文。
 
-![AI 问答：回答附知识库引用](docs/screenshots/ai-chat.png)
+![AI 问答：回答附知识库引用](docs/screenshots/zh/ai-chat.png)
 
 **会议助手**：实时转写，会后由 AI 生成纪要，可一键存为文档。
 
-![会议：转写与 AI 纪要](docs/screenshots/meeting.png)
+![会议：转写与 AI 纪要](docs/screenshots/zh/meeting.png)
 
 **文档质量**：AI 找出文档里的矛盾、错误与可优化点，并给出修改建议。
 
-![文档校验结果](docs/screenshots/doc-review.png)
+![文档校验结果](docs/screenshots/zh/doc-review.png)
 
 **角色 Skill**：把一个角色下的全部文档汇总成 skill.md，可直接交给 Claude / Codex 使用。
 
-![角色 Skill](docs/screenshots/role-skill.png)
+![角色 Skill](docs/screenshots/zh/role-skill.png)
 
 **数据看板**：文档与问答趋势、贡献排行、实时动态。
 
-![数据看板](docs/screenshots/dashboard.png)
+![数据看板](docs/screenshots/zh/dashboard.png)
 
 **自动化**：定时让 AI 执行任务，结果推送到站内通知或飞书群。
 
-![自动化任务](docs/screenshots/automation.png)
+![自动化任务](docs/screenshots/zh/automation.png)
 
 **AI 引擎**：切换 Claude Code / Codex，并为每个引擎选择模型。
 
-![管理后台 AI 引擎页](docs/screenshots/admin-ai-engine.png)
+![管理后台 AI 引擎页](docs/screenshots/zh/admin-ai-engine.png)
 
 截图里的团队、成员与文档内容均为虚构。
 

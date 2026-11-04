@@ -166,10 +166,11 @@ export const zh = {
   "meeting.room.consent3": "所有参会者会在顶部看到 🔴 录制中 标识。",
   "meeting.room.consent4": "你可以随时点击「静音」或「停止录制」结束采集。",
   "meeting.room.agree": "同意并开始",
+  "meeting.docRef": "《{title}》",
 } satisfies Record<string, string>;
 
 export const en: Record<keyof typeof zh, string> = {
-  "meeting.trigger.explicit_wake": "Called",
+  "meeting.trigger.explicit_wake": "Wake word",
   "meeting.trigger.keyword": "Keyword",
   "meeting.trigger.silence": "Silence",
   "meeting.trigger.proactive": "Proactive",
@@ -335,4 +336,5 @@ export const en: Record<keyof typeof zh, string> = {
   "meeting.room.consent3": "All participants will see a 🔴 Recording indicator at the top.",
   "meeting.room.consent4": "You can click \"Mute\" or \"Stop recording\" at any time to stop capturing.",
   "meeting.room.agree": "Agree and start",
+  "meeting.docRef": "“{title}”",
 };

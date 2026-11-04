@@ -4,7 +4,7 @@ English | [简体中文](README-CN.md)
 
 A self-hosted team knowledge base with an AI assistant. Knowledge is organized as **roles → folders → documents**; the assistant answers questions from the knowledge base with citations, joins meetings, audits documents on a schedule, and distills each role's documents into a skill file you can hand straight to Claude or Codex. Everything runs on your own server.
 
-![Workspace: the role and folder tree on the left, an open document on the right](docs/screenshots/workspace.png)
+![Workspace: the role and folder tree on the left, an open document on the right](docs/screenshots/en/workspace.png)
 
 - **Knowledge base**: roles, two levels of folders and documents. Every signed-in member can read everything; roles decide who can edit. A Markdown editor that is always in edit mode and saves automatically, version history with rollback, a recycle bin, full-text search, likes, comments, bookmarks, co-editors, and drag-and-drop `.md` import
 - **AI Q&A**: answers grounded in the knowledge base with citations, multi-turn conversations, questions about images, image generation, and "experts" that narrow retrieval to part of the knowledge base
@@ -21,35 +21,41 @@ Stack: Fastify + Prisma (SQLite) backend, React + Vite + Tailwind + Milkdown fro
 
 > The UI is available in Chinese and English, with a light theme, built for desktop browsers (1024 px wide or more); narrow mobile screens and dark mode are not supported. The frontend loads no external fonts or other resources, so it also works on an intranet.
 
+## Demo
+
+A two-minute walkthrough: asking the assistant a question, opening and editing a document, comments and search, role skills, a meeting with AI minutes, automations, document review, the dashboard, choosing the AI engine and model, and switching the UI language. The wait for the AI answer is sped up 5×; everything else plays in real time.
+
+![Feature walkthrough](docs/demo/demo-en.gif)
+
 ## Screenshots
 
 **AI Q&A**: answers come from the knowledge base, with the cited documents listed below each answer; click one to open the source.
 
-![AI Q&A with knowledge base citations](docs/screenshots/ai-chat.png)
+![AI Q&A with knowledge base citations](docs/screenshots/en/ai-chat.png)
 
 **Meeting assistant**: a live transcript during the meeting and AI-written minutes afterwards, which can be saved as a document in one click.
 
-![Meeting transcript and AI minutes](docs/screenshots/meeting.png)
+![Meeting transcript and AI minutes](docs/screenshots/en/meeting.png)
 
 **Document quality**: the AI points out contradictions, mistakes and possible improvements, with suggested edits.
 
-![Document review results](docs/screenshots/doc-review.png)
+![Document review results](docs/screenshots/en/doc-review.png)
 
 **Role skills**: all documents of a role summarized into a `skill.md` that Claude or Codex can use directly.
 
-![Role skill](docs/screenshots/role-skill.png)
+![Role skill](docs/screenshots/en/role-skill.png)
 
 **Dashboard**: document and Q&A trends, contribution rankings and live activity.
 
-![Dashboard](docs/screenshots/dashboard.png)
+![Dashboard](docs/screenshots/en/dashboard.png)
 
 **Automations**: scheduled AI tasks that post their results to in-app notifications or a Feishu group.
 
-![Automations](docs/screenshots/automation.png)
+![Automations](docs/screenshots/en/automation.png)
 
 **AI engine**: switch between Claude Code and Codex and choose a model for each.
 
-![The AI engine admin page](docs/screenshots/admin-ai-engine.png)
+![The AI engine admin page](docs/screenshots/en/admin-ai-engine.png)
 
 The team, members and documents in the screenshots are fictional.
 

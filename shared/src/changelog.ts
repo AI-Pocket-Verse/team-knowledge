@@ -49,6 +49,22 @@ export function changelogItems(entry: ChangelogEntry, lang: "zh" | "en"): string
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.1.0",
+    kind: "minor",
+    date: "2026-11-04 20:07",
+    commit: "63f4e98",
+    items: [
+      "界面支持中文与 English，默认跟随浏览器语言，可在头像菜单中切换。",
+      "AI 助手按提问者使用的界面语言回答，文档校验与一键优化同样适用。",
+      "AI 回答与角色 Skill 中的表格、多级列表可正常显示。",
+    ],
+    itemsEn: [
+      "The interface is available in Chinese and English. It follows the browser language by default and can be switched from the avatar menu.",
+      "The AI assistant answers in the language of the person asking, including document checks and one-click optimization.",
+      "Tables and nested lists in AI answers and role skills now display correctly.",
+    ],
+  },
+  {
     version: "1.0.1",
     kind: "patch",
     date: "2026-11-04 18:31",

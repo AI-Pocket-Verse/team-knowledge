@@ -110,7 +110,7 @@ export const en: Record<keyof typeof zh, string> = {
   "dashboard.heat.title": "{label}: {n} {n|action|actions}",
   "dashboard.empty": "No data",
 
-  "dashboard.pie.byRole": "Docs by role",
+  "dashboard.pie.byRole": "Doc share by role",
   "dashboard.pie.byInteraction": "Interaction types",
   "dashboard.pie.byUpload": "Upload types",
   "dashboard.interaction.like": "Likes",
@@ -146,7 +146,7 @@ export const en: Record<keyof typeof zh, string> = {
   "dashboard.rank.contributors": "Top contributors",
   "dashboard.rank.contributors.note": "Weighted · recent first",
   "dashboard.rank.received": "Recognized +{n}",
-  "dashboard.rank.docsByRole": "Docs by role",
+  "dashboard.rank.docsByRole": "Doc count by role",
   "dashboard.rank.skillStatus": "Role Skill status",
 
   "dashboard.trend.docCreate": "New docs",

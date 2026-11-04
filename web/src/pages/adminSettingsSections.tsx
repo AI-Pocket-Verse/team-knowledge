@@ -956,7 +956,7 @@ export function VolcSttSection() {
 // ─── CLI 可执行文件路径(claude / codex)────────────────────
 // 服务以 systemd 运行时 PATH 很精简(不含 nvm 等用户级目录),spawn 裸命令
 // "claude"/"codex" 会 ENOENT,上面的探测显示红色 ✗。在此填绝对路径
-// (如 /root/.nvm/versions/node/v20.20.2/bin/claude)即可修复。留空=清除,
+// (如 /usr/local/bin/claude)即可修复。留空=清除,
 // 回退到 .env 的 CLAUDE_BIN/CODEX_BIN 或 PATH。保存后即时重新探测。
 export function LlmBinariesSection({ onSaved }: { onSaved: () => void }) {
   const t = useT();
@@ -1004,8 +1004,8 @@ export function LlmBinariesSection({ onSaved }: { onSaved: () => void }) {
   }
 
   const rows = [
-    { key: "claudePath" as const, label: t("admin.bin.claude"), probe: data?.available.claude, ph: "/root/.nvm/versions/node/v20.20.2/bin/claude" },
-    { key: "codexPath" as const, label: t("admin.bin.codex"), probe: data?.available.codex, ph: "/root/.nvm/versions/node/v20.20.2/bin/codex" },
+    { key: "claudePath" as const, label: t("admin.bin.claude"), probe: data?.available.claude, ph: "/usr/local/bin/claude" },
+    { key: "codexPath" as const, label: t("admin.bin.codex"), probe: data?.available.codex, ph: "/usr/local/bin/codex" },
   ];
 
   return (

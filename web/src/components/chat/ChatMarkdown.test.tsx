@@ -74,3 +74,40 @@ describe("ChatMarkdown link safety", () => {
     expect(screen.getByText("cdoc")).toBeInTheDocument();
   });
 });
+
+describe("ChatMarkdown tables", () => {
+  it("renders a GFM table right after a paragraph", () => {
+    const { container } = renderMd(
+      "放量节奏如下：\n| 阶段 | 流量 |\n| --- | :---: |\n| 一 | **10%** |\n| 二 | 30% |\n\n之后全量。",
+    );
+    expect(screen.getAllByRole("columnheader").map((th) => th.textContent)).toEqual(["阶段", "流量"]);
+    expect(screen.getAllByRole("row")).toHaveLength(3);
+    expect(container.querySelector("td strong")?.textContent).toBe("10%");
+    expect(container.textContent).not.toContain("---");
+    expect(screen.getByText("放量节奏如下：")).toBeInTheDocument();
+    expect(screen.getByText("之后全量。")).toBeInTheDocument();
+  });
+
+  it("keeps a half-streamed table (no separator yet) as plain text", () => {
+    renderMd("| 阶段 | 流量 |");
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByText("| 阶段 | 流量 |")).toBeInTheDocument();
+  });
+});
+
+describe("ChatMarkdown nested lists", () => {
+  it("nests indented items under the previous list item", () => {
+    const { container } = renderMd("- 分页上限不一致：\n  - 接口规范：100\n  - 架构总览：200\n- 其他");
+    const top = container.querySelectorAll(":scope > div > ul > li");
+    expect(top).toHaveLength(2);
+    expect([...top[0].querySelectorAll("ul > li")].map((li) => li.textContent)).toEqual(["接口规范：100", "架构总览：200"]);
+    expect(container.textContent).not.toMatch(/-\s*接口规范/);
+  });
+});
+
+describe("ChatMarkdown nested ordered lists", () => {
+  it("keeps numbering for indented numbered sub-items", () => {
+    const { container } = renderMd("- 步骤：\n  1. 通知\n  2. 切流量");
+    expect([...container.querySelectorAll("ul > li > ol > li")].map((li) => li.textContent)).toEqual(["通知", "切流量"]);
+  });
+});

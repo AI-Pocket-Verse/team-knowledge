@@ -96,7 +96,8 @@ describe("dashboard in English", () => {
     try {
       render(<><TrendChart trends={trends} /><CompositionPies composition={composition} /><RankingsSection rankings={rankings} /></>);
       expect(screen.getByText("Content & engagement trends")).toBeInTheDocument();
-      expect(screen.getAllByText("Docs by role")).toHaveLength(2);
+      expect(screen.getByText("Doc share by role")).toBeInTheDocument();
+      expect(screen.getByText("Doc count by role")).toBeInTheDocument();
       expect(screen.getByText("Top docs")).toBeInTheDocument();
       expect(screen.getByText("Images")).toBeInTheDocument();
       expect(screen.queryByText("内容与互动趋势")).not.toBeInTheDocument();

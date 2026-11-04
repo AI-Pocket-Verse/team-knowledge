@@ -52,16 +52,43 @@ interface Props {
   refs: CitationRef[];
 }
 
+// 列表项支持一层缩进子项(行首 ≥2 个空格的 - / 1.)，挂在上一项下面。
+interface ListItem {
+  text: string;
+  sub: string[];
+  /** 子项是编号列表(1. 2.)时按编号显示 */
+  subOrdered?: boolean;
+}
+const SUB_ITEM = /^\s{2,}(?:[-*+]|\d+\.)\s+/;
+function addSub(item: ListItem, line: string) {
+  if (item.sub.length === 0) item.subOrdered = /^\s*\d+\./.test(line);
+  item.sub.push(line.replace(SUB_ITEM, ""));
+}
+
 type Block =
   | { kind: "p"; text: string }
   | { kind: "heading"; level: number; text: string }
   | { kind: "code"; lang: string; content: string }
   | { kind: "quote"; text: string }
-  | { kind: "ul"; items: string[] }
-  | { kind: "ol"; items: string[] }
+  | { kind: "ul"; items: ListItem[] }
+  | { kind: "ol"; items: ListItem[] }
+  | { kind: "table"; head: string[]; rows: string[][] }
   | { kind: "hr" };
 
 const BLOCK_START = /^(```|>|#{1,6}\s|[-*+]\s|\d+\.\s|---\s*$|___\s*$)/;
+
+// GFM 表格：表头行 + 分隔行(| --- | :---: |)才算表格；流式输出时分隔行没到之前仍按普通文字显示。
+const TABLE_SEP = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/;
+function isTableStart(lines: string[], i: number): boolean {
+  const next = lines[i + 1];
+  return lines[i].includes("|") && next !== undefined && next.includes("|") && TABLE_SEP.test(next);
+}
+function splitRow(line: string): string[] {
+  let s = line.trim();
+  if (s.startsWith("|")) s = s.slice(1);
+  if (s.endsWith("|")) s = s.slice(0, -1);
+  return s.split("|").map((c) => c.trim());
+}
 
 function parseBlocks(md: string): Block[] {
   const lines = md.replace(/\r\n?/g, "\n").split("\n");
@@ -85,6 +112,19 @@ function parseBlocks(md: string): Block[] {
       // formatted, no half-written ` characters leaking through).
       if (i < lines.length) i++;
       out.push({ kind: "code", lang, content: buf.join("\n") });
+      continue;
+    }
+
+    // Table — header + separator, then rows until a blank / pipe-less line.
+    if (isTableStart(lines, i)) {
+      const head = splitRow(line);
+      const rows: string[][] = [];
+      i += 2;
+      while (i < lines.length && lines[i].trim() !== "" && lines[i].includes("|")) {
+        rows.push(splitRow(lines[i]));
+        i++;
+      }
+      out.push({ kind: "table", head, rows });
       continue;
     }
 
@@ -116,9 +156,10 @@ function parseBlocks(md: string): Block[] {
 
     // Ordered list
     if (/^\d+\.\s+/.test(line)) {
-      const items: string[] = [];
-      while (i < lines.length && /^\d+\.\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^\d+\.\s+/, ""));
+      const items: ListItem[] = [];
+      while (i < lines.length && (/^\d+\.\s+/.test(lines[i]) || (items.length > 0 && SUB_ITEM.test(lines[i])))) {
+        if (SUB_ITEM.test(lines[i])) addSub(items[items.length - 1], lines[i]);
+        else items.push({ text: lines[i].replace(/^\d+\.\s+/, ""), sub: [] });
         i++;
       }
       out.push({ kind: "ol", items });
@@ -127,9 +168,10 @@ function parseBlocks(md: string): Block[] {
 
     // Unordered list
     if (/^[-*+]\s+/.test(line)) {
-      const items: string[] = [];
-      while (i < lines.length && /^[-*+]\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^[-*+]\s+/, ""));
+      const items: ListItem[] = [];
+      while (i < lines.length && (/^[-*+]\s+/.test(lines[i]) || (items.length > 0 && SUB_ITEM.test(lines[i])))) {
+        if (SUB_ITEM.test(lines[i])) addSub(items[items.length - 1], lines[i]);
+        else items.push({ text: lines[i].replace(/^[-*+]\s+/, ""), sub: [] });
         i++;
       }
       out.push({ kind: "ul", items });
@@ -145,7 +187,7 @@ function parseBlocks(md: string): Block[] {
     // Paragraph — consume until blank or next block-level marker.
     const buf: string[] = [line];
     i++;
-    while (i < lines.length && lines[i].trim() !== "" && !BLOCK_START.test(lines[i])) {
+    while (i < lines.length && lines[i].trim() !== "" && !BLOCK_START.test(lines[i]) && !isTableStart(lines, i)) {
       buf.push(lines[i]);
       i++;
     }
@@ -270,6 +312,13 @@ function renderInline(text: string, byN: Map<number, CitationRef>, keyBase: stri
   return out;
 }
 
+function SubList({ item, byN, keyBase }: { item: ListItem; byN: Map<number, CitationRef>; keyBase: string }) {
+  const lis = item.sub.map((sub, si) => <li key={`${keyBase}-${si}`}>{renderInline(sub, byN, `${keyBase}-${si}`)}</li>);
+  return item.subOrdered
+    ? <ol className="list-decimal pl-5 [&>li]:my-0 [&>li]:pl-0.5">{lis}</ol>
+    : <ul className="list-[circle] pl-4 [&>li]:my-0 [&>li]:pl-0.5">{lis}</ul>;
+}
+
 export function ChatMarkdown({ text, refs }: Props) {
   const byN = new Map(refs.map((r) => [r.n, r]));
   const blocks = parseBlocks(text);
@@ -333,7 +382,10 @@ export function ChatMarkdown({ text, refs }: Props) {
             return (
               <ul key={k} className="list-disc pl-4 [&>li]:my-0 [&>li]:pl-0.5">
                 {b.items.map((it, j) => (
-                  <li key={`${k}-${j}`}>{renderInline(it, byN, `${k}-${j}`)}</li>
+                  <li key={`${k}-${j}`}>
+                    {renderInline(it.text, byN, `${k}-${j}`)}
+                    {it.sub.length > 0 && <SubList item={it} byN={byN} keyBase={`${k}-${j}`} />}
+                  </li>
                 ))}
               </ul>
             );
@@ -341,9 +393,39 @@ export function ChatMarkdown({ text, refs }: Props) {
             return (
               <ol key={k} className="list-decimal pl-5 [&>li]:my-0 [&>li]:pl-0.5">
                 {b.items.map((it, j) => (
-                  <li key={`${k}-${j}`}>{renderInline(it, byN, `${k}-${j}`)}</li>
+                  <li key={`${k}-${j}`}>
+                    {renderInline(it.text, byN, `${k}-${j}`)}
+                    {it.sub.length > 0 && <SubList item={it} byN={byN} keyBase={`${k}-${j}`} />}
+                  </li>
                 ))}
               </ol>
+            );
+          case "table":
+            return (
+              <div key={k} className="overflow-x-auto">
+                <table className="w-full border-collapse text-[14px] leading-normal">
+                  <thead>
+                    <tr>
+                      {b.head.map((c, j) => (
+                        <th key={j} className="border border-line bg-surface px-2.5 py-1.5 text-left font-semibold">
+                          {renderInline(c, byN, `${k}-h${j}`)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {b.rows.map((r, ri) => (
+                      <tr key={ri}>
+                        {b.head.map((_, j) => (
+                          <td key={j} className="border border-line px-2.5 py-1.5 align-top">
+                            {renderInline(r[j] ?? "", byN, `${k}-${ri}-${j}`)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             );
           case "hr":
             return <hr key={k} className="border-line" />;
