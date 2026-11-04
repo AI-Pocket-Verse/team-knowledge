@@ -10,6 +10,7 @@ import { RoleBadge } from "@/components/admin/RoleBadge";
 import { RoleSkillDialogButton } from "@/components/role-skill/RoleSkillPanel";
 import { RoleFormDialog } from "@/components/admin/RoleFormDialog";
 import { DeleteRoleDialog } from "@/components/admin/DeleteRoleDialog";
+import { useT } from "@/i18n";
 
 // The admin roles list endpoint augments each role with live content counts
 // (folders + articles, incl. binned) that the shared RoleWithMembers type
@@ -28,6 +29,7 @@ export function AdminRolesPage() {
 }
 
 function AdminRolesPageInner() {
+  const t = useT();
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,13 +84,13 @@ function AdminRolesPageInner() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-end">
-        <Button onClick={openCreate}>+ 新建角色</Button>
+        <Button onClick={openCreate}>{t("admin.roles.new")}</Button>
       </div>
 
       {roles.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-10">
-            <p className="text-muted">尚无角色</p>
+            <p className="text-muted">{t("admin.roles.empty")}</p>
           </CardContent>
         </Card>
       ) : (
@@ -96,10 +98,10 @@ function AdminRolesPageInner() {
           <table className="w-full text-sm">
             <thead className="bg-surface text-left text-xs text-muted">
               <tr>
-                <th className="px-4 py-2.5 font-medium">名称</th>
-                <th className="px-4 py-2.5 font-medium">描述</th>
-                <th className="px-4 py-2.5 font-medium">成员</th>
-                <th className="px-4 py-2.5 text-right font-medium">操作</th>
+                <th className="px-4 py-2.5 font-medium">{t("admin.roleForm.name")}</th>
+                <th className="px-4 py-2.5 font-medium">{t("admin.roleForm.desc")}</th>
+                <th className="px-4 py-2.5 font-medium">{t("admin.roles.members")}</th>
+                <th className="px-4 py-2.5 text-right font-medium">{t("admin.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -115,8 +117,8 @@ function AdminRolesPageInner() {
                         roleName={r.name}
                         className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm text-fg/70 transition hover:bg-blue-50 hover:text-primary"
                       />
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>编辑</Button>
-                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(r)}>删除</Button>
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>{t("common.edit")}</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(r)}>{t("common.delete")}</Button>
                     </span>
                   </td>
                 </tr>

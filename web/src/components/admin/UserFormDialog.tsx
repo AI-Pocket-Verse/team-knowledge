@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import type { Role, UserWithRoles } from "@team-knowledge/shared";
 import { api } from "@/lib/api";
+import { useT } from "@/i18n";
 import { RoleBadge } from "./RoleBadge";
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function UserFormDialog({ open, onOpenChange, target, roles, selfId, isTargetLastAdmin, onSaved }: Props) {
+  const t = useT();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [roleIds, setRoleIds] = useState<string[]>([]);
@@ -63,14 +65,14 @@ export function UserFormDialog({ open, onOpenChange, target, roles, selfId, isTa
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>编辑用户</DialogTitle>
+          <DialogTitle>{t("admin.userForm.title")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
             <div className="flex flex-col gap-2">
-              <Label>显示名</Label>
+              <Label>{t("admin.userForm.displayName")}</Label>
               <div className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg">
                 {target?.displayName}
-                <span className="ml-2 text-xs text-muted">（来自飞书，不可修改）</span>
+                <span className="ml-2 text-xs text-muted">{t("admin.userForm.fromFeishu")}</span>
               </div>
             </div>
             <label className="flex items-center gap-2 text-sm">
@@ -80,7 +82,7 @@ export function UserFormDialog({ open, onOpenChange, target, roles, selfId, isTa
                 disabled={isSelf || (isTargetLastAdmin && target?.isAdmin)}
                 onChange={(e) => setIsAdmin(e.target.checked)}
               />
-              管理员
+              {t("admin.userForm.admin")}
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -89,12 +91,12 @@ export function UserFormDialog({ open, onOpenChange, target, roles, selfId, isTa
                 disabled={isSelf}
                 onChange={(e) => setIsActive(e.target.checked)}
               />
-              启用
+              {t("admin.userForm.active")}
             </label>
             <div className="flex flex-col gap-2">
-              <Label>角色</Label>
+              <Label>{t("admin.userForm.roles")}</Label>
               <div className="flex flex-wrap gap-2">
-                {roles.length === 0 && <span className="text-sm text-muted">尚无角色，请先创建。</span>}
+                {roles.length === 0 && <span className="text-sm text-muted">{t("admin.userForm.noRoles")}</span>}
                 {roles.map((r) => {
                   const selected = roleIds.includes(r.id);
                   return (
@@ -116,9 +118,9 @@ export function UserFormDialog({ open, onOpenChange, target, roles, selfId, isTa
             {error && <div className="text-sm text-rose-600">{error}</div>}
             <div className="mt-2 flex justify-end gap-2">
               <DialogClose asChild>
-                <Button variant="ghost" type="button">取消</Button>
+                <Button variant="ghost" type="button">{t("common.cancel")}</Button>
               </DialogClose>
-              <Button type="submit" disabled={saving}>{saving ? "保存中…" : "保存"}</Button>
+              <Button type="submit" disabled={saving}>{saving ? t("common.saving") : t("common.save")}</Button>
             </div>
           </form>
       </DialogContent>

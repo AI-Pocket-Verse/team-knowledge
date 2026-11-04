@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { fmtDate, fmtRelativeTime } from "@/lib/relativeTime";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
+import { useT } from "@/i18n";
 
 // Minimal shape to open a per-user activity drawer. The dashboard passes a full
 // AdminDashboardUserRow (rich header + stats); lighter callers (e.g. the weekly
@@ -49,6 +50,7 @@ function Stat({ label, value, text }: { label: string; value?: number; text?: st
 // Slide-out drawer: user identity + per-user activity feed. Shared by the
 // dashboard and the weekly report so the "click a user" jump is identical.
 export function UserActivityDrawer({ user, onClose }: { user: UserActivityTarget; onClose: () => void }) {
+  const t = useT();
   const hasStats = user.opsToday !== undefined || user.ops7d !== undefined || user.lastSeenAt !== undefined;
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
@@ -62,8 +64,8 @@ export function UserActivityDrawer({ user, onClose }: { user: UserActivityTarget
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="truncate text-base font-semibold">{user.displayName}</span>
-                {user.isAdmin && <Tag className="bg-accent-soft text-primary">管理员</Tag>}
-                {user.isActive === false && <Tag className="bg-rose-100 text-rose-700">已停用</Tag>}
+                {user.isAdmin && <Tag className="bg-accent-soft text-primary">{t("dashboard.users.admin")}</Tag>}
+                {user.isActive === false && <Tag className="bg-rose-100 text-rose-700">{t("dashboard.users.disabled")}</Tag>}
                 {user.roles?.map((r) => (
                   <Tag key={r} className="bg-surface text-muted">{r}</Tag>
                 ))}
@@ -71,25 +73,25 @@ export function UserActivityDrawer({ user, onClose }: { user: UserActivityTarget
               {user.email && <div className="truncate text-xs text-muted/70">{user.email}</div>}
               {user.createdAt && (
                 <div className="mt-0.5 text-xs text-muted">
-                  {user.roles && user.roles.length === 0 && "无角色 · "}注册 {fmtDate(user.createdAt)}
+                  {user.roles && user.roles.length === 0 && t("dashboard.drawer.noRole")}{t("dashboard.drawer.joined", { date: fmtDate(user.createdAt) })}
                 </div>
               )}
             </div>
           </div>
-          <button type="button" onClick={onClose} className="shrink-0 rounded-lg p-1 text-muted transition hover:bg-surface hover:text-fg" aria-label="关闭">
+          <button type="button" onClick={onClose} className="shrink-0 rounded-lg p-1 text-muted transition hover:bg-surface hover:text-fg" aria-label={t("dashboard.drawer.close")}>
             ✕
           </button>
         </div>
 
         {hasStats && (
           <div className="grid grid-cols-3 gap-px border-b border-line bg-line/50 text-center">
-            <Stat label="今日操作" value={user.opsToday} />
-            <Stat label="近 7 天" value={user.ops7d} />
-            <Stat label="最近活跃" text={user.lastSeenAt ? fmtRelativeTime(user.lastSeenAt) : "—"} />
+            <Stat label={t("dashboard.drawer.opsToday")} value={user.opsToday} />
+            <Stat label={t("dashboard.drawer.ops7d")} value={user.ops7d} />
+            <Stat label={t("dashboard.drawer.lastSeen")} text={user.lastSeenAt ? fmtRelativeTime(user.lastSeenAt) : "—"} />
           </div>
         )}
 
-        <div className="px-5 py-2 text-xs font-semibold text-muted">详细动态</div>
+        <div className="px-5 py-2 text-xs font-semibold text-muted">{t("dashboard.drawer.activity")}</div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <ActivityFeed fetchPage={(p) => api.admin.activity({ userId: user.id, page: p })} resetKey={user.id} hideUser />
         </div>

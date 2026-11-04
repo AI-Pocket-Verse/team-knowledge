@@ -17,6 +17,7 @@ import { WEEKLY_REPORT_CSS } from "./weeklyReportCss";
 import { buildStandaloneReportHtml } from "./weeklyReportHtml";
 import { UserActivityDrawer, type UserActivityTarget } from "@/components/dashboard/UserActivityDrawer";
 import { getAssistantName } from "@/lib/assistantName";
+import { tr, useT, type MessageKey } from "@/i18n";
 
 const PALETTE = ["#3370FF", "#00B42A", "#FF7D00", "#F53F3F", "#7B61FF", "#0FC6C2", "#165DFF", "#D91AD9", "#86909C", "#FFC53D"];
 const LIVE_PAGE = 10;
@@ -27,14 +28,14 @@ type ChartRow = Record<string, number | string>;
 
 // 趋势折线的系列(对应 trends 字段)。activeUsers 仅在「全部用户」视角有意义。
 const TREND_SERIES = [
-  { key: "docCreate", label: "新建文档", color: "#3370FF" },
-  { key: "docEdit", label: "修改文档", color: "#00B42A" },
-  { key: "chat", label: "提问", color: "#FF7D00" },
-  { key: "comment", label: "评论", color: "#F53F3F" },
-  { key: "like", label: "点赞", color: "#7B61FF" },
-  { key: "view", label: "查看", color: "#0FC6C2" },
-  { key: "activeUsers", label: "活跃用户", color: "#86909C" },
-] as const;
+  { key: "docCreate", label: "admin.wr.s.docCreate", color: "#3370FF" },
+  { key: "docEdit", label: "admin.wr.s.docEdit", color: "#00B42A" },
+  { key: "chat", label: "admin.wr.s.chat", color: "#FF7D00" },
+  { key: "comment", label: "admin.wr.s.comment", color: "#F53F3F" },
+  { key: "like", label: "admin.wr.s.like", color: "#7B61FF" },
+  { key: "view", label: "admin.wr.s.view", color: "#0FC6C2" },
+  { key: "activeUsers", label: "admin.wr.s.activeUsers", color: "#86909C" },
+] as const satisfies readonly { key: string; label: MessageKey; color: string }[];
 
 // ISO → 北京时间显示(整份周报以北京时间口径)。
 function fmtBeijing(iso: string, withDate = false): string {
@@ -44,17 +45,18 @@ function fmtBeijing(iso: string, withDate = false): string {
   return withDate ? `${d.getUTCFullYear()}-${md}` : md;
 }
 function fmtHours(min: number): string {
-  return `${(min / 60).toFixed(1)} 小时`;
+  return tr("admin.wr.hours", { n: (min / 60).toFixed(1) });
 }
 
 // 用户明细里的环比小箭头:较上周增长 ↑(浅红)、下降 ↓(浅绿)。颜色刻意调淡,
 // 仅作辅助提示。prev 缺失(无上周数据/首周/加载中)或持平则不渲染。
 function Delta({ cur, prev }: { cur: number; prev: number | undefined }) {
+  const t = useT();
   if (prev === undefined || cur === prev) return null;
   const up = cur > prev;
   const diff = Math.round(Math.abs(cur - prev) * 10) / 10;
   return (
-    <span className={`wr-delta ${up ? "up" : "down"}`} title={`较上周 ${up ? "+" : "−"}${diff}`}>
+    <span className={`wr-delta ${up ? "up" : "down"}`} title={t("admin.wr.delta", { sign: up ? "+" : "−", diff })}>
       {up ? "↑" : "↓"}
     </span>
   );
@@ -67,6 +69,7 @@ export function AdminWeeklyReportDetailPage() {
 }
 
 function Inner() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const [snapshot, setSnapshot] = useState<WeeklyReportSnapshot | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string>("");
@@ -127,7 +130,7 @@ function Inner() {
   function buildStandaloneHtml(): string | null {
     const root = document.getElementById("wr-root");
     if (!root) return null;
-    return buildStandaloneReportHtml(`知识库周报 ${stripCnTz(snapshot?.weekLabel ?? "")}`, root.outerHTML);
+    return buildStandaloneReportHtml(t("admin.wr.reportTitle", { week: stripCnTz(snapshot?.weekLabel ?? "") }), root.outerHTML);
   }
 
   // 进入「导出渲染态」跑一次导出:实时动态只渲第一页、隐藏分页器(见 liveSlice 与下方
@@ -145,7 +148,7 @@ function Inner() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `知识库周报-${snapshot?.weekKey ?? "report"}.html`;
+      a.download = `${t("admin.wr.fileName", { key: snapshot?.weekKey ?? "report" })}.html`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -158,7 +161,7 @@ function Inner() {
       const html = buildStandaloneHtml();
       if (!html) return;
       const w = window.open("", "_blank");
-      if (!w) { toast.error("请允许弹出窗口以导出 PDF"); return; }
+      if (!w) { toast.error(t("admin.wr.allowPopup")); return; }
       w.document.open();
       w.document.write(html);
       w.document.close();
@@ -182,12 +185,12 @@ function Inner() {
       const dataUrl = await toPng(root, { pixelRatio, backgroundColor: "#ffffff", cacheBust: true });
       const a = document.createElement("a");
       a.href = dataUrl;
-      a.download = `知识库周报-${snapshot?.weekKey ?? "report"}.png`;
+      a.download = `${t("admin.wr.fileName", { key: snapshot?.weekKey ?? "report" })}.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
     } catch (e) {
-      toast.error(`导出图片失败：${(e as Error).message}`);
+      toast.error(t("admin.wr.exportImgFailed", { msg: (e as Error).message }));
     } finally {
       flushSync(() => setExporting(false));
       setCapturing(false);
@@ -196,19 +199,19 @@ function Inner() {
 
   if (loading) return <DelayedLoader />;
   if (error) return <div className="text-rose-600 text-sm">⚠ {error}</div>;
-  if (!snapshot) return <div className="text-sm text-muted">周报不存在。</div>;
+  if (!snapshot) return <div className="text-sm text-muted">{t("admin.wr.notFound")}</div>;
 
   const s = snapshot;
   const o = s.overview;
   const cards = [
-    { label: "活跃用户", value: o.activeUsers, hint: "本周有活动的用户数" },
-    { label: "在线总时长", value: fmtHours(o.totalDurationMin), hint: "事件跨度估算" },
-    { label: "新建文档", value: o.docCreate },
-    { label: "修改文档", value: o.docEdit },
-    { label: `向 ${getAssistantName()} 提问`, value: o.chat },
-    { label: "评论", value: o.comment },
-    { label: "点赞", value: o.like },
-    { label: "查看文档", value: o.view, hint: "去重" },
+    { label: t("admin.wr.s.activeUsers"), value: o.activeUsers, hint: t("admin.wr.activeHint") },
+    { label: t("admin.wr.colDuration"), value: fmtHours(o.totalDurationMin), hint: t("admin.wr.durationHint") },
+    { label: t("admin.wr.s.docCreate"), value: o.docCreate },
+    { label: t("admin.wr.s.docEdit"), value: o.docEdit },
+    { label: t("admin.wr.askAssistant", { name: getAssistantName() }), value: o.chat },
+    { label: t("admin.wr.s.comment"), value: o.comment },
+    { label: t("admin.wr.s.like"), value: o.like },
+    { label: t("admin.wr.viewDoc"), value: o.view, hint: t("admin.wr.dedup") },
   ];
 
   // 图表数据按用户维度切换。
@@ -240,7 +243,7 @@ function Inner() {
       like: t.like, chat: t.chat, view: t.view, activeUsers: t.activeUsers,
     }));
     lineSeries = (scope === "all" ? TREND_SERIES : TREND_SERIES.filter((x) => x.key !== "activeUsers"))
-      .map((x) => ({ key: x.key, label: x.label, color: x.color }));
+      .map((x) => ({ key: x.key, label: t(x.label), color: x.color }));
   }
 
   // 饼图:数据(带颜色)。
@@ -250,8 +253,8 @@ function Inner() {
         .filter((x) => x.count > 0)
     : (activeDim ? activeDim.composition : s.composition).map((c, i) => ({ ...c, color: PALETTE[i % PALETTE.length] }));
 
-  const lineTitle = perUserMode ? "每日活动趋势(按用户)" : activeDim ? `每日活动趋势 · ${activeDim.name}` : "每日活动趋势(折线图)";
-  const pieTitle = perUserMode ? "用户活动占比" : activeDim ? `行为构成 · ${activeDim.name}` : "行为构成(饼图)";
+  const lineTitle = perUserMode ? t("admin.wr.lineByUser") : activeDim ? t("admin.wr.lineOf", { name: activeDim.name }) : t("admin.wr.lineChart");
+  const pieTitle = perUserMode ? t("admin.wr.pieByUser") : activeDim ? t("admin.wr.pieOf", { name: activeDim.name }) : t("admin.wr.pieChart");
   const truncatedUsers = perUserMode && userDims.length > MAX_USER_SERIES;
 
   // 实时动态分页。
@@ -269,24 +272,24 @@ function Inner() {
 
       {/* Toolbar — NOT part of the exported #wr-root. */}
       <div className="flex items-center justify-between gap-3">
-        <BackButton to="/admin/weekly-report" label="返回周报列表" />
+        <BackButton to="/admin/weekly-report" label={t("admin.wr.back")} />
         <div className="flex gap-2">
           <Button variant="ghost" size="sm" onClick={exportImage} disabled={capturing}>
-            {capturing ? "导出图片中…" : "导出图片"}
+            {capturing ? t("admin.wr.exportingImg") : t("admin.wr.exportImg")}
           </Button>
-          <Button variant="ghost" size="sm" onClick={exportPdf}>导出 PDF</Button>
-          <Button variant="ghost" size="sm" onClick={exportHtml}>导出 HTML</Button>
+          <Button variant="ghost" size="sm" onClick={exportPdf}>{t("admin.wr.exportPdf")}</Button>
+          <Button variant="ghost" size="sm" onClick={exportHtml}>{t("admin.wr.exportHtml")}</Button>
         </div>
       </div>
 
       <div id="wr-root" className="wr-root rounded-xl border border-line">
-        <h1 className="wr-h1">知识库周报 · {stripCnTz(s.weekLabel)}</h1>
-        <p className="wr-sub">生成时间 {fmtBeijing(generatedAt, true)}</p>
+        <h1 className="wr-h1">{t("admin.wr.h1", { week: stripCnTz(s.weekLabel) })}</h1>
+        <p className="wr-sub">{t("admin.wr.generatedAt", { time: fmtBeijing(generatedAt, true) })}</p>
         {s.summary && <p className="wr-summary">{stripCnTz(s.summary)}</p>}
 
         {/* 概览 */}
         <div className="wr-section">
-          <div className="wr-section-title">本周概览</div>
+          <div className="wr-section-title">{t("admin.wr.overview")}</div>
           <div className="wr-cards">
             {cards.map((c) => (
               <div key={c.label} className="wr-card">
@@ -301,12 +304,12 @@ function Inner() {
         {/* 趋势 + 构成(可按用户维度筛选)*/}
         <div className="wr-section">
           <div className="wr-section-head">
-            <div className="wr-section-title">每日趋势 与 行为构成</div>
+            <div className="wr-section-title">{t("admin.wr.trendAndMix")}</div>
             {userDims.length > 0 && (
               <label className="wr-userpick">
-                用户维度：
+                {t("admin.wr.userDim")}
                 <select value={scope} onChange={(e) => setScope(e.target.value)}>
-                  <option value="all">全部用户</option>
+                  <option value="all">{t("admin.wr.allUsers")}</option>
                   {userDims.map((d) => (
                     <option key={d.userId} value={d.userId}>{d.name}</option>
                   ))}
@@ -336,7 +339,7 @@ function Inner() {
                   <span key={ser.key}><i style={{ background: ser.color }} />{ser.label}</span>
                 ))}
               </div>
-              {truncatedUsers && <div className="wr-chart-note">仅显示活跃度前 {MAX_USER_SERIES} 位用户</div>}
+              {truncatedUsers && <div className="wr-chart-note">{t("admin.wr.topUsersNote", { n: MAX_USER_SERIES })}</div>}
             </div>
 
             <div className="wr-chart-box">
@@ -359,14 +362,14 @@ function Inner() {
                     ))}
                   </div>
                 </>
-              ) : <div className="wr-empty">该维度本周暂无行为数据</div>}
+              ) : <div className="wr-empty">{t("admin.wr.emptyDim")}</div>}
             </div>
           </div>
         </div>
 
         {/* 贡献榜 */}
         <div className="wr-section">
-          <div className="wr-section-title">贡献度 Top</div>
+          <div className="wr-section-title">{t("admin.wr.topContrib")}</div>
           <div className="wr-chart-box">
             {s.topContributors.length > 0 ? (
               <div className="wr-chart" style={{ height: Math.max(180, s.topContributors.length * 30 + 30) }}>
@@ -376,34 +379,34 @@ function Inner() {
                     <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
                     <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={96} />
                     <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #eef1f5" }} />
-                    <Bar dataKey="contribution" name="贡献度" fill="#3370FF" radius={[0, 4, 4, 0]} isAnimationActive={false} />
+                    <Bar dataKey="contribution" name={t("admin.wr.contribution")} fill="#3370FF" radius={[0, 4, 4, 0]} isAnimationActive={false} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            ) : <div className="wr-empty">本周暂无贡献数据</div>}
+            ) : <div className="wr-empty">{t("admin.wr.emptyContrib")}</div>}
           </div>
         </div>
 
         {/* 用户明细 */}
         <div className="wr-section">
-          <div className="wr-section-title">用户使用明细</div>
+          <div className="wr-section-title">{t("admin.wr.userDetail")}</div>
           {s.users.length > 0 ? (
             <div className="wr-table-wrap">
               <table className="wr-table">
                 <thead>
                   <tr>
                     <th className="wr-rank">#</th>
-                    <th>用户</th>
-                    <th>贡献度</th>
-                    <th>在线时长</th>
-                    <th>活跃天数</th>
-                    <th>新建</th>
-                    <th>修改</th>
-                    <th>提问</th>
-                    <th>评论</th>
-                    <th>点赞</th>
-                    <th>查看</th>
-                    <th>操作数</th>
+                    <th>{t("admin.wr.colUser")}</th>
+                    <th>{t("admin.wr.contribution")}</th>
+                    <th>{t("admin.wr.colOnline")}</th>
+                    <th>{t("admin.wr.colDays")}</th>
+                    <th>{t("admin.wr.colNew")}</th>
+                    <th>{t("admin.wr.colEdit")}</th>
+                    <th>{t("admin.wr.colAsk")}</th>
+                    <th>{t("admin.wr.s.comment")}</th>
+                    <th>{t("admin.wr.s.like")}</th>
+                    <th>{t("admin.wr.s.view")}</th>
+                    <th>{t("admin.wr.colOpCount")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -431,12 +434,12 @@ function Inner() {
                 </tbody>
               </table>
             </div>
-          ) : <div className="wr-empty">本周暂无用户活动</div>}
+          ) : <div className="wr-empty">{t("admin.wr.emptyUsers")}</div>}
         </div>
 
         {/* 实时动态汇总(页面分页 10/页;导出只取第一页)*/}
         <div className="wr-section">
-          <div className="wr-section-title">实时动态汇总</div>
+          <div className="wr-section-title">{t("admin.wr.live")}</div>
           {liveAll.length > 0 ? (
             <>
               <ul className="wr-live">
@@ -455,13 +458,13 @@ function Inner() {
               </ul>
               {!exporting && livePages > 1 && (
                 <div className="wr-pager">
-                  <button disabled={page === 0} onClick={() => setLivePage((p) => Math.max(0, p - 1))}>上一页</button>
-                  <span>第 {page + 1} / {livePages} 页</span>
-                  <button disabled={page >= livePages - 1} onClick={() => setLivePage((p) => Math.min(livePages - 1, p + 1))}>下一页</button>
+                  <button disabled={page === 0} onClick={() => setLivePage((p) => Math.max(0, p - 1))}>{t("admin.wr.prev")}</button>
+                  <span>{t("admin.wr.pageOf", { page: page + 1, total: livePages })}</span>
+                  <button disabled={page >= livePages - 1} onClick={() => setLivePage((p) => Math.min(livePages - 1, p + 1))}>{t("admin.wr.next")}</button>
                 </div>
               )}
             </>
-          ) : <div className="wr-empty">本周暂无动态</div>}
+          ) : <div className="wr-empty">{t("admin.wr.emptyLive")}</div>}
         </div>
       </div>
 

@@ -3,23 +3,26 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import type { AnalyticsTrends } from "@team-knowledge/shared";
 import { cn } from "@/lib/cn";
 import { getAssistantName } from "@/lib/assistantName";
+import { useT, type MessageKey } from "@/i18n";
 
 // One toggleable line per metric. activeUsers is included so admins can
 // correlate daily activity with content/interaction volume.
 type SeriesKey = keyof Omit<AnalyticsTrends, "dayLabels">;
-const SERIES: { key: SeriesKey; name: string; color: string }[] = [
-  { key: "docCreate", name: "新增文档", color: "#3370FF" },
-  { key: "docEdit", name: "编辑文档", color: "#00B42A" },
-  { key: "comment", name: "评论", color: "#FF7D00" },
-  { key: "like", name: "点赞", color: "#F53F3F" },
-  { key: "bookmark", name: "收藏", color: "#7B61FF" },
-  { key: "upload", name: "上传", color: "#0FC6C2" },
-  { key: "chat", get name() { return `${getAssistantName()} 提问`; }, color: "#165DFF" },
-  { key: "meeting", name: "会议", color: "#D91AD9" },
-  { key: "activeUsers", name: "活跃用户", color: "#86909C" },
+const SERIES: { key: SeriesKey; label: MessageKey; color: string }[] = [
+  { key: "docCreate", label: "dashboard.trend.docCreate", color: "#3370FF" },
+  { key: "docEdit", label: "dashboard.trend.docEdit", color: "#00B42A" },
+  { key: "comment", label: "dashboard.trend.comment", color: "#FF7D00" },
+  { key: "like", label: "dashboard.trend.like", color: "#F53F3F" },
+  { key: "bookmark", label: "dashboard.trend.bookmark", color: "#7B61FF" },
+  { key: "upload", label: "dashboard.trend.upload", color: "#0FC6C2" },
+  { key: "chat", label: "dashboard.trend.chat", color: "#165DFF" },
+  { key: "meeting", label: "dashboard.trend.meeting", color: "#D91AD9" },
+  { key: "activeUsers", label: "dashboard.trend.activeUsers", color: "#86909C" },
 ];
 
 export function TrendChart({ trends }: { trends: AnalyticsTrends }) {
+  const t = useT();
+  const nameOf = (s: (typeof SERIES)[number]) => t(s.label, { name: getAssistantName() });
   // Series hidden by the user (click a chip to toggle). Default: a focused
   // subset on so the chart isn't a spaghetti of 9 lines.
   const [hidden, setHidden] = useState<Set<SeriesKey>>(
@@ -42,7 +45,7 @@ export function TrendChart({ trends }: { trends: AnalyticsTrends }) {
   return (
     <section className="rounded-xl border border-line bg-white p-4 shadow-glass">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">内容与互动趋势</h2>
+        <h2 className="text-sm font-semibold">{t("dashboard.trend.title")}</h2>
         <div className="flex flex-wrap gap-1.5">
           {SERIES.map((s) => {
             const on = !hidden.has(s.key);
@@ -59,7 +62,7 @@ export function TrendChart({ trends }: { trends: AnalyticsTrends }) {
                 aria-pressed={on}
               >
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: on ? s.color : "#dee0e3" }} />
-                {s.name}
+                {nameOf(s)}
               </button>
             );
           })}
@@ -82,7 +85,7 @@ export function TrendChart({ trends }: { trends: AnalyticsTrends }) {
                   key={s.key}
                   type="monotone"
                   dataKey={s.key}
-                  name={s.name}
+                  name={nameOf(s)}
                   stroke={s.color}
                   strokeWidth={2}
                   dot={false}
@@ -93,7 +96,7 @@ export function TrendChart({ trends }: { trends: AnalyticsTrends }) {
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="flex h-64 items-center justify-center text-sm text-muted">暂无数据</div>
+        <div className="flex h-64 items-center justify-center text-sm text-muted">{t("dashboard.empty")}</div>
       )}
     </section>
   );

@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AdminRolesPage } from "./AdminRolesPage";
 import { useAuth } from "@/stores/auth";
+import { setCurrentLang } from "@/i18n/lang";
 
 vi.mock("@/lib/api", () => {
   const ROLE = {
@@ -63,6 +64,23 @@ describe("AdminRolesPage", () => {
         color: "pink",
       });
     });
+  });
+
+  it("renders English copy when the language is en", async () => {
+    setCurrentLang("en");
+    try {
+      render(<MemoryRouter><AdminRolesPage /></MemoryRouter>);
+      await screen.findByText("产品");
+      expect(screen.getByRole("button", { name: "+ New role" })).toBeInTheDocument();
+      expect(screen.getByText("Members")).toBeInTheDocument();
+      const row = screen.getByText("产品").closest("tr")!;
+      fireEvent.click(Array.from(row.querySelectorAll("button")).find((b) => b.textContent === "Delete")!);
+      expect(
+        await screen.findByText((_, el) => el?.tagName === "P" && !!el.textContent?.includes("3 member bindings will be removed")),
+      ).toBeInTheDocument();
+    } finally {
+      setCurrentLang("zh");
+    }
   });
 
   it("shows live memberCount in delete dialog", async () => {

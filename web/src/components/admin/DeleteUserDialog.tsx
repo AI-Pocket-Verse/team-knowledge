@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { api, ApiError } from "@/lib/api";
+import { useT } from "@/i18n";
 
 export function DeleteUserDialog({
   open,
@@ -16,6 +17,7 @@ export function DeleteUserDialog({
   displayName: string;
   onDeleted: () => void;
 }) {
+  const t = useT();
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 409 = 该用户有上传或会议,后端拒绝删除;引导改用停用
@@ -41,23 +43,23 @@ export function DeleteUserDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>删除用户</DialogTitle>
+          <DialogTitle>{t("admin.userDelete.title")}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <p className="text-sm">
-            确认删除「<span className="font-medium">{displayName}</span>」吗？该操作无法撤销。
+            {t("admin.userDelete.confirmPre")}<span className="font-medium">{displayName}</span>{t("admin.userDelete.confirmPost")}
           </p>
           {error && (
             <div className="text-sm text-rose-600">
               {error}
-              {hasContent && "（在用户列表中把该用户改为「禁用」即可保留其内容）"}
+              {hasContent && t("admin.userDelete.disableHint")}
             </div>
           )}
           <div className="mt-2 flex justify-end gap-2">
             <DialogClose asChild>
-              <Button variant="ghost" type="button">取消</Button>
+              <Button variant="ghost" type="button">{t("common.cancel")}</Button>
             </DialogClose>
-            <Button type="button" onClick={confirm} disabled={working}>{working ? "删除中…" : "确认删除"}</Button>
+            <Button type="button" onClick={confirm} disabled={working}>{working ? t("admin.deleting") : t("admin.confirmDelete")}</Button>
           </div>
         </div>
       </DialogContent>

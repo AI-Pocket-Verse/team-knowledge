@@ -3,6 +3,7 @@ import type { AdminActivityType, AdminDashboardActivity } from "@team-knowledge/
 import { ACTIVITY_LABEL } from "@/components/activity/ActivityFeed";
 import { fmtRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/cn";
+import { useT } from "@/i18n";
 
 // 「噪声」动作:高频、低信息量,开启「仅看重要动态」时隐藏,避免刷屏淹没
 // 建文档/会议/上传等高价值动态。
@@ -12,12 +13,13 @@ const NOISE_TYPES = new Set<AdminActivityType>(["like", "comment_like", "bookmar
 // (seeded from /admin/activity, prepended from the SSE stream). A pulsing dot
 // signals the live connection. 「仅看重要动态」在本组件内做客户端过滤。
 export function LiveActivityStream({ items }: { items: AdminDashboardActivity[] }) {
+  const t = useT();
   const [importantOnly, setImportantOnly] = useState(false);
   const shown = importantOnly ? items.filter((r) => !NOISE_TYPES.has(r.type)) : items;
   return (
     <section className="flex flex-col rounded-xl border border-line bg-white shadow-glass">
       <div className="flex items-center gap-2 border-b border-line px-4 py-3 text-sm font-semibold">
-        实时动态
+        {t("dashboard.live.title")}
         <span className="relative flex h-2 w-2" aria-hidden>
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
@@ -25,7 +27,7 @@ export function LiveActivityStream({ items }: { items: AdminDashboardActivity[] 
         <button
           type="button"
           onClick={() => setImportantOnly((v) => !v)}
-          title="隐藏点赞/收藏等高频动态,只看建文档、会议、上传等"
+          title={t("dashboard.live.importantTip")}
           className={cn(
             "ml-auto rounded-full border px-2.5 py-0.5 text-xs font-normal transition",
             importantOnly
@@ -33,12 +35,12 @@ export function LiveActivityStream({ items }: { items: AdminDashboardActivity[] 
               : "border-line text-muted hover:bg-surface",
           )}
         >
-          仅看重要动态
+          {t("dashboard.live.importantOnly")}
         </button>
       </div>
       {shown.length === 0 ? (
         <div className="px-4 py-8 text-center text-sm text-muted">
-          {importantOnly && items.length > 0 ? "暂无重要动态" : "等待最新动态…"}
+          {importantOnly && items.length > 0 ? t("dashboard.live.noImportant") : t("dashboard.live.waiting")}
         </div>
       ) : (
         <ul className="max-h-96 divide-y divide-line/60 overflow-y-auto">

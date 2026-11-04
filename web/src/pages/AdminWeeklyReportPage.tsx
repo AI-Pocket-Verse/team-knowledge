@@ -7,6 +7,7 @@ import { DelayedLoader } from "@/components/DelayedLoader";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/Toaster";
 import { useAdminAccess } from "@/lib/adminAccess";
+import { tr, useT } from "@/i18n";
 
 // 访问门控由路由层 RequireAdminPage(pageKey="weekly-report")负责:管理员,或该页已在
 // 「页面可见性」放开给所有成员。不再自拦 isAdmin(否则放开后成员会被弹走)。
@@ -15,7 +16,7 @@ export function AdminWeeklyReportPage() {
 }
 
 function fmtHours(min: number): string {
-  return `${(min / 60).toFixed(1)} 小时`;
+  return tr("admin.wr.hours", { n: (min / 60).toFixed(1) });
 }
 
 // 周报口径统一北京时间(UTC+8),生成时间也按北京显示(避免浏览器本地时区不一致)。
@@ -26,6 +27,7 @@ function fmtBeijingFull(iso: string): string {
 }
 
 function AdminWeeklyReportPageInner() {
+  const t = useT();
   const navigate = useNavigate();
   const [reports, setReports] = useState<WeeklyReportListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,10 +65,10 @@ function AdminWeeklyReportPageInner() {
     setGenerating(true);
     try {
       const r = await api.admin.weeklyReport.generate();
-      toast.success(r.created ? "已生成本周周报" : "已刷新本周周报");
+      toast.success(r.created ? t("admin.wr.created") : t("admin.wr.refreshed"));
       await refetch();
     } catch (err) {
-      toast.error(`生成失败：${(err as Error).message}`);
+      toast.error(t("admin.wr.genFailed", { msg: (err as Error).message }));
     } finally {
       setGenerating(false);
     }
@@ -80,31 +82,31 @@ function AdminWeeklyReportPageInner() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-xs text-muted">
-            按北京时间自然周(周一 00:00 – 周日 24:00)统计。{isAdmin ? "点「刷新本周周报」随时生成 / 更新「本周(进行中)」实时数据;" : ""}每周一 00:00 自动把上一个完整周定稿归档。点「查看」打开图文报告并可导出 PDF / HTML。
+            {t("admin.wr.listDesc1")}{isAdmin ? t("admin.wr.listDescAdmin") : ""}{t("admin.wr.listDesc2")}
           </p>
         </div>
         {isAdmin && (
           <Button onClick={onGenerate} disabled={generating} className="shrink-0 whitespace-nowrap">
-            {generating ? "生成中…" : "生成/刷新本周周报"}
+            {generating ? t("admin.wr.generating") : t("admin.wr.generate")}
           </Button>
         )}
       </div>
 
       {reports.length === 0 ? (
         <div className="rounded-xl border border-line bg-white px-8 py-12 text-center text-sm text-muted">
-          {isAdmin ? "还没有周报。点右上角「生成/刷新本周周报」生成第一份。" : "还没有周报，每周一会自动生成上一周的周报。"}
+          {isAdmin ? t("admin.wr.emptyAdmin") : t("admin.wr.emptyMember")}
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-line bg-white shadow-glass">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-surface text-left text-xs text-muted">
-                <th className="px-4 py-2 font-medium">周区间</th>
-                <th className="px-4 py-2 font-medium">活跃用户</th>
-                <th className="px-4 py-2 font-medium">总操作</th>
-                <th className="px-4 py-2 font-medium">在线总时长</th>
-                <th className="px-4 py-2 font-medium">生成时间</th>
-                <th className="px-4 py-2 text-right font-medium">操作</th>
+                <th className="px-4 py-2 font-medium">{t("admin.wr.colWeek")}</th>
+                <th className="px-4 py-2 font-medium">{t("admin.wr.colActive")}</th>
+                <th className="px-4 py-2 font-medium">{t("admin.wr.colOps")}</th>
+                <th className="px-4 py-2 font-medium">{t("admin.wr.colDuration")}</th>
+                <th className="px-4 py-2 font-medium">{t("admin.wr.colGenerated")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("admin.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -120,9 +122,9 @@ function AdminWeeklyReportPageInner() {
                       {!r.finalized && (
                         <span
                           className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-normal text-primary"
-                          title="本周尚未结束,数据会随刷新增长;每周一 00:00 自动定稿归档"
+                          title={t("admin.wr.thisWeekTip")}
                         >
-                          本周
+                          {t("admin.wr.thisWeek")}
                         </span>
                       )}
                     </span>
@@ -137,7 +139,7 @@ function AdminWeeklyReportPageInner() {
                       size="sm"
                       onClick={(e) => { e.stopPropagation(); navigate(`/admin/weekly-report/${r.id}`); }}
                     >
-                      查看
+                      {t("admin.wr.view")}
                     </Button>
                   </td>
                 </tr>

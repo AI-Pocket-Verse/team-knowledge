@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useIsAdmin } from "@/stores/auth";
 import { ExpertConfigForm } from "@/components/experts/ExpertConfigForm";
+import { useT } from "@/i18n";
 
 // 管理端:逐个角色配置「专家设定」。左选角色,右用共用的 ExpertConfigForm 编辑。
 export function AdminExpertConfigPage() {
@@ -12,6 +13,7 @@ export function AdminExpertConfigPage() {
 }
 
 function Inner() {
+  const t = useT();
   const [roles, setRoles] = useState<{ id: string; name: string }[] | null>(null);
   const [sel, setSel] = useState<string | null>(null);
 
@@ -28,8 +30,8 @@ function Inner() {
     <div className="flex h-full min-h-0 gap-4">
       {/* 左:角色列表 */}
       <aside className="w-48 shrink-0 overflow-y-auto">
-        <p className="mb-2 text-sm font-semibold text-fg">角色专家</p>
-        {roles === null && <p className="text-sm text-muted">加载中…</p>}
+        <p className="mb-2 text-sm font-semibold text-fg">{t("admin.expertConfig.roles")}</p>
+        {roles === null && <p className="text-sm text-muted">{t("common.loading")}</p>}
         <div className="flex flex-col gap-1">
           {roles?.map((r) => (
             <button
@@ -41,17 +43,17 @@ function Inner() {
               {r.name}
             </button>
           ))}
-          {roles?.length === 0 && <p className="text-sm text-muted">还没有角色。</p>}
+          {roles?.length === 0 && <p className="text-sm text-muted">{t("admin.expertConfig.noRoles")}</p>}
         </div>
       </aside>
 
       {/* 右:专家设定编辑 */}
       <div className="min-w-0 flex-1 overflow-y-auto">
         {!sel ? (
-          <p className="text-sm text-muted">选择左侧一个角色开始配置</p>
+          <p className="text-sm text-muted">{t("admin.expertConfig.pick")}</p>
         ) : (
           <div className="max-w-2xl space-y-5">
-            <h2 className="text-base font-semibold text-fg">{nameOf(sel)} · 专家设定</h2>
+            <h2 className="text-base font-semibold text-fg">{nameOf(sel)}{t("admin.expertConfig.titleSuffix")}</h2>
             <ExpertConfigForm roleId={sel} roleName={nameOf(sel)} />
           </div>
         )}

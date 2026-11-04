@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { RoleWithMembers } from "@team-knowledge/shared";
 import { api } from "@/lib/api";
+import { useT } from "@/i18n";
 import { ROLE_PALETTE, type RoleColorKey } from "@/lib/roleColors";
 
 type Mode = "create" | "edit";
@@ -22,6 +23,7 @@ export function RoleFormDialog({
   target?: RoleWithMembers | null;
   onSaved: () => void;
 }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState<RoleColorKey>("violet");
@@ -65,19 +67,19 @@ export function RoleFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{mode === "create" ? "新建角色" : "编辑角色"}</DialogTitle>
+          <DialogTitle>{mode === "create" ? t("admin.roleForm.create") : t("admin.roleForm.edit")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="name">名称</Label>
+            <Label htmlFor="name">{t("admin.roleForm.name")}</Label>
             <Input id="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={32} required />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="desc">描述</Label>
+            <Label htmlFor="desc">{t("admin.roleForm.desc")}</Label>
             <Input id="desc" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={255} />
           </div>
           <div className="flex flex-col gap-2">
-            <Label>颜色</Label>
+            <Label>{t("admin.roleForm.color")}</Label>
             <div className="flex flex-wrap gap-2">
               {ROLE_PALETTE.map((c) => (
                 <button
@@ -98,9 +100,9 @@ export function RoleFormDialog({
           {error && <div className="text-sm text-rose-600">{error}</div>}
           <div className="mt-2 flex justify-end gap-2">
             <DialogClose asChild>
-              <Button variant="ghost" type="button">取消</Button>
+              <Button variant="ghost" type="button">{t("common.cancel")}</Button>
             </DialogClose>
-            <Button type="submit" disabled={saving}>{saving ? "保存中…" : "保存"}</Button>
+            <Button type="submit" disabled={saving}>{saving ? t("common.saving") : t("common.save")}</Button>
           </div>
         </form>
       </DialogContent>
