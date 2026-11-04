@@ -4,6 +4,7 @@ import type { AnalyticsComposition, AnalyticsRankings, AnalyticsTrends } from "@
 import { TrendChart } from "./TrendChart";
 import { CompositionPies } from "./CompositionPies";
 import { RankingsSection } from "./RankingBars";
+import { setCurrentLang } from "@/i18n/lang";
 
 const trends: AnalyticsTrends = {
   dayLabels: ["06-05", "06-06", "06-07"],
@@ -86,5 +87,21 @@ describe("RankingsSection", () => {
   it("renders an empty state for an empty ranking", () => {
     render(<RankingsSection rankings={{ hotDocs: [], topContributors: [], docsByRole: [], skillStatus: [] }} />);
     expect(screen.getAllByText("暂无数据")).toHaveLength(4);
+  });
+});
+
+describe("dashboard in English", () => {
+  it("renders English labels and restores zh", () => {
+    setCurrentLang("en");
+    try {
+      render(<><TrendChart trends={trends} /><CompositionPies composition={composition} /><RankingsSection rankings={rankings} /></>);
+      expect(screen.getByText("Content & engagement trends")).toBeInTheDocument();
+      expect(screen.getAllByText("Docs by role")).toHaveLength(2);
+      expect(screen.getByText("Top docs")).toBeInTheDocument();
+      expect(screen.getByText("Images")).toBeInTheDocument();
+      expect(screen.queryByText("内容与互动趋势")).not.toBeInTheDocument();
+    } finally {
+      setCurrentLang("zh");
+    }
   });
 });

@@ -1,6 +1,7 @@
 import type { AnalyticsRankings } from "@team-knowledge/shared";
 import { ACTIVITY_LABEL } from "@/components/activity/ActivityFeed";
 import { cn } from "@/lib/cn";
+import { useT, type MessageKey } from "@/i18n";
 
 export interface RankItem {
   id: string;
@@ -13,13 +14,15 @@ export interface RankItem {
   onClick?: () => void;
 }
 
-const SKILL_STATUS_LABEL: Record<string, string> = {
-  empty: "未生成", stale: "待更新", generating: "生成中", fresh: "最新", failed: "失败",
+const SKILL_STATUS_KEY: Record<string, MessageKey> = {
+  empty: "dashboard.rank.status.empty", stale: "dashboard.rank.status.stale", generating: "dashboard.rank.status.generating",
+  fresh: "dashboard.rank.status.fresh", failed: "dashboard.rank.status.failed",
 };
 
 // Pure-CSS horizontal bar ranking — fully renderable in jsdom (no SVG) and
 // trivially clickable for drill-down.
 export function RankingBars({ title, items, color = "#3370FF", note }: { title: string; items: RankItem[]; color?: string; note?: string }) {
+  const t = useT();
   const max = items.reduce((m, it) => Math.max(m, it.value), 0) || 1;
   return (
     <div className="rounded-xl border border-line bg-white p-4 shadow-glass">
@@ -28,7 +31,7 @@ export function RankingBars({ title, items, color = "#3370FF", note }: { title: 
         {note && <span className="text-[11px] text-muted/70">{note}</span>}
       </div>
       {items.length === 0 ? (
-        <div className="flex h-24 items-center justify-center text-xs text-muted">暂无数据</div>
+        <div className="flex h-24 items-center justify-center text-xs text-muted">{t("dashboard.empty")}</div>
       ) : (
         <ol className="space-y-2">
           {items.map((it, i) => {
@@ -76,33 +79,34 @@ export function RankingsSection({
   onRole?: (roleId: string) => void;
   onUser?: (userId: string) => void;
 }) {
+  const t = useT();
   return (
     <section className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-4">
       <RankingBars
-        title="热门文档"
-        note="窗口内综合热度"
+        title={t("dashboard.rank.hotDocs")}
+        note={t("dashboard.rank.hotDocs.note")}
         color="#3370FF"
         items={rankings.hotDocs.map((d) => ({
           id: d.articleId, label: d.title, value: d.score,
-          tooltip: `浏览 ${d.viewers} · 点赞 ${d.likes} · 评论 ${d.comments} · 收藏 ${d.bookmarks}`,
+          tooltip: t("dashboard.rank.hotDocs.tip", { views: d.viewers, likes: d.likes, comments: d.comments, bookmarks: d.bookmarks }),
           onClick: onDoc ? () => onDoc(d.articleId) : undefined,
         }))}
       />
       <RankingBars
-        title="活跃贡献者"
-        note="加权 · 近期优先"
+        title={t("dashboard.rank.contributors")}
+        note={t("dashboard.rank.contributors.note")}
         color="#00B42A"
         items={rankings.topContributors.map((c) => ({
           id: c.userId, label: c.userName, value: c.contribution,
           tooltip: [
             ...c.breakdown.map((b) => `${ACTIVITY_LABEL[b.type]} ×${b.count}`),
-            ...(c.received > 0 ? [`被认可 +${c.received}`] : []),
+            ...(c.received > 0 ? [t("dashboard.rank.received", { n: c.received })] : []),
           ].join(" · ") || undefined,
           onClick: onUser ? () => onUser(c.userId) : undefined,
         }))}
       />
       <RankingBars
-        title="各角色文档数"
+        title={t("dashboard.rank.docsByRole")}
         color="#FF7D00"
         items={rankings.docsByRole.map((r) => ({
           id: r.roleId, label: r.roleName, value: r.count,
@@ -110,10 +114,10 @@ export function RankingsSection({
         }))}
       />
       <RankingBars
-        title="角色 Skill 状态"
+        title={t("dashboard.rank.skillStatus")}
         color="#7B61FF"
         items={rankings.skillStatus.map((s) => ({
-          id: s.status, label: SKILL_STATUS_LABEL[s.status] ?? s.status, value: s.count,
+          id: s.status, label: SKILL_STATUS_KEY[s.status] ? t(SKILL_STATUS_KEY[s.status]) : s.status, value: s.count,
         }))}
       />
     </section>

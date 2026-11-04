@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { useT } from "@/i18n";
 
 export function DeleteRoleDialog({
   open,
@@ -22,6 +23,7 @@ export function DeleteRoleDialog({
   articleCount: number;
   onDeleted: () => void;
 }) {
+  const t = useT();
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,27 +52,24 @@ export function DeleteRoleDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>删除角色</DialogTitle>
+          <DialogTitle>{t("admin.roleDelete.title")}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-3">
           {hasContent ? (
             <p className="text-sm">
-              无法删除角色「<span className="font-medium">{roleName}</span>」:
-              请先删除或迁移该角色下的 <span className="font-medium">{folderCount}</span> 个目录、
-              <span className="font-medium">{articleCount}</span> 篇文档。
+              {t("admin.roleDelete.blockedPre")}<span className="font-medium">{roleName}</span>{t("admin.roleDelete.blockedMid1")}<span className="font-medium">{folderCount}</span>{t("admin.roleDelete.blockedMid2", { n: folderCount })}<span className="font-medium">{articleCount}</span>{t("admin.roleDelete.blockedPost", { n: articleCount })}
             </p>
           ) : (
             <p className="text-sm">
-              确认删除角色「<span className="font-medium">{roleName}</span>」？
-              该角色及其 <span className="font-medium">{memberCount}</span> 名成员的绑定关系会被删除，但用户本身不受影响。
+              {t("admin.roleDelete.confirmPre")}<span className="font-medium">{roleName}</span>{t("admin.roleDelete.confirmMid")}<span className="font-medium">{memberCount}</span>{t("admin.roleDelete.confirmPost", { n: memberCount })}
             </p>
           )}
           {error && <div className="text-sm text-rose-600">{error}</div>}
           <div className="mt-2 flex justify-end gap-2">
             <DialogClose asChild>
-              <Button variant="ghost" type="button">取消</Button>
+              <Button variant="ghost" type="button">{t("common.cancel")}</Button>
             </DialogClose>
-            <Button type="button" onClick={confirm} disabled={working || hasContent}>{working ? "删除中…" : "确认删除"}</Button>
+            <Button type="button" onClick={confirm} disabled={working || hasContent}>{working ? t("admin.deleting") : t("admin.confirmDelete")}</Button>
           </div>
         </div>
       </DialogContent>

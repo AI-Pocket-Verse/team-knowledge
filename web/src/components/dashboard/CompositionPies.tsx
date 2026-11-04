@@ -1,14 +1,16 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { AnalyticsComposition } from "@team-knowledge/shared";
+import { useT, type MessageKey } from "@/i18n";
 
 const PALETTE = ["#3370FF", "#00B42A", "#FF7D00", "#F53F3F", "#7B61FF", "#0FC6C2", "#165DFF", "#D91AD9", "#86909C", "#FFC53D"];
 
-const INTERACTION_LABEL: Record<string, string> = { like: "点赞", comment: "评论", bookmark: "收藏" };
-const UPLOAD_LABEL: Record<string, string> = { image: "图片", document: "文档", other: "其他" };
+const INTERACTION_KEY: Record<string, MessageKey> = { like: "dashboard.interaction.like", comment: "dashboard.interaction.comment", bookmark: "dashboard.interaction.bookmark" };
+const UPLOAD_KEY: Record<string, MessageKey> = { image: "dashboard.upload.image", document: "dashboard.upload.document", other: "dashboard.upload.other" };
 
 interface Slice { name: string; value: number }
 
 function Donut({ title, data }: { title: string; data: Slice[] }) {
+  const t = useT();
   const total = data.reduce((s, d) => s + d.value, 0);
   return (
     <div className="rounded-xl border border-line bg-white p-4 shadow-glass">
@@ -48,22 +50,23 @@ function Donut({ title, data }: { title: string; data: Slice[] }) {
           </ul>
         </>
       ) : (
-        <div className="flex h-36 items-center justify-center text-xs text-muted">暂无数据</div>
+        <div className="flex h-36 items-center justify-center text-xs text-muted">{t("dashboard.empty")}</div>
       )}
     </div>
   );
 }
 
 export function CompositionPies({ composition }: { composition: AnalyticsComposition }) {
+  const t = useT();
   const byRole: Slice[] = composition.byRole.map((r) => ({ name: r.roleName, value: r.count }));
-  const byInteraction: Slice[] = composition.byInteraction.map((s) => ({ name: INTERACTION_LABEL[s.key] ?? s.key, value: s.count }));
-  const byUpload: Slice[] = composition.byUpload.map((s) => ({ name: UPLOAD_LABEL[s.key] ?? s.key, value: s.count }));
+  const byInteraction: Slice[] = composition.byInteraction.map((s) => ({ name: INTERACTION_KEY[s.key] ? t(INTERACTION_KEY[s.key]) : s.key, value: s.count }));
+  const byUpload: Slice[] = composition.byUpload.map((s) => ({ name: UPLOAD_KEY[s.key] ? t(UPLOAD_KEY[s.key]) : s.key, value: s.count }));
 
   return (
     <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <Donut title="各角色文档占比" data={byRole} />
-      <Donut title="互动类型占比" data={byInteraction} />
-      <Donut title="上传类型占比" data={byUpload} />
+      <Donut title={t("dashboard.pie.byRole")} data={byRole} />
+      <Donut title={t("dashboard.pie.byInteraction")} data={byInteraction} />
+      <Donut title={t("dashboard.pie.byUpload")} data={byUpload} />
     </section>
   );
 }

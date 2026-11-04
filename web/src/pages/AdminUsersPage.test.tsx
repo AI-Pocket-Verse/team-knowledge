@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AdminUsersPage } from "./AdminUsersPage";
 import { useAuth } from "@/stores/auth";
+import { setCurrentLang } from "@/i18n/lang";
 
 const me = {
   id: "admin-id",
@@ -63,6 +64,21 @@ describe("AdminUsersPage", () => {
     expect(await screen.findByText("Admin")).toBeInTheDocument();
     expect(await screen.findByText("User One")).toBeInTheDocument();
     expect(await screen.findByText("产品")).toBeInTheDocument();
+  });
+
+  it("renders English headers and tooltips when the language is en", async () => {
+    setCurrentLang("en");
+    try {
+      render(<MemoryRouter><AdminUsersPage /></MemoryRouter>);
+      await screen.findByText("Admin");
+      expect(screen.getByText("Created")).toBeInTheDocument();
+      expect(screen.getByText("Users appear here automatically after their first sign-in. Assign roles and permissions here.")).toBeInTheDocument();
+      const adminRow = screen.getByText("Admin").closest("tr")!;
+      const deleteBtn = Array.from(adminRow.querySelectorAll("button")).find((b) => b.textContent === "Delete")!;
+      expect(deleteBtn).toHaveAttribute("title", "You can't delete yourself");
+    } finally {
+      setCurrentLang("zh");
+    }
   });
 
   it("shows the SSO email column (no create-user button)", async () => {

@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useIsAdmin, useAuth } from "@/stores/auth";
 import { toast } from "@/components/Toaster";
+import { useT } from "@/i18n";
 
 type Row = { key: string; label: string; visibility: "admin" | "all" };
 
@@ -13,6 +14,7 @@ export function AdminPageVisibilityPage() {
 }
 
 function Inner() {
+  const t = useT();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
@@ -28,9 +30,9 @@ function Inner() {
       // 同步刷新全局 admin-access,使本会话的侧栏/菜单与最新放开状态一致。
       // (其他用户的浏览器仍需刷新/重登才生效 —— 无服务端推送,属已知限制。)
       void useAuth.getState().refreshAdminAccess();
-      toast.success("已保存");
+      toast.success(t("admin.saved"));
     } catch (e) {
-      toast.error((e as Error).message || "保存失败");
+      toast.error((e as Error).message || t("error.saveFailed"));
     } finally {
       setSavingKey(null);
     }
@@ -39,11 +41,10 @@ function Inner() {
   return (
     <div className="w-full">
       <p className="text-sm text-muted">
-        配置下列管理页对普通成员的可见性。设为「所有成员」后,该页对所有登录用户【完全可用】(含其操作)。
-        用户/角色/备份等敏感页不可放开,始终仅管理员。
+        {t("admin.pageVis.desc")}
       </p>
       <div className="mt-4 flex flex-col gap-2">
-        {rows === null && <p className="text-sm text-muted">加载中…</p>}
+        {rows === null && <p className="text-sm text-muted">{t("common.loading")}</p>}
         {rows?.map((row) => (
           <div key={row.key} className="flex items-center justify-between rounded-xl border border-line bg-white p-4 shadow-glass">
             <div className="text-sm font-medium text-fg">{row.label}</div>
@@ -59,7 +60,7 @@ function Inner() {
                     (row.visibility === v ? "bg-primary text-primary-fg" : "text-muted hover:text-fg")
                   }
                 >
-                  {v === "admin" ? "仅管理员" : "所有成员"}
+                  {v === "admin" ? t("admin.pageVis.adminOnly") : t("admin.pageVis.allMembers")}
                 </button>
               ))}
             </div>

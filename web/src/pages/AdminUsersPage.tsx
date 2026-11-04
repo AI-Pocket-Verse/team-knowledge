@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { RoleBadge } from "@/components/admin/RoleBadge";
 import { UserFormDialog } from "@/components/admin/UserFormDialog";
 import { DeleteUserDialog } from "@/components/admin/DeleteUserDialog";
+import { useT } from "@/i18n";
 
 // "用户" page is admin-only. Non-admins have no pages inside /admin
 // (folders are managed from the workspace sidebar), so we bounce
@@ -20,6 +21,7 @@ export function AdminUsersPage() {
 }
 
 function AdminUsersPageInner() {
+  const t = useT();
   const me = useAuth((s) => s.user);
   const [users, setUsers] = useState<UserWithRoles[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -73,18 +75,18 @@ function AdminUsersPageInner() {
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-xs text-muted">用户首次登录后自动出现，可在此分配角色 / 权限</p>
+      <p className="text-xs text-muted">{t("admin.users.hint")}</p>
 
       <div className="overflow-hidden rounded-xl border border-line bg-white shadow-glass">
         <table className="w-full text-sm">
           <thead className="bg-surface text-left text-xs text-muted">
             <tr>
-              <th className="px-4 py-2.5 font-medium">姓名</th>
-              <th className="px-4 py-2.5 font-medium">邮箱</th>
-              <th className="px-4 py-2.5 font-medium">角色</th>
-              <th className="px-4 py-2.5 font-medium">状态</th>
-              <th className="px-4 py-2.5 font-medium">创建时间</th>
-              <th className="px-4 py-2.5 text-right font-medium">操作</th>
+              <th className="px-4 py-2.5 font-medium">{t("admin.users.name")}</th>
+              <th className="px-4 py-2.5 font-medium">{t("admin.users.email")}</th>
+              <th className="px-4 py-2.5 font-medium">{t("admin.userForm.roles")}</th>
+              <th className="px-4 py-2.5 font-medium">{t("admin.users.status")}</th>
+              <th className="px-4 py-2.5 font-medium">{t("admin.users.createdAt")}</th>
+              <th className="px-4 py-2.5 text-right font-medium">{t("admin.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -100,9 +102,9 @@ function AdminUsersPageInner() {
                       {u.isAdmin ? (
                         <span
                           className="rounded-full bg-accent-soft px-2 py-0.5 text-xs text-primary"
-                          title="管理员默认拥有全部角色权限，包括以后新建的角色"
+                          title={t("admin.users.allRolesTip")}
                         >
-                          全部角色
+                          {t("admin.users.allRoles")}
                         </span>
                       ) : u.roles.length === 0 ? (
                         <span className="text-muted">—</span>
@@ -115,15 +117,15 @@ function AdminUsersPageInner() {
                   </td>
                   <td className="px-4 py-2.5">
                     {u.isActive ? (
-                      <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs text-primary">启用</span>
+                      <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs text-primary">{t("admin.userForm.active")}</span>
                     ) : (
-                      <span className="rounded-full bg-surface px-2 py-0.5 text-xs text-muted">禁用</span>
+                      <span className="rounded-full bg-surface px-2 py-0.5 text-xs text-muted">{t("admin.users.disabled")}</span>
                     )}
                   </td>
                   <td className="px-4 py-2.5 text-muted">{fmtDate(u.createdAt)}</td>
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(u)}>编辑</Button>
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(u)}>{t("common.edit")}</Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -131,13 +133,13 @@ function AdminUsersPageInner() {
                         disabled={isSelf || isLastAdmin}
                         title={
                           isSelf
-                            ? "不能删除自己"
+                            ? t("admin.users.cantDeleteSelf")
                             : isLastAdmin
-                              ? "不能删除最后一名管理员"
+                              ? t("admin.users.cantDeleteLastAdmin")
                               : undefined
                         }
                       >
-                        删除
+                        {t("common.delete")}
                       </Button>
                     </div>
                   </td>

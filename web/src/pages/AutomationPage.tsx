@@ -13,15 +13,16 @@ import { Dialog, DialogContent, DialogTitle, DialogClose } from "@/components/ui
 import { usePageChrome } from "@/stores/pageChrome";
 import { useAiSurface } from "@/stores/aiSurface";
 import { cn } from "@/lib/cn";
+import { tr, useI18n, useT } from "@/i18n";
 
 // 相对时间:未来「N后」、过去「N前」。
 function relTime(iso: string): string {
   const diff = new Date(iso).getTime() - Date.now();
   const abs = Math.abs(diff);
-  const unit = abs < 3_600_000 ? `${Math.max(1, Math.round(abs / 60_000))} 分钟`
-    : abs < 86_400_000 ? `${Math.round(abs / 3_600_000)} 小时`
-    : `${Math.round(abs / 86_400_000)} 天`;
-  return diff >= 0 ? `${unit}后` : `${unit}前`;
+  const future = diff >= 0;
+  if (abs < 3_600_000) return tr(future ? "automation.rel.minFuture" : "automation.rel.minPast", { n: Math.max(1, Math.round(abs / 60_000)) });
+  if (abs < 86_400_000) return tr(future ? "automation.rel.hourFuture" : "automation.rel.hourPast", { n: Math.round(abs / 3_600_000) });
+  return tr(future ? "automation.rel.dayFuture" : "automation.rel.dayPast", { n: Math.round(abs / 86_400_000) });
 }
 // 展示 slug:automation-<北京创建时刻>(还原截图里的灰色芯片)。
 function slug(iso: string): string {
@@ -33,14 +34,15 @@ function slug(iso: string): string {
 type View = { t: "list" } | { t: "templates" } | { t: "add"; prefill?: AutomationFormValue } | { t: "edit"; id: string } | { t: "run"; runId: string };
 
 export function AutomationPage() {
+  const { t, lang } = useI18n();
   const [data, setData] = useState<AutomationListResponse | null>(null);
   const [view, setView] = useState<View>({ t: "list" });
   const [editing, setEditing] = useState<Automation | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const refetch = useCallback(async () => {
-    try { setData(await api.automations.list()); } catch { toast.error("加载失败,请刷新重试"); }
-  }, []);
+    try { setData(await api.automations.list()); } catch { toast.error(t("automation.loadFailedRefresh")); }
+  }, [t]);
   // 每次回到列表(首次进入、从添加/编辑/详情返回)都刷新一次 —— 让刚触发的「执行中」状态即时显示。
   useEffect(() => { if (view.t === "list") void refetch(); }, [view.t, refetch]);
 
@@ -55,18 +57,18 @@ export function AutomationPage() {
   useEffect(() => {
     if (view.t !== "edit") { setEditing(null); return; }
     let cancelled = false;
-    void api.automations.get(view.id).then((a) => { if (!cancelled) setEditing(a); }).catch(() => { if (!cancelled) { toast.error("任务不存在"); setView({ t: "list" }); } });
+    void api.automations.get(view.id).then((a) => { if (!cancelled) setEditing(a); }).catch(() => { if (!cancelled) { toast.error(t("automation.notFound")); setView({ t: "list" }); } });
     return () => { cancelled = true; };
   }, [view]);
 
   async function save(input: AutomationInput) {
     setSubmitting(true);
     try {
-      if (view.t === "edit") { await api.automations.update(view.id, input); toast.success("已保存"); }
-      else { await api.automations.create(input); toast.success("已创建"); }
+      if (view.t === "edit") { await api.automations.update(view.id, input); toast.success(t("automation.saved")); }
+      else { await api.automations.create(input); toast.success(t("automation.created")); }
       await refetch();
       setView({ t: "list" });
-    } catch (e) { toast.error((e as Error).message || "保存失败"); }
+    } catch (e) { toast.error((e as Error).message || t("automation.saveFailed")); }
     finally { setSubmitting(false); }
   }
 
@@ -75,13 +77,13 @@ export function AutomationPage() {
   usePageChrome({
     rightActions: view.t === "run" ? undefined : (
       <>
-        <button type="button" onClick={() => setView({ t: "add" })} className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-fg transition hover:bg-surface">＋ 添加</button>
-        <button type="button" onClick={() => setView({ t: "templates" })} className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-fg transition hover:bg-surface">从模板添加</button>
+        <button type="button" onClick={() => setView({ t: "add" })} className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-fg transition hover:bg-surface">{t("automation.add")}</button>
+        <button type="button" onClick={() => setView({ t: "templates" })} className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-fg transition hover:bg-surface">{t("automation.addFromTemplate")}</button>
       </>
     ),
   });
 
-  if (!data) return <div className="p-2 text-sm text-muted">加载中…</div>;
+  if (!data) return <div className="p-2 text-sm text-muted">{t("automation.loading")}</div>;
 
   // 运行详情 = 二级页面:独立展示(自带返回 + 任务名标题),不叠加主页标题 → 全页「只有一个标题」。
   if (view.t === "run") return <RunDetailView runId={view.runId} onBack={() => setView({ t: "list" })} />;
@@ -98,9 +100,9 @@ export function AutomationPage() {
         onToggle={async (a) => {
           try {
             if (a.enabled) await api.automations.pause(a.id); else await api.automations.resume(a.id);
-            toast.success(a.enabled ? "已暂停" : "已启用");
+            toast.success(a.enabled ? t("automation.paused") : t("automation.enabled"));
             await refetch();
-          } catch (e) { toast.error((e as Error).message || "操作失败"); }
+          } catch (e) { toast.error((e as Error).message || t("automation.actionFailed")); }
         }}
       />
 
@@ -109,12 +111,12 @@ export function AutomationPage() {
         {templatesOpen && (
           <DialogContent className="flex max-h-[85vh] w-[560px] max-w-[94vw] flex-col overflow-y-auto">
             <div className="flex items-center justify-between">
-              <DialogTitle>从模板添加</DialogTitle>
-              <DialogClose className="rounded-md px-1.5 text-lg leading-none text-muted transition hover:text-fg" aria-label="关闭">✕</DialogClose>
+              <DialogTitle>{t("automation.addFromTemplate")}</DialogTitle>
+              <DialogClose className="rounded-md px-1.5 text-lg leading-none text-muted transition hover:text-fg" aria-label={t("automation.close")}>✕</DialogClose>
             </div>
             <AutomationTemplates
               templates={data.templates}
-              onPick={(t: AutomationTemplate) => setView({ t: "add", prefill: { name: t.title, prompt: t.prompt, scheduleKind: t.scheduleKind, scheduleConfig: t.scheduleConfig } })}
+              onPick={(tpl: AutomationTemplate) => setView({ t: "add", prefill: { name: tpl.title, prompt: tpl.prompt, scheduleKind: tpl.scheduleKind, scheduleConfig: tpl.scheduleConfig } })}
             />
           </DialogContent>
         )}
@@ -132,8 +134,8 @@ export function AutomationPage() {
             {view.t === "add" ? (
               <>
                 <div className="flex shrink-0 items-center justify-between border-b border-line px-6 py-4">
-                  <DialogTitle>添加自动化任务</DialogTitle>
-                  <DialogClose className="rounded-md px-1.5 text-lg leading-none text-muted transition hover:text-fg" aria-label="关闭">✕</DialogClose>
+                  <DialogTitle>{t("automation.addTitle")}</DialogTitle>
+                  <DialogClose className="rounded-md px-1.5 text-lg leading-none text-muted transition hover:text-fg" aria-label={t("automation.close")}>✕</DialogClose>
                 </div>
                 <AutomationForm initial={view.prefill} onSubmit={save} onCancel={() => setView({ t: "list" })} submitting={submitting} />
               </>
@@ -141,12 +143,12 @@ export function AutomationPage() {
               <>
                 <div className="shrink-0 border-b border-line px-6 py-4">
                   <div className="flex items-center justify-between gap-3">
-                    <DialogTitle>编辑自动化任务</DialogTitle>
-                    <DialogClose className="rounded-md px-1.5 text-lg leading-none text-muted transition hover:text-fg" aria-label="关闭">✕</DialogClose>
+                    <DialogTitle>{t("automation.editTitle")}</DialogTitle>
+                    <DialogClose className="rounded-md px-1.5 text-lg leading-none text-muted transition hover:text-fg" aria-label={t("automation.close")}>✕</DialogClose>
                   </div>
                   <p className="mt-1 text-xs text-muted">
-                    创建于 {new Date(editing.createdAt).toLocaleDateString()} · {editing.runCount} 次运行 ·{" "}
-                    <span className={editing.enabled ? "text-emerald-600" : "text-muted"}>{editing.enabled ? "● 运行中" : "❚❚ 已暂停"}</span>
+                    {t("automation.createdMeta", { date: new Date(editing.createdAt).toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US"), n: editing.runCount })}{" "}
+                    <span className={editing.enabled ? "text-emerald-600" : "text-muted"}>{editing.enabled ? t("automation.stateRunning") : t("automation.statePaused")}</span>
                   </p>
                 </div>
                 <AutomationForm
@@ -155,7 +157,7 @@ export function AutomationPage() {
                 />
               </>
             ) : (
-              <p className="py-10 text-center text-sm text-muted">加载中…</p>
+              <p className="py-10 text-center text-sm text-muted">{t("automation.loading")}</p>
             )}
           </DialogContent>
         )}
@@ -170,6 +172,7 @@ function AutomationList({ data, onOpen, onOpenRun, onToggle }: {
   onOpenRun: (runId: string) => void;
   onToggle: (a: Automation) => void;
 }) {
+  const t = useT();
   const scheduled = data.automations;
   const runningRuns = data.recentRuns.filter((r) => r.status === "running");
   const doneRuns = data.recentRuns.filter((r) => r.status !== "running");
@@ -196,13 +199,13 @@ function AutomationList({ data, onOpen, onOpenRun, onToggle }: {
   return (
     <div className="flex flex-col gap-8">
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-muted">已安排</h2>
-        {scheduled.length === 0 ? <div className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">还没有自动化任务,点右上角「添加」创建。</div> : (
+        <h2 className="mb-3 text-sm font-semibold text-muted">{t("automation.section.scheduled")}</h2>
+        {scheduled.length === 0 ? <div className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">{t("automation.emptyScheduled")}</div> : (
           <div className="flex flex-col">
             {scheduled.map((a) => {
               // 一次性任务跑完(已 disable 且有过正式运行)= 已结束终态,不再显示暂停/启用。
               const doneOnce = a.scheduleKind === "once" && !a.enabled && !!a.lastRunStatus;
-              const statusLabel = !a.enabled ? (doneOnce ? "已结束" : "已暂停") : a.nextRunAt ? `${relTime(a.nextRunAt)}开始` : "已结束";
+              const statusLabel = !a.enabled ? (doneOnce ? t("automation.status.ended") : t("automation.paused")) : a.nextRunAt ? t("automation.status.startsIn", { when: relTime(a.nextRunAt) }) : t("automation.status.ended");
               return (
                 <div key={a.id} className="group flex items-center gap-3 rounded-lg px-2 py-3 transition hover:bg-surface">
                   <button type="button" onClick={() => onOpen(a.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
@@ -213,9 +216,9 @@ function AutomationList({ data, onOpen, onOpenRun, onToggle }: {
                   </button>
                   <span className="shrink-0 text-sm text-muted">{statusLabel}</span>
                   {!doneOnce && (
-                    <button type="button" onClick={() => onToggle(a)} title={a.enabled ? "暂停" : "启用"}
+                    <button type="button" onClick={() => onToggle(a)} title={a.enabled ? t("automation.pause") : t("automation.enable")}
                       className="shrink-0 rounded-md px-2 py-1 text-xs text-primary opacity-0 transition hover:bg-primary/10 group-hover:opacity-100">
-                      {a.enabled ? "暂停" : "启用"}
+                      {a.enabled ? t("automation.pause") : t("automation.enable")}
                     </button>
                   )}
                 </div>
@@ -227,7 +230,7 @@ function AutomationList({ data, onOpen, onOpenRun, onToggle }: {
 
       {runningRuns.length > 0 && (
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-muted">执行中</h2>
+          <h2 className="mb-3 text-sm font-semibold text-muted">{t("automation.section.running")}</h2>
           <div className="flex flex-col">
             {runningRuns.map((r) => (
               <div key={r.id} className="flex items-center gap-3 rounded-lg bg-surface/60 px-2 py-3">
@@ -235,9 +238,9 @@ function AutomationList({ data, onOpen, onOpenRun, onToggle }: {
                 <span className="shrink-0 font-semibold text-fg">{r.automationName}</span>
                 <Chip>{slug(r.startedAt)}</Chip>
                 <span className="ml-auto flex shrink-0 items-center gap-3">
-                  <span className="text-sm text-muted">运行中</span>
+                  <span className="text-sm text-muted">{t("automation.running")}</span>
                   <button type="button" onClick={() => onOpenRun(r.id)}
-                    className="rounded-lg border border-line px-3 py-1 text-sm text-fg transition hover:bg-surface">查看运行详情</button>
+                    className="rounded-lg border border-line px-3 py-1 text-sm text-fg transition hover:bg-surface">{t("automation.viewRun")}</button>
                 </span>
               </div>
             ))}
@@ -246,8 +249,8 @@ function AutomationList({ data, onOpen, onOpenRun, onToggle }: {
       )}
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-muted">已完成</h2>
-        {doneGroups.length === 0 ? <div className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">暂无运行记录。</div> : (
+        <h2 className="mb-3 text-sm font-semibold text-muted">{t("automation.section.done")}</h2>
+        {doneGroups.length === 0 ? <div className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">{t("automation.emptyDone")}</div> : (
           <div className="flex flex-col gap-1">
             {doneGroups.map((g) => (
               <CompletedTaskGroup key={g.id} group={g} onOpenRun={onOpenRun} />
@@ -268,6 +271,7 @@ function CompletedTaskGroup({ group, onOpenRun }: {
   group: { id: string; name: string; pinnedAt: string | null; latest: AutomationRun };
   onOpenRun: (runId: string) => void;
 }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
   const [runs, setRuns] = useState<AutomationRun[] | null>(null); // null=未拉取(折叠时用 latest)
   const [hasMore, setHasMore] = useState(false);
@@ -276,7 +280,7 @@ function CompletedTaskGroup({ group, onOpenRun }: {
   async function loadFirst() {
     setLoading(true);
     try { const res = await api.automations.taskRuns(group.id, undefined, 5); setRuns(res.runs); setHasMore(res.hasMore); }
-    catch { toast.error("加载失败,请重试"); }
+    catch { toast.error(t("automation.loadFailedRetry")); }
     finally { setLoading(false); }
   }
   async function loadMore() {
@@ -284,7 +288,7 @@ function CompletedTaskGroup({ group, onOpenRun }: {
     if (!cur) return;
     setLoading(true);
     try { const res = await api.automations.taskRuns(group.id, cur, 5); setRuns((prev) => [...(prev ?? []), ...res.runs]); setHasMore(res.hasMore); }
-    catch { toast.error("加载失败,请重试"); }
+    catch { toast.error(t("automation.loadFailedRetry")); }
     finally { setLoading(false); }
   }
   function toggle() {
@@ -296,7 +300,7 @@ function CompletedTaskGroup({ group, onOpenRun }: {
   // 折叠态展开态共用的「单条运行状态」渲染:圆点 + 文案 + 时间 + ✓/✗,点击进运行详情。
   const runRow = (r: AutomationRun, opts?: { compact?: boolean }) => {
     const ok = r.status === "success";
-    const label = ok ? (r.isTest ? "测试运行完成" : "运行完成") : (r.error ? `失败:${r.error.slice(0, 40)}` : "运行失败");
+    const label = ok ? (r.isTest ? t("automation.testRunDone") : t("automation.runDone")) : (r.error ? t("automation.failedWith", { error: r.error.slice(0, 40) }) : t("automation.runFailed"));
     return (
       <button type="button" onClick={(e) => { e.stopPropagation(); onOpenRun(r.id); }}
         className={cn("flex items-center gap-3 rounded-lg text-left transition hover:bg-surface", opts?.compact ? "px-2 py-1" : "w-full px-2 py-2.5")}>
@@ -322,13 +326,13 @@ function CompletedTaskGroup({ group, onOpenRun }: {
           h-10 固定头行高度(不是 min-h):折叠态右侧紧凑状态行比纯标题略高,展开后被移除会让
           头行变矮、整条上移一下;固定高度后两种状态强制等高,彻底消除展开/收起时的上下跳动。 */}
       <div className="flex h-10 items-center gap-2 px-2">
-        <button type="button" onClick={toggle} aria-label={expanded ? "折叠" : "展开"}
+        <button type="button" onClick={toggle} aria-label={expanded ? t("automation.collapse") : t("automation.expand")}
           className="shrink-0 rounded-md p-1 text-muted transition hover:bg-line/50 hover:text-fg">
           <CollapseChevron open={expanded} />
         </button>
         {/* 点击任务名直接展开/收起(不再打开编辑弹窗)。outline-none/select-none:去掉点击后的蓝色聚焦框与文字选中。 */}
         <button type="button" onClick={toggle} className="flex min-w-0 flex-1 select-none items-center gap-2 rounded text-left outline-none">
-          {group.pinnedAt && <span aria-hidden title="已置顶" className="shrink-0 text-primary">📌</span>}
+          {group.pinnedAt && <span aria-hidden title={t("automation.pinned")} className="shrink-0 text-primary">📌</span>}
           <span className="truncate font-semibold text-fg">{group.name}</span>
         </button>
         {/* 折叠态:右侧直接显示最近一次完成状态(移动端也显示);展开态由下方完整列表呈现,故隐藏以免重复。 */}
@@ -338,11 +342,11 @@ function CompletedTaskGroup({ group, onOpenRun }: {
       {expanded && (
         <div className="flex flex-col pl-7">
           {rows.map((r) => <div key={r.id}>{runRow(r)}</div>)}
-          {loading && <div className="px-2 py-2 text-xs text-muted">加载中…</div>}
+          {loading && <div className="px-2 py-2 text-xs text-muted">{t("automation.loading")}</div>}
           {hasMore && !loading && (
             <button type="button" onClick={() => void loadMore()}
               className="mt-1 self-start rounded-lg px-2 py-1 text-xs text-muted transition hover:bg-surface hover:text-fg">
-              加载更多
+              {t("automation.loadMore")}
             </button>
           )}
         </div>
@@ -364,6 +368,7 @@ function runToMessages(detail: AutomationRunDetail): UiChatMessage[] {
 }
 
 function RunDetailView({ runId, onBack }: { runId: string; onBack: () => void }) {
+  const { t, lang } = useI18n();
   const [detail, setDetail] = useState<AutomationRunDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [rerunning, setRerunning] = useState(false);
@@ -394,7 +399,7 @@ function RunDetailView({ runId, onBack }: { runId: string; onBack: () => void })
           });
         }
         if (d.status === "running") timer = setTimeout(load, 4000); // 轮询到完成
-      } catch (e) { if (!cancelled) setErr((e as Error).message || "加载失败"); }
+      } catch (e) { if (!cancelled) setErr((e as Error).message || t("automation.loadFailed")); }
     };
     void load();
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
@@ -405,7 +410,7 @@ function RunDetailView({ runId, onBack }: { runId: string; onBack: () => void })
   // 二级页面返回:统一图标按钮,放到标题行最左侧。
   const backBtn = <BackButton onClick={onBack} />;
   if (err) return <div><div className="mb-4">{backBtn}</div><p className="text-sm text-rose-600">{err}</p></div>;
-  if (!detail) return <div><div className="mb-4">{backBtn}</div><p className="text-sm text-muted">加载中…</p></div>;
+  if (!detail) return <div><div className="mb-4">{backBtn}</div><p className="text-sm text-muted">{t("automation.loading")}</p></div>;
 
   const running = detail.status === "running";
   const ok = detail.status === "success";
@@ -420,9 +425,9 @@ function RunDetailView({ runId, onBack }: { runId: string; onBack: () => void })
         <h2 className="text-lg font-semibold text-fg">{detail.automationName}</h2>
         <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium",
           running ? "bg-line/50 text-muted" : ok ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600")}>
-          {running ? "运行中" : ok ? "已完成" : "运行失败"}
+          {running ? t("automation.running") : ok ? t("automation.finished") : t("automation.runFailed")}
         </span>
-        {detail.isTest && <span className="rounded-full bg-line/50 px-2 py-0.5 text-xs text-muted">测试运行</span>}
+        {detail.isTest && <span className="rounded-full bg-line/50 px-2 py-0.5 text-xs text-muted">{t("automation.testRun")}</span>}
       </div>
 
       {/* 复用聊天列表渲染这段合成对话(需要有界高度让内部滚动生效)。 */}
@@ -430,7 +435,7 @@ function RunDetailView({ runId, onBack }: { runId: string; onBack: () => void })
         <ChatMessageList
           messages={messages}
           status={running ? "idle" : ok ? "idle" : "error"}
-          error={running || ok ? null : (detail.error ?? "运行失败")}
+          error={running || ok ? null : (detail.error ?? t("automation.runFailed"))}
           replying={running}
           autoScroll={false}
         />
@@ -443,17 +448,17 @@ function RunDetailView({ runId, onBack }: { runId: string; onBack: () => void })
               setRerunning(true);
               try {
                 const res = await api.automations.run(detail.automationId);
-                toast.success(res.alreadyRunning ? "该任务正在运行中" : "已重新运行,稍后在「执行中/已完成」查看");
+                toast.success(res.alreadyRunning ? t("automation.alreadyRunning") : t("automation.rerunStarted"));
               }
-              catch { toast.error("触发失败"); }
+              catch { toast.error(t("automation.triggerFailed")); }
               finally { setRerunning(false); }
             }}
             className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-fg transition hover:bg-surface disabled:opacity-60">
-            ▷ 重新运行
+            {t("automation.rerun")}
           </button>
           <span className="text-xs text-muted">
-            {ok ? "完成" : "结束"}于 {new Date(when).toLocaleString()}
-            {d && (d.ok ? ` · 已推送飞书${d.httpStatus ? `(${d.httpStatus})` : ""}` : ` · 投递失败${d.httpStatus ? `(${d.httpStatus})` : ""}`)}
+            {t(ok ? "automation.doneAt" : "automation.endedAt", { time: new Date(when).toLocaleString(lang === "zh" ? "zh-CN" : "en-US") })}
+            {d && t(d.ok ? "automation.pushed" : "automation.deliveryFailed", { code: d.httpStatus ? `(${d.httpStatus})` : "" })}
           </span>
         </div>
       )}
@@ -464,20 +469,21 @@ function RunDetailView({ runId, onBack }: { runId: string; onBack: () => void })
 // 编辑态左侧操作:删除 / 测试运行 / 暂停·恢复。
 // onRan:测试运行触发成功后,主动关闭编辑弹窗并刷新列表,让「执行中」任务即时出现。
 function EditActions({ a, onChanged, onDeleted, onRan, onLocal }: { a: Automation; onChanged: () => void; onDeleted: () => void; onRan: () => void; onLocal: (a: Automation) => void }) {
+  const t = useT();
   const btn = "flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm font-medium transition hover:bg-surface";
   return (
     <>
       <button type="button" className={cn(btn, "border-rose-200 text-rose-600 hover:bg-rose-50")}
-        onClick={async () => { if (await dialog.confirm(`确定删除「${a.name}」?此操作不可撤销。`, { title: "删除任务", danger: true })) { await api.automations.remove(a.id); toast.success("已删除"); onDeleted(); } }}>
-        🗑 删除
+        onClick={async () => { if (await dialog.confirm(t("automation.confirmDelete", { name: a.name }), { title: t("automation.deleteTitle"), danger: true })) { await api.automations.remove(a.id); toast.success(t("automation.deleted")); onDeleted(); } }}>
+        {t("automation.btnDelete")}
       </button>
       <button type="button" className={btn}
-        onClick={async () => { try { const res = await api.automations.run(a.id); toast.success(res.alreadyRunning ? "该任务正在运行中" : "测试运行已开始,可在「执行中」查看"); onRan(); } catch { toast.error("触发失败"); } }}>
-        ▷ 测试运行
+        onClick={async () => { try { const res = await api.automations.run(a.id); toast.success(res.alreadyRunning ? t("automation.alreadyRunning") : t("automation.testRunStarted")); onRan(); } catch { toast.error(t("automation.triggerFailed")); } }}>
+        {t("automation.btnTestRun")}
       </button>
       <button type="button" className={btn}
-        onClick={async () => { const next = a.enabled ? await api.automations.pause(a.id) : await api.automations.resume(a.id); toast.success(a.enabled ? "已暂停" : "已恢复"); onLocal(next); onChanged(); }}>
-        {a.enabled ? "❚❚ 暂停" : "▷ 恢复"}
+        onClick={async () => { const next = a.enabled ? await api.automations.pause(a.id) : await api.automations.resume(a.id); toast.success(a.enabled ? t("automation.paused") : t("automation.resumed")); onLocal(next); onChanged(); }}>
+        {a.enabled ? t("automation.btnPause") : t("automation.btnResume")}
       </button>
     </>
   );

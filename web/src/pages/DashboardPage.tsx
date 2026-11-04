@@ -16,11 +16,13 @@ import { UserActivityDrawer, Avatar, Tag } from "@/components/dashboard/UserActi
 import { fmtDate, fmtRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/cn";
 import { getAssistantName } from "@/lib/assistantName";
+import { useT } from "@/i18n";
 
 const WINDOWS = [7, 14, 30] as const;
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const t = useT();
   // Aggregate sections render for everyone; the per-user table + per-user
   // activity drawer are admin-only ("聚合公开、个人明细仅管理员"). The backend
   // enforces the same split (data.users is [] for non-admins).
@@ -94,7 +96,7 @@ export function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">数据看板</h1>
+        <h1 className="text-lg font-semibold">{t("dashboard.title")}</h1>
         <div className="inline-flex overflow-hidden rounded-lg border border-line text-sm">
           {WINDOWS.map((w) => (
             <button
@@ -106,7 +108,7 @@ export function DashboardPage() {
                 days === w ? "bg-primary text-primary-fg" : "bg-white text-muted hover:bg-surface",
               )}
             >
-              近 {w} 天
+              {t("dashboard.window", { n: w })}
             </button>
           ))}
         </div>
@@ -166,13 +168,14 @@ export function DashboardPage() {
 }
 
 function OverviewCards({ o }: { o: AdminDashboardResponse["overview"] }) {
+  const t = useT();
   const cards: { label: string; value: number; hint?: string }[] = [
-    { label: "总用户", value: o.totalUsers, hint: `近 7 天新增 ${o.newUsers7d}` },
-    { label: "今日活跃", value: o.activeToday, hint: `近 7 天活跃 ${o.active7d}` },
-    { label: "文档数", value: o.docs },
-    { label: "评论数", value: o.comments },
-    { label: "会议数", value: o.meetings },
-    { label: `${getAssistantName()} 提问`, value: o.chatMessages },
+    { label: t("dashboard.card.totalUsers"), value: o.totalUsers, hint: t("dashboard.card.totalUsers.hint", { n: o.newUsers7d }) },
+    { label: t("dashboard.card.activeToday"), value: o.activeToday, hint: t("dashboard.card.activeToday.hint", { n: o.active7d }) },
+    { label: t("dashboard.card.docs"), value: o.docs },
+    { label: t("dashboard.card.comments"), value: o.comments },
+    { label: t("dashboard.card.meetings"), value: o.meetings },
+    { label: t("dashboard.card.chat", { name: getAssistantName() }), value: o.chatMessages },
   ];
   return (
     <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -194,23 +197,24 @@ function UsersTable({
   dayLabels: string[];
   onSelect: (u: AdminDashboardUserRow) => void;
 }) {
+  const t = useT();
   return (
     <section className="rounded-xl border border-line bg-white shadow-glass">
       <div className="border-b border-line px-4 py-3 text-sm font-semibold">
-        用户活跃 <span className="text-muted">({users.length})</span>
-        <span className="ml-2 text-xs font-normal text-muted/70">点击某行查看详细动态</span>
+        {t("dashboard.users.title")} <span className="text-muted">({users.length})</span>
+        <span className="ml-2 text-xs font-normal text-muted/70">{t("dashboard.users.hint")}</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] text-sm">
           <thead>
             <tr className="border-b border-line text-left text-xs text-muted">
-              <th className="px-4 py-2 font-medium">用户</th>
-              <th className="px-4 py-2 font-medium">角色</th>
-              <th className="px-4 py-2 font-medium">注册</th>
-              <th className="px-4 py-2 font-medium">最近活跃</th>
-              <th className="px-4 py-2 text-right font-medium">今日</th>
-              <th className="px-4 py-2 text-right font-medium">近 7 天</th>
-              <th className="px-4 py-2 font-medium">每日操作</th>
+              <th className="px-4 py-2 font-medium">{t("dashboard.users.colUser")}</th>
+              <th className="px-4 py-2 font-medium">{t("dashboard.users.colRole")}</th>
+              <th className="px-4 py-2 font-medium">{t("dashboard.users.colJoined")}</th>
+              <th className="px-4 py-2 font-medium">{t("dashboard.users.colLastSeen")}</th>
+              <th className="px-4 py-2 text-right font-medium">{t("dashboard.users.colToday")}</th>
+              <th className="px-4 py-2 text-right font-medium">{t("dashboard.users.col7d")}</th>
+              <th className="px-4 py-2 font-medium">{t("dashboard.users.colDaily")}</th>
             </tr>
           </thead>
           <tbody>
@@ -226,8 +230,8 @@ function UsersTable({
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="truncate font-medium">{u.displayName}</span>
-                        {u.isAdmin && <Tag className="bg-accent-soft text-primary">管理员</Tag>}
-                        {!u.isActive && <Tag className="bg-rose-100 text-rose-700">已停用</Tag>}
+                        {u.isAdmin && <Tag className="bg-accent-soft text-primary">{t("dashboard.users.admin")}</Tag>}
+                        {!u.isActive && <Tag className="bg-rose-100 text-rose-700">{t("dashboard.users.disabled")}</Tag>}
                       </div>
                       {u.email && <div className="truncate text-[11px] text-muted/70">{u.email}</div>}
                     </div>
@@ -244,7 +248,7 @@ function UsersTable({
               </tr>
             ))}
             {users.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">暂无用户</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">{t("dashboard.users.empty")}</td></tr>
             )}
           </tbody>
         </table>
@@ -254,10 +258,11 @@ function UsersTable({
 }
 
 function Heat({ daily, dayLabels }: { daily: number[]; dayLabels: string[] }) {
+  const t = useT();
   return (
     <div className="flex items-end gap-0.5">
       {daily.map((n, i) => (
-        <span key={i} title={`${dayLabels[i] ?? ""}: ${n} 次操作`} className={cn("h-4 w-2.5 rounded-sm", heatClass(n))} />
+        <span key={i} title={t("dashboard.heat.title", { label: dayLabels[i] ?? "", n })} className={cn("h-4 w-2.5 rounded-sm", heatClass(n))} />
       ))}
     </div>
   );

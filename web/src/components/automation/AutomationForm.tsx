@@ -3,6 +3,7 @@ import type { Automation, AutomationInput, AutomationScheduleKind } from "@/lib/
 import { Select, TimePicker } from "./Select";
 import { DatePicker } from "./DatePicker";
 import { cn } from "@/lib/cn";
+import { useT } from "@/i18n";
 
 // 北京墙钟(y-m-d h:m)→ 真实 UTC ms(北京=UTC+8)。与后端一致。
 function beijingWallToUtcMs(y: number, mo: number, d: number, h: number, mi: number): number {
@@ -18,9 +19,7 @@ function utcMsToBeijingTime(ms: number): string {
   const b = new Date(ms + 8 * 3600_000);
   return `${pad(b.getUTCHours())}:${pad(b.getUTCMinutes())}`;
 }
-const WD = [{ v: 1, l: "一" }, { v: 2, l: "二" }, { v: 3, l: "三" }, { v: 4, l: "四" }, { v: 5, l: "五" }, { v: 6, l: "六" }, { v: 7, l: "日" }];
-const PRESET_OPTS = [{ value: "daily", label: "每天" }, { value: "weekdays", label: "工作日" }, { value: "weekly", label: "每周" }];
-const UNIT_OPTS = [{ value: "min", label: "分钟" }, { value: "hour", label: "小时" }];
+const WD_VALUES = [1, 2, 3, 4, 5, 6, 7] as const;
 
 // 统一控件样式。
 const inputCls = "h-10 w-full rounded-lg border border-line bg-white px-3 text-sm text-fg outline-none transition placeholder:text-muted/50 focus:border-primary focus:ring-2 focus:ring-primary/15";
@@ -36,6 +35,9 @@ interface Props {
 }
 
 export function AutomationForm({ initial, onSubmit, onCancel, submitting, leftActions }: Props) {
+  const t = useT();
+  const PRESET_OPTS = [{ value: "daily", label: t("automation.preset.daily") }, { value: "weekdays", label: t("automation.preset.weekdays") }, { value: "weekly", label: t("automation.preset.weekly") }];
+  const UNIT_OPTS = [{ value: "min", label: t("automation.unit.min") }, { value: "hour", label: t("automation.unit.hour") }];
   const init = (initial ?? {}) as Automation & AutomationFormValue;
   const [name, setName] = useState(init.name ?? "");
   const [prompt, setPrompt] = useState(init.prompt ?? "");
@@ -67,20 +69,20 @@ export function AutomationForm({ initial, onSubmit, onCancel, submitting, leftAc
   }
 
   function build(): AutomationInput | null {
-    if (!name.trim()) { setErr("请填写名称"); return null; }
-    if (!prompt.trim()) { setErr("请填写提示词"); return null; }
+    if (!name.trim()) { setErr(t("automation.err.name")); return null; }
+    if (!prompt.trim()) { setErr(t("automation.err.prompt")); return null; }
     let scheduleConfig: AutomationInput["scheduleConfig"];
     if (kind === "cron") {
       const [h, mi] = time.split(":").map(Number);
       const wds = preset === "daily" ? [1, 2, 3, 4, 5, 6, 7] : preset === "weekdays" ? [1, 2, 3, 4, 5] : weekdays;
-      if (wds.length === 0) { setErr("请至少选择一个星期几"); return null; }
+      if (wds.length === 0) { setErr(t("automation.err.weekday")); return null; }
       scheduleConfig = { weekdays: wds, hour: h, minute: mi };
     } else if (kind === "interval") {
       const everyMs = intervalN * (intervalUnit === "hour" ? 3600_000 : 60_000);
-      if (everyMs < 600_000) { setErr("间隔至少 10 分钟"); return null; }
+      if (everyMs < 600_000) { setErr(t("automation.err.interval")); return null; }
       scheduleConfig = { everyMs };
     } else {
-      if (!onceDate) { setErr("请选择单次执行日期"); return null; }
+      if (!onceDate) { setErr(t("automation.err.onceDate")); return null; }
       const [y, mo, dd] = onceDate.split("-").map(Number);
       const [h, mi] = (onceTime || "09:00").split(":").map(Number);
       scheduleConfig = { atMs: beijingWallToUtcMs(y, mo, dd, h, mi) };
@@ -94,24 +96,24 @@ export function AutomationForm({ initial, onSubmit, onCancel, submitting, leftAc
     <div className="flex min-h-0 flex-1 flex-col">
       {/* 可滚动主体 */}
       <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
-        <Field label="名称">
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} placeholder="给任务起个名字" className={inputCls} />
+        <Field label={t("automation.field.name")}>
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} placeholder={t("automation.field.namePlaceholder")} className={inputCls} />
         </Field>
 
-        <Field label="提示词">
+        <Field label={t("automation.field.prompt")}>
           <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={7} maxLength={8000}
-            placeholder="描述要做什么、产出格式(如整理成飞书 interactive 卡片 JSON)…"
+            placeholder={t("automation.field.promptPlaceholder")}
             className="w-full resize-y rounded-lg border border-line bg-white px-3 py-2.5 text-sm leading-relaxed text-fg outline-none transition placeholder:text-muted/50 focus:border-primary focus:ring-2 focus:ring-primary/15" />
         </Field>
 
-        <Field label="webhook 地址" hint="(可选,留空则只运行不推送)">
+        <Field label={t("automation.field.webhook")} hint={t("automation.field.webhookHint")}>
           <input value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} maxLength={500}
-            placeholder="飞书机器人 webhook,如 https://open.feishu.cn/open-apis/bot/v2/hook/…" className={inputCls} />
+            placeholder={t("automation.field.webhookPlaceholder")} className={inputCls} />
         </Field>
 
-        <Field label="执行频率" hint="(北京时间)">
+        <Field label={t("automation.field.frequency")} hint={t("automation.field.frequencyHint")}>
           <div className="mb-3 inline-flex rounded-lg bg-line/40 p-1 text-xs">
-            {([["cron", "周期"], ["interval", "按间隔"], ["once", "单次"]] as const).map(([k, l]) => (
+            {([["cron", t("automation.kind.cron")], ["interval", t("automation.kind.interval")], ["once", t("automation.kind.once")]] as const).map(([k, l]) => (
               <button key={k} type="button" onClick={() => setKind(k)}
                 className={cn("rounded-md px-4 py-1.5 font-medium transition", kind === k ? "bg-white text-fg shadow-sm" : "text-muted hover:text-fg")}>{l}</button>
             ))}
@@ -121,9 +123,9 @@ export function AutomationForm({ initial, onSubmit, onCancel, submitting, leftAc
               <Select className="w-[104px]" value={preset} options={PRESET_OPTS} onChange={(v) => setPreset(v as typeof preset)} />
               {preset === "weekly" && (
                 <div className="flex gap-1">
-                  {WD.map((d) => (
-                    <button key={d.v} type="button" onClick={() => toggleWeekday(d.v)}
-                      className={cn("h-9 w-9 rounded-md border text-sm transition", weekdays.includes(d.v) ? "border-primary bg-accent-soft font-medium text-primary" : "border-line text-muted hover:bg-surface")}>{d.l}</button>
+                  {WD_VALUES.map((v) => (
+                    <button key={v} type="button" onClick={() => toggleWeekday(v)}
+                      className={cn("h-9 w-9 rounded-md border text-sm transition", weekdays.includes(v) ? "border-primary bg-accent-soft font-medium text-primary" : "border-line text-muted hover:bg-surface")}>{t(`automation.wd.${v}`)}</button>
                   ))}
                 </div>
               )}
@@ -132,7 +134,7 @@ export function AutomationForm({ initial, onSubmit, onCancel, submitting, leftAc
           )}
           {kind === "interval" && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted">每</span>
+              <span className="text-sm text-muted">{t("automation.every")}</span>
               <input type="number" min={1} value={intervalN} onChange={(e) => setIntervalN(Math.max(1, Number(e.target.value) || 1))}
                 className={cn(inputCls, "w-20 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none")} />
               <Select className="w-[88px]" value={intervalUnit} options={UNIT_OPTS} onChange={(v) => setIntervalUnit(v as "min" | "hour")} />
@@ -146,19 +148,19 @@ export function AutomationForm({ initial, onSubmit, onCancel, submitting, leftAc
           )}
         </Field>
 
-        <Field label="生效日期区间" hint="(可选,留空表示始终生效)">
+        <Field label={t("automation.field.range")} hint={t("automation.field.rangeHint")}>
           {!showRange ? (
             <button type="button" onClick={() => setShowRange(true)}
               className="flex h-10 w-full items-center rounded-lg border border-dashed border-line bg-white px-3 text-left text-sm text-muted transition hover:border-primary/50 hover:text-fg">
-              ＋ 选择生效日期
+              {t("automation.pickRange")}
             </button>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
-              <DatePicker value={effFrom} onChange={setEffFrom} placeholder="开始日期" className="w-[150px]" />
-              <span className="text-muted">至</span>
-              <DatePicker value={effTo} onChange={setEffTo} placeholder="结束日期" className="w-[150px]" />
+              <DatePicker value={effFrom} onChange={setEffFrom} placeholder={t("automation.startDate")} className="w-[150px]" />
+              <span className="text-muted">{t("automation.to")}</span>
+              <DatePicker value={effTo} onChange={setEffTo} placeholder={t("automation.endDate")} className="w-[150px]" />
               <button type="button" onClick={() => { setEffFrom(""); setEffTo(""); setShowRange(false); }}
-                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted transition hover:bg-surface hover:text-fg">清除</button>
+                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted transition hover:bg-surface hover:text-fg">{t("automation.clear")}</button>
             </div>
           )}
         </Field>
@@ -170,10 +172,10 @@ export function AutomationForm({ initial, onSubmit, onCancel, submitting, leftAc
         <div className="flex items-center gap-2">
           {leftActions}
           <div className="ml-auto" />
-          <button type="button" onClick={onCancel} className="rounded-lg border border-line px-5 py-2 text-sm font-medium text-fg transition hover:bg-surface">取消</button>
+          <button type="button" onClick={onCancel} className="rounded-lg border border-line px-5 py-2 text-sm font-medium text-fg transition hover:bg-surface">{t("automation.cancel")}</button>
           <button type="button" disabled={submitting}
             onClick={() => { setErr(null); const v = build(); if (v) void onSubmit(v); }}
-            className="rounded-lg bg-fg px-5 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60">保存</button>
+            className="rounded-lg bg-fg px-5 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60">{t("automation.save")}</button>
         </div>
       </div>
     </div>

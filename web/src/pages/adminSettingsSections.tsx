@@ -11,11 +11,16 @@ import { toast } from "@/components/Toaster";
 import { TimePicker } from "@/components/automation/Select";
 import { cn } from "@/lib/cn";
 import { getAssistantName } from "@/lib/assistantName";
+import { useT, type MessageKey } from "@/i18n";
+
+const WEEKDAY_KEYS: MessageKey[] = ["admin.ft.wd.1", "admin.ft.wd.2", "admin.ft.wd.3", "admin.ft.wd.4", "admin.ft.wd.5", "admin.ft.wd.6", "admin.ft.wd.7"];
+const WEEKDAY_ARIA_KEYS: MessageKey[] = ["admin.ft.wda.1", "admin.ft.wda.2", "admin.ft.wda.3", "admin.ft.wda.4", "admin.ft.wda.5", "admin.ft.wda.6", "admin.ft.wda.7"];
 
 // ─── GitHub 仓库配置 ──────────────────────────────────────────
 // 周五周报「研发改动」段统计这里配置的仓库本周提交(不含本项目)。token 只写不读
 // (后端掩码),私有仓库填只读 PAT。每行可「测试连接」验证真的能拉到信息。
 export function GithubReposSection() {
+  const t = useT();
   const [repos, setRepos] = useState<GithubRepoView[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -46,14 +51,14 @@ export function GithubReposSection() {
 
   async function add() {
     const parsed = parseGithubRepo(url);
-    if (!parsed) { toast.error("无法识别仓库链接,示例:https://github.com/owner/repo"); return; }
+    if (!parsed) { toast.error(t("admin.gh.badUrl")); return; }
     if (busy) return;
     setBusy(true);
     try {
       await api.admin.github.add({ owner: parsed.owner, repo: parsed.repo, auth, token: auth === "token" ? token.trim() || undefined : undefined });
       setUrl(""); setToken(""); setAuth("token"); setTestMsg(null);
       await load();
-      toast.success("已添加仓库");
+      toast.success(t("admin.gh.added"));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -63,11 +68,11 @@ export function GithubReposSection() {
 
   async function testForm() {
     const parsed = parseGithubRepo(url);
-    if (!parsed) { setTestMsg({ kind: "err", text: "无法识别仓库链接,示例:https://github.com/owner/repo" }); return; }
+    if (!parsed) { setTestMsg({ kind: "err", text: t("admin.gh.badUrl") }); return; }
     setBusy(true); setTestMsg(null);
     try {
       const r = await api.admin.github.test({ owner: parsed.owner, repo: parsed.repo, auth, token: auth === "token" ? token.trim() || undefined : undefined });
-      setTestMsg({ kind: "ok", text: `连接成功:${r.fullName}(${r.detail})` });
+      setTestMsg({ kind: "ok", text: t("admin.gh.connected", { name: r.fullName, detail: r.detail }) });
     } catch (e) {
       setTestMsg({ kind: "err", text: (e as Error).message });
     } finally {
@@ -76,19 +81,19 @@ export function GithubReposSection() {
   }
 
   async function testSaved(id: string) {
-    setRowTest((m) => ({ ...m, [id]: "测试中…" }));
+    setRowTest((m) => ({ ...m, [id]: t("admin.gh.testing") }));
     try {
       const r = await api.admin.github.testSaved(id);
-      setRowTest((m) => ({ ...m, [id]: `✓ 已连接 ${r.fullName}(${r.detail})` }));
+      setRowTest((m) => ({ ...m, [id]: t("admin.gh.connectedRow", { name: r.fullName, detail: r.detail }) }));
     } catch (e) {
       setRowTest((m) => ({ ...m, [id]: `✗ ${(e as Error).message}` }));
     }
   }
 
   async function remove(r: GithubRepoView) {
-    const ok = await dialog.confirm(`删除仓库「${r.label}」?周报将不再统计它。`, { title: "删除 GitHub 仓库", confirmText: "删除", danger: true });
+    const ok = await dialog.confirm(t("admin.gh.deleteMsg", { label: r.label }), { title: t("admin.gh.deleteTitle"), confirmText: t("common.delete"), danger: true });
     if (!ok) return;
-    try { await api.admin.github.remove(r.id); await load(); toast.success("已删除"); } catch (e) { toast.error((e as Error).message); }
+    try { await api.admin.github.remove(r.id); await load(); toast.success(t("admin.backup.deleted")); } catch (e) { toast.error((e as Error).message); }
   }
 
   // 展开/收起某仓库的分支面板;首次展开时拉取远端分支列表(SSH/Token 按存储认证)。
@@ -102,7 +107,7 @@ export function GithubReposSection() {
         setBranchList((m) => ({ ...m, [r.id]: branches }));
         setBranchSel((m) => ({ ...m, [r.id]: selected }));
       } catch (e) {
-        toast.error(`拉取分支失败:${(e as Error).message}`);
+        toast.error(t("admin.gh.branchesFailed", { msg: (e as Error).message }));
         setBranchPanel(null);
       } finally {
         setBranchLoading(null);
@@ -123,7 +128,7 @@ export function GithubReposSection() {
       const sel = branchSel[r.id] ?? [];
       await api.admin.github.updateBranches(r.id, sel);
       await load();
-      toast.success(sel.length > 0 ? `已保存:周报只统计 ${sel.length} 个分支` : "已恢复为统计全部分支");
+      toast.success(sel.length > 0 ? t("admin.gh.branchesSaved", { n: sel.length }) : t("admin.gh.branchesAll"));
       setBranchPanel(null);
     } catch (e) {
       toast.error((e as Error).message);
@@ -137,23 +142,23 @@ export function GithubReposSection() {
       <div>
         {/* 标题只在右区顶栏(RightTopBar),页面本体不重复。 */}
         <p className="text-xs text-muted">
-          每周五的飞书群周报会统计这里配置的仓库本周提交(不含本项目)。认证方式二选一:
-          <b>SSH</b>——用服务器已有的 SSH 私钥拉取(私有库免 token,最省事);
-          <b>API Token</b>——填 Personal Access Token(只读即可),公开库可留空。
+          {t("admin.gh.desc1")}
+          <b>SSH</b>{t("admin.gh.desc2")}
+          <b>API Token</b>{t("admin.gh.desc3")}
         </p>
       </div>
 
       {loading ? (
-        <div className="text-sm text-muted">加载中…</div>
+        <div className="text-sm text-muted">{t("common.loading")}</div>
       ) : loadError ? (
         <div className="flex items-center gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-          <span>加载失败：{loadError}</span>
+          <span>{t("admin.gh.loadFailed", { msg: loadError })}</span>
           <button type="button" onClick={() => void load()} className="shrink-0 rounded-lg border border-rose-300 px-2 py-1 text-xs transition hover:bg-rose-100">
-            重试
+            {t("common.retry")}
           </button>
         </div>
       ) : repos.length === 0 ? (
-        <div className="rounded-xl border border-line bg-white p-4 text-sm text-muted shadow-glass">还没有配置仓库。</div>
+        <div className="rounded-xl border border-line bg-white p-4 text-sm text-muted shadow-glass">{t("admin.gh.empty")}</div>
       ) : (
         <div className="flex flex-col gap-2">
           {repos.map((r) => (
@@ -162,19 +167,19 @@ export function GithubReposSection() {
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{r.label}</div>
                   <div className="truncate text-xs text-muted">
-                    {r.owner}/{r.repo} · {r.auth === "ssh" ? "SSH 密钥" : r.hasToken ? "API token" : "API · 公开"}
-                    {" · 分支:"}{r.branches.length === 0 ? "全部" : r.branches.join("、")}
+                    {r.owner}/{r.repo} · {r.auth === "ssh" ? t("admin.gh.sshKey") : r.hasToken ? "API token" : t("admin.gh.apiPublic")}
+                    {t("admin.gh.branchLabel")}{r.branches.length === 0 ? t("admin.gh.all") : r.branches.join(t("common.listSep"))}
                     {rowTest[r.id] ? ` · ${rowTest[r.id]}` : ""}
                   </div>
                 </div>
                 <button type="button" onClick={() => void openBranches(r)} className="shrink-0 rounded-lg border border-line px-2 py-1 text-xs text-muted transition hover:border-primary/50 hover:text-primary">
-                  {branchPanel === r.id ? "收起分支" : "选择分支"}
+                  {branchPanel === r.id ? t("admin.gh.hideBranches") : t("admin.gh.pickBranches")}
                 </button>
                 <button type="button" onClick={() => void testSaved(r.id)} className="shrink-0 rounded-lg border border-line px-2 py-1 text-xs text-muted transition hover:border-primary/50 hover:text-primary">
-                  测试连接
+                  {t("admin.gh.test")}
                 </button>
                 <button type="button" onClick={() => void remove(r)} className="shrink-0 rounded-lg border border-line px-2 py-1 text-xs text-rose-600 transition hover:bg-rose-50">
-                  删除
+                  {t("common.delete")}
                 </button>
               </div>
 
@@ -182,7 +187,7 @@ export function GithubReposSection() {
               {branchPanel === r.id && (
                 <div className="mt-3 rounded-lg border border-line bg-surface p-3">
                   {branchLoading === r.id ? (
-                    <div className="text-xs text-muted">正在拉取远端分支…</div>
+                    <div className="text-xs text-muted">{t("admin.gh.fetching")}</div>
                   ) : (
                     <>
                       <div className="flex max-h-40 flex-wrap content-start gap-x-4 gap-y-1.5 overflow-auto text-xs">
@@ -197,7 +202,7 @@ export function GithubReposSection() {
                             <span className="font-mono">{b}</span>
                           </label>
                         ))}
-                        {(branchList[r.id] ?? []).length === 0 && <span className="text-muted">远端没有分支。</span>}
+                        {(branchList[r.id] ?? []).length === 0 && <span className="text-muted">{t("admin.gh.noBranches")}</span>}
                       </div>
                       <div className="mt-2 flex items-center gap-2">
                         <button
@@ -206,7 +211,7 @@ export function GithubReposSection() {
                           onClick={() => void saveBranches(r)}
                           className="rounded-lg bg-primary px-3 py-1 text-xs text-primary-fg transition disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {branchSaving === r.id ? "保存中…" : "保存"}
+                          {branchSaving === r.id ? t("common.saving") : t("common.save")}
                         </button>
                         <button
                           type="button"
@@ -214,12 +219,12 @@ export function GithubReposSection() {
                           onClick={() => setBranchSel((m) => ({ ...m, [r.id]: [] }))}
                           className="rounded-lg border border-line px-3 py-1 text-xs text-muted transition hover:border-primary/50 hover:text-primary"
                         >
-                          清空(=全部分支)
+                          {t("admin.gh.clear")}
                         </button>
                         <span className="text-xs text-muted">
                           {(branchSel[r.id] ?? []).length > 0
-                            ? `已选 ${(branchSel[r.id] ?? []).length} 个分支,周报只统计这些分支的提交`
-                            : "未勾选任何分支 = 统计全部分支"}
+                            ? t("admin.gh.selected", { n: (branchSel[r.id] ?? []).length })
+                            : t("admin.gh.noneSelected")}
                         </span>
                       </div>
                     </>
@@ -232,18 +237,18 @@ export function GithubReposSection() {
       )}
 
       <div className="rounded-xl border border-line bg-white p-4 shadow-glass">
-        <div className="text-sm font-medium">添加仓库</div>
+        <div className="text-sm font-medium">{t("admin.gh.addTitle")}</div>
         <input
           value={url}
           onChange={(e) => { setUrl(e.target.value); setTestMsg(null); }}
-          placeholder="粘贴 GitHub 仓库链接,如 https://github.com/example-org/example-repo"
+          placeholder={t("admin.gh.urlPlaceholder")}
           className="mt-3 w-full rounded-lg border border-line px-2 py-1.5 text-sm"
         />
         {/* 认证方式 */}
         <div className="mt-2 flex items-center gap-4 text-sm">
-          <span className="text-muted">认证方式</span>
+          <span className="text-muted">{t("admin.gh.authMode")}</span>
           {([
-            { v: "ssh", label: "SSH(本机密钥)" },
+            { v: "ssh", label: t("admin.gh.authSsh") },
             { v: "token", label: "API Token" },
           ] as const).map((o) => (
             <label key={o.v} className="flex cursor-pointer items-center gap-1.5">
@@ -253,18 +258,18 @@ export function GithubReposSection() {
           ))}
         </div>
         {auth === "token" && (
-          <input value={token} onChange={(e) => setToken(e.target.value)} placeholder="Personal Access Token(私有仓库填,公开可留空)" type="password" autoComplete="off" className="mt-2 w-full rounded-lg border border-line px-2 py-1.5 text-sm" />
+          <input value={token} onChange={(e) => setToken(e.target.value)} placeholder={t("admin.gh.tokenPlaceholder")} type="password" autoComplete="off" className="mt-2 w-full rounded-lg border border-line px-2 py-1.5 text-sm" />
         )}
         {auth === "ssh" && (
-          <p className="mt-2 text-xs text-muted">将用运行环境(服务器)的 SSH 私钥拉取,无需填 token;请确保该机器的 key 对此私有库有读取权限。</p>
+          <p className="mt-2 text-xs text-muted">{t("admin.gh.sshHint")}</p>
         )}
         {testMsg && <div className={`mt-2 text-xs ${testMsg.kind === "ok" ? "text-emerald-700" : "text-rose-700"}`}>{testMsg.text}</div>}
         <div className="mt-3 flex gap-2">
           <button type="button" disabled={!url.trim() || busy} onClick={() => void testForm()} className="rounded-lg border border-line px-3 py-1.5 text-sm transition hover:border-primary/50 hover:text-primary disabled:opacity-50">
-            {busy ? "请稍候…" : "测试连接"}
+            {busy ? t("admin.gh.wait") : t("admin.gh.test")}
           </button>
           <button type="button" disabled={!url.trim() || busy} onClick={() => void add()} className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-fg transition disabled:cursor-not-allowed disabled:opacity-50">
-            添加
+            {t("admin.gh.add")}
           </button>
         </div>
       </div>
@@ -284,6 +289,7 @@ export function GithubReposSection() {
 // 「文档体检」检测参数(强度评级 + 每类最多显示条数)。独立本地 state,不进
 // FeishuTasksConsole 的草稿/差异机制;挂载时载入,「保存检测参数」单独 PUT。
 function DocAuditTuningPanel() {
+  const t = useT();
   const [strength, setStrength] = useState<number | "">(4);
   const [maxPerCategory, setMaxPerCategory] = useState<number | "">(10);
   const [loaded, setLoaded] = useState(false);
@@ -316,7 +322,7 @@ function DocAuditTuningPanel() {
       const next = await api.adminSettings.docAuditTuning.set({ strength: s, maxPerCategory: m });
       setStrength(next.strength);
       setMaxPerCategory(next.maxPerCategory);
-      toast.success("已保存检测参数");
+      toast.success(t("admin.da.saved"));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -326,13 +332,13 @@ function DocAuditTuningPanel() {
 
   return (
     <div className="mt-3 rounded-lg border border-line bg-surface p-3">
-      <div className="text-xs font-medium">检测参数</div>
+      <div className="text-xs font-medium">{t("admin.da.title")}</div>
       <p className="mt-1 text-[11px] text-muted">
-        强度越高检出越严格、条目越多;每种类型最多显示 = 每类问题最多展示的条数。
+        {t("admin.da.desc")}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-4 text-xs">
         <label className="flex items-center gap-2">
-          <span className="text-muted">检测强度评级（1-10）</span>
+          <span className="text-muted">{t("admin.da.strength")}</span>
           <input
             type="number"
             min={1}
@@ -344,7 +350,7 @@ function DocAuditTuningPanel() {
           />
         </label>
         <label className="flex items-center gap-2">
-          <span className="text-muted">每种类型最多显示</span>
+          <span className="text-muted">{t("admin.da.maxPer")}</span>
           <input
             type="number"
             min={1}
@@ -360,7 +366,7 @@ function DocAuditTuningPanel() {
           onClick={() => void save()}
           className="rounded-lg bg-primary px-3 py-1 text-primary-fg transition disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {saving ? "保存中…" : "保存检测参数"}
+          {saving ? t("common.saving") : t("admin.da.save")}
         </button>
       </div>
     </div>
@@ -368,6 +374,7 @@ function DocAuditTuningPanel() {
 }
 
 export function FeishuTasksConsole() {
+  const t = useT();
   const [scenarios, setScenariosState] = useState<NotifyTestScenario[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -418,8 +425,8 @@ export function FeishuTasksConsole() {
     const ok = results.every((r) => r.ok);
     const okCount = results.filter((r) => r.ok).length;
     const failed = results.filter((r) => !r.ok);
-    const head = ok ? `✓ 已发送 ${okCount} 个群` : `部分失败:成功 ${okCount}/${results.length}`;
-    const detail = failed.length ? `;失败 ${failed.map((f) => `${f.name}(${f.error})`).join("、")}` : "";
+    const head = ok ? t("admin.ft.sent", { n: okCount }) : t("admin.ft.partial", { ok: okCount, total: results.length });
+    const detail = failed.length ? t("admin.ft.failedList", { list: failed.map((f) => `${f.name}(${f.error})`).join(t("common.listSep")) }) : "";
     return { ok, text: head + detail };
   }
 
@@ -443,7 +450,7 @@ export function FeishuTasksConsole() {
           break;
         }
         if (Date.now() > deadline) {
-          setResult((m) => ({ ...m, [key]: { ok: true, text: "仍在执行(任务较长),稍后直接到飞书群查看结果" } }));
+          setResult((m) => ({ ...m, [key]: { ok: true, text: t("admin.ft.stillRunning") } }));
           break;
         }
       }
@@ -516,25 +523,24 @@ export function FeishuTasksConsole() {
         // 推进后干净保存的草稿不会被误判为 dirty;「未保存」徽标随 setSaving 重渲染清除。
         baselineRef.current[c.key] = { ...baselineRef.current[c.key], ...scenario };
       } catch (e) {
-        failed.push(`${c.title}：${(e as Error).message}`);
+        failed.push(t("admin.ft.itemFail", { title: c.title, msg: (e as Error).message }));
       }
     }
     setSaving(false);
-    if (failed.length === 0) toast.success("保存成功");
-    else toast.error(`保存失败（${failed.length}/${changes.length} 项）：${failed.join("；")}`);
+    if (failed.length === 0) toast.success(t("admin.ft.saveOk"));
+    else toast.error(t("admin.ft.saveFail", { n: failed.length, total: changes.length, list: failed.join(t("admin.ft.sep")) }));
   }
 
   // ── 定时类任务的触发时刻编辑(星期多选 / 时:分 / 是否每周重复)──
   // 与服务端 formatCronSchedule 同一套文案,用于草稿编辑时即时刷新时刻描述。
   function cronText(s: NotifyTestCronSchedule): string {
-    const NAMES = ["一", "二", "三", "四", "五", "六", "日"];
     const days =
-      s.weekdays.length === 7 ? "每天"
-      : s.weekdays.length === 5 && [1, 2, 3, 4, 5].every((d) => s.weekdays.includes(d)) ? "每个工作日（周一至周五）"
-      : `每周${s.weekdays.map((d) => NAMES[d - 1]).join("、")}`;
+      s.weekdays.length === 7 ? t("admin.ft.everyDay")
+      : s.weekdays.length === 5 && [1, 2, 3, 4, 5].every((d) => s.weekdays.includes(d)) ? t("admin.ft.workdays")
+      : t("admin.ft.weekly", { days: s.weekdays.map((d) => t(WEEKDAY_KEYS[d - 1])).join(t("common.listSep")) });
     const hh = String(s.hour).padStart(2, "0");
     const mm = String(s.minute).padStart(2, "0");
-    return `定时任务：${days} ${hh}:${mm}（北京时间）${s.repeat ? "" : "，仅执行一次（触发后自动停用）"}`;
+    return t("admin.ft.cron", { days, time: `${hh}:${mm}`, once: s.repeat ? "" : t("admin.ft.cronOnce") });
   }
   function patchSchedule(key: string, next: NotifyTestCronSchedule) {
     updateDraft(key, { cronSchedule: next, schedule: cronText(next) });
@@ -547,7 +553,7 @@ export function FeishuTasksConsole() {
     if (!cur) return;
     const has = cur.weekdays.includes(day);
     if (has && cur.weekdays.length === 1) {
-      toast.error("至少保留一个星期");
+      toast.error(t("admin.ft.minOneDay"));
       return;
     }
     const weekdays = has ? cur.weekdays.filter((d) => d !== day) : [...cur.weekdays, day].sort((a, b) => a - b);
@@ -570,31 +576,30 @@ export function FeishuTasksConsole() {
         <div>
           {/* 标题只在右区顶栏(RightTopBar),页面本体不重复。 */}
           <p className="text-xs text-muted">
-            自动发送到飞书群的通知任务控制台:修改各任务的开关、触发时间或目标群后,
-            点右上角「保存」统一生效;「发送测试」按已保存的配置立刻手动发一条。
+            {t("admin.ft.desc")}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {dirtyKeys.size > 0 && !saving && <span className="text-xs text-amber-700">有未保存的改动</span>}
+          {dirtyKeys.size > 0 && !saving && <span className="text-xs text-amber-700">{t("admin.ft.dirty")}</span>}
           <button
             type="button"
             disabled={saving || dirtyKeys.size === 0}
             onClick={() => void saveAll()}
             className="rounded-lg bg-primary px-4 py-1.5 text-sm text-primary-fg transition disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving ? "保存中…" : "保存"}
+            {saving ? t("common.saving") : t("common.save")}
           </button>
         </div>
       </div>
 
       {scenarios.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted">快速跳转：</span>
+          <span className="text-xs text-muted">{t("admin.ft.jump")}</span>
           {scenarios.map((s) => (
             <button
               key={s.key}
               type="button"
-              aria-label={`跳转-${s.title}`}
+              aria-label={t("admin.ft.jumpTo", { title: s.title })}
               onClick={() => document.getElementById(`notify-scenario-${s.key}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
               className="rounded-full border border-line bg-white px-2.5 py-1 text-xs text-fg/80 transition hover:bg-accent-soft hover:text-accent"
             >
@@ -605,16 +610,16 @@ export function FeishuTasksConsole() {
       )}
 
       {loading ? (
-        <div className="text-sm text-muted">加载中…</div>
+        <div className="text-sm text-muted">{t("common.loading")}</div>
       ) : loadError ? (
         <div className="flex items-center gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-          <span>加载失败：{loadError}</span>
+          <span>{t("admin.gh.loadFailed", { msg: loadError })}</span>
           <button type="button" onClick={() => void load()} className="shrink-0 rounded-lg border border-rose-300 px-2 py-1 text-xs transition hover:bg-rose-100">
-            重试
+            {t("common.retry")}
           </button>
         </div>
       ) : scenarios.length === 0 ? (
-        <div className="rounded-xl border border-line bg-white p-4 text-sm text-muted shadow-glass">暂无通知任务。</div>
+        <div className="rounded-xl border border-line bg-white p-4 text-sm text-muted shadow-glass">{t("admin.ft.empty")}</div>
       ) : (
         <div className="flex flex-col gap-2">
           {scenarios.map((s) => {
@@ -628,11 +633,11 @@ export function FeishuTasksConsole() {
                       {s.running && (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-normal text-primary">
                           <span aria-hidden className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-primary/30 border-t-primary" />
-                          运行中
+                          {t("admin.ft.running")}
                         </span>
                       )}
                       {dirtyKeys.has(s.key) && (
-                        <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-normal text-amber-700">未保存</span>
+                        <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-normal text-amber-700">{t("admin.ft.unsaved")}</span>
                       )}
                     </div>
                     <p className="mt-1 text-xs text-muted">{s.description}</p>
@@ -645,18 +650,19 @@ export function FeishuTasksConsole() {
                         onChange={(e) => toggleEnabled(s.key, e.target.checked)}
                         className="accent-primary"
                       />
-                      <span className="font-medium">开启自动任务</span>
+                      <span className="font-medium">{t("admin.ft.autoOn")}</span>
                       <span className={s.enabled ? "text-muted" : "text-muted line-through"}>{s.schedule}</span>
-                      {!s.enabled && <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-amber-700">已停用,不会自动发送</span>}
+                      {!s.enabled && <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-amber-700">{t("admin.ft.disabled")}</span>}
                     </label>
 
                     {/* 定时类任务:触发时刻编辑(星期多选 + 时:分 + 是否每周重复),
                         保存后服务端即时重排下一次触发。 */}
                     {s.cronSchedule && (
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                        <span className="text-muted">触发时间</span>
-                        <div className="flex items-center gap-1" role="group" aria-label="选择星期">
-                          {["一", "二", "三", "四", "五", "六", "日"].map((name, i) => {
+                        <span className="text-muted">{t("admin.ft.triggerTime")}</span>
+                        <div className="flex items-center gap-1" role="group" aria-label={t("admin.ft.pickDays")}>
+                          {WEEKDAY_KEYS.map((nameKey, i) => {
+                            const name = t(nameKey);
                             const day = i + 1;
                             const on = s.cronSchedule!.weekdays.includes(day);
                             return (
@@ -664,7 +670,7 @@ export function FeishuTasksConsole() {
                                 key={day}
                                 type="button"
                                 aria-pressed={on}
-                                aria-label={`周${name}`}
+                                aria-label={t(WEEKDAY_ARIA_KEYS[i])}
                                 onClick={() => toggleWeekday(s.key, day)}
                                 className={
                                   "h-6 w-6 rounded-full text-[11px] leading-none transition " +
@@ -680,7 +686,7 @@ export function FeishuTasksConsole() {
                         </div>
                         <input
                           type="time"
-                          aria-label="触发时刻(北京时间)"
+                          aria-label={t("admin.ft.timeAria")}
                           value={`${String(s.cronSchedule.hour).padStart(2, "0")}:${String(s.cronSchedule.minute).padStart(2, "0")}`}
                           onChange={(e) => changeTime(s.key, e.target.value)}
                           className="rounded-lg border border-line bg-white px-1.5 py-0.5"
@@ -692,17 +698,17 @@ export function FeishuTasksConsole() {
                             onChange={(e) => changeRepeat(s.key, e.target.checked)}
                             className="accent-primary"
                           />
-                          每周重复
+                          {t("admin.ft.repeat")}
                         </label>
                         {!s.cronSchedule.repeat && (
-                          <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-amber-700">仅执行一次,触发后自动停用</span>
+                          <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-amber-700">{t("admin.ft.once")}</span>
                         )}
                       </div>
                     )}
 
                     {/* 目标群多选(草稿,点「保存」后生效) */}
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-                      <span className="text-muted">目标群</span>
+                      <span className="text-muted">{t("admin.ft.targets")}</span>
                       {s.available.map((t) => (
                         <label key={t.chatId} className="flex cursor-pointer items-center gap-1.5">
                           <input
@@ -714,7 +720,7 @@ export function FeishuTasksConsole() {
                           <span>{t.name}</span>
                         </label>
                       ))}
-                      {s.selected.length === 0 && <span className="text-amber-700">未勾选任何群,自动任务与发送测试都不会发送</span>}
+                      {s.selected.length === 0 && <span className="text-amber-700">{t("admin.ft.noTargets")}</span>}
                     </div>
 
                     {/* 文档体检:额外的「检测参数」小块(独立本地 state,不进草稿)。 */}
@@ -728,7 +734,7 @@ export function FeishuTasksConsole() {
                     onClick={() => void send(s.key)}
                     className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-fg transition disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {sending[s.key] ? "发送中…" : "发送测试"}
+                    {sending[s.key] ? t("admin.ft.sending") : t("admin.ft.sendTest")}
                   </button>
                 </div>
               </div>
@@ -745,6 +751,7 @@ export function FeishuTasksConsole() {
 // accessToken is rendered as a placeholder (masked echo of the
 // stored secret); leaving it blank on save preserves the old token.
 export function VolcSttSection() {
+  const t = useT();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [creds, setCreds] = useState<{
@@ -812,9 +819,9 @@ export function VolcSttSection() {
   }
 
   async function clear() {
-    const ok = await dialog.confirm("清除后将回退到 .env 或 stub 提供方。", {
-      title: "清除已存储的 STT 凭证？",
-      confirmText: "清除",
+    const ok = await dialog.confirm(t("admin.volc.sttClearMsg"), {
+      title: t("admin.volc.sttClearTitle"),
+      confirmText: t("admin.volc.clear"),
       danger: true,
     });
     if (!ok) return;
@@ -831,17 +838,17 @@ export function VolcSttSection() {
   }
 
   if (loading) {
-    return <div className="rounded-xl border border-line bg-white p-4 text-sm text-muted shadow-glass">加载中…</div>;
+    return <div className="rounded-xl border border-line bg-white p-4 text-sm text-muted shadow-glass">{t("common.loading")}</div>;
   }
 
   return (
     <div className="rounded-xl border border-line bg-white p-4 shadow-glass">
       <div className="flex items-center gap-3">
-        <span className="text-base font-medium text-fg">实时语音识别 (STT)</span>
+        <span className="text-base font-medium text-fg">{t("admin.volc.sttTitle")}</span>
         {creds?.configured ? (
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">✓ 已配置</span>
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">{t("admin.volc.configured")}</span>
         ) : (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">未配置 — 使用 stub</span>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">{t("admin.volc.sttNone")}</span>
         )}
       </div>
       {err && (
@@ -849,20 +856,20 @@ export function VolcSttSection() {
       )}
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="text-xs text-muted sm:col-span-2">
-          API Key（新版控制台，只需填这一项）
+          {t("admin.volc.apiKey")}
           <input
             type="text"
             value={draft.apiKey}
             onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })}
-            placeholder="未设置。填写后优先使用，下面的 App ID / Access Token 可留空"
+            placeholder={t("admin.volc.apiKeyPh")}
             className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-1.5 text-sm"
           />
           <span className="mt-1 block text-[11px] leading-relaxed text-muted/80">
-            已保存的密钥只显示末 4 位；不修改就保持原样，清空则删除。
+            {t("admin.volc.keyHint")}
           </span>
         </label>
         <label className="text-xs text-muted">
-          App ID（旧版控制台）
+          {t("admin.volc.appId")}
           <input
             value={draft.appId}
             onChange={(e) => setDraft({ ...draft, appId: e.target.value })}
@@ -870,17 +877,17 @@ export function VolcSttSection() {
           />
         </label>
         <label className="text-xs text-muted">
-          Access Token（旧版控制台）
+          {t("admin.volc.accessToken")}
           <input
             type="text"
             value={draft.accessToken}
             onChange={(e) => setDraft({ ...draft, accessToken: e.target.value })}
-            placeholder="未设置"
+            placeholder={t("admin.volc.unset")}
             className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-1.5 text-sm"
           />
         </label>
         <label className="text-xs text-muted">
-          Endpoint（可选）
+          {t("admin.volc.endpoint")}
           <input
             value={draft.endpoint}
             onChange={(e) => setDraft({ ...draft, endpoint: e.target.value })}
@@ -889,7 +896,7 @@ export function VolcSttSection() {
           />
         </label>
         <label className="text-xs text-muted">
-          Resource ID（可选）
+          {t("admin.volc.resourceId")}
           <input
             value={draft.resourceId}
             onChange={(e) => setDraft({ ...draft, resourceId: e.target.value })}
@@ -898,7 +905,7 @@ export function VolcSttSection() {
           />
         </label>
         <label className="text-xs text-muted">
-          模型（可选，model_name）
+          {t("admin.volc.model")}
           <input
             value={draft.model}
             onChange={(e) => setDraft({ ...draft, model: e.target.value })}
@@ -906,22 +913,20 @@ export function VolcSttSection() {
             className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-1.5 text-sm"
           />
           <span className="mt-1 block text-[11px] leading-relaxed text-muted/80">
-            默认 bigmodel（精度高）。长会议实时转录跟不上、延迟越积越大时，可换更快的
-            模型并配合对应 endpoint / Resource ID，让处理速度稳定 ≥ 1× 实时。
+            {t("admin.volc.modelHint")}
           </span>
         </label>
       </div>
       <label className="mt-3 block text-xs text-muted">
-        热词表 ID（可选，用于同音词纠错）
+        {t("admin.volc.boost")}
         <input
           value={draft.boostingTableId}
           onChange={(e) => setDraft({ ...draft, boostingTableId: e.target.value })}
-          placeholder="在火山控制台「语音技术 → 热词」建表后填入 boosting_table_id"
+          placeholder={t("admin.volc.boostPh")}
           className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-1.5 text-sm"
         />
         <span className="mt-1 block text-[11px] leading-relaxed text-muted/80">
-          把领域词加入热词表后，识别会优先选用热词而非同音高频词（例：把「项链库」纠成领域词「向量库」）。
-          每行一个词、≤10 字、可加权重「词语|8」（1-10），数字需转汉字（A4→A四）。留空则不启用。
+          {t("admin.volc.boostHint")}
         </span>
       </label>
       <div className="mt-4 flex items-center gap-2">
@@ -931,7 +936,7 @@ export function VolcSttSection() {
           onClick={() => void save()}
           className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-fg transition disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
         >
-          {saving ? "保存中…" : "保存"}
+          {saving ? t("common.saving") : t("common.save")}
         </button>
         {creds?.configured && (
           <button
@@ -940,7 +945,7 @@ export function VolcSttSection() {
             onClick={() => void clear()}
             className="rounded-lg border border-rose-300 px-3 py-1.5 text-sm text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
           >
-            清除
+            {t("admin.volc.clear")}
           </button>
         )}
       </div>
@@ -954,6 +959,7 @@ export function VolcSttSection() {
 // (如 /root/.nvm/versions/node/v20.20.2/bin/claude)即可修复。留空=清除,
 // 回退到 .env 的 CLAUDE_BIN/CODEX_BIN 或 PATH。保存后即时重新探测。
 export function LlmBinariesSection({ onSaved }: { onSaved: () => void }) {
+  const t = useT();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<LlmBinarySettings | null>(null);
@@ -994,19 +1000,19 @@ export function LlmBinariesSection({ onSaved }: { onSaved: () => void }) {
   }
 
   if (loading) {
-    return <div className="rounded-xl border border-line bg-white p-4 text-sm text-muted shadow-glass">加载中…</div>;
+    return <div className="rounded-xl border border-line bg-white p-4 text-sm text-muted shadow-glass">{t("common.loading")}</div>;
   }
 
   const rows = [
-    { key: "claudePath" as const, label: "Claude Code 路径", probe: data?.available.claude, ph: "/root/.nvm/versions/node/v20.20.2/bin/claude" },
-    { key: "codexPath" as const, label: "Codex 路径", probe: data?.available.codex, ph: "/root/.nvm/versions/node/v20.20.2/bin/codex" },
+    { key: "claudePath" as const, label: t("admin.bin.claude"), probe: data?.available.claude, ph: "/root/.nvm/versions/node/v20.20.2/bin/claude" },
+    { key: "codexPath" as const, label: t("admin.bin.codex"), probe: data?.available.codex, ph: "/root/.nvm/versions/node/v20.20.2/bin/codex" },
   ];
 
   return (
     <div className="rounded-xl border border-line bg-white p-4 shadow-glass">
       <div className="flex items-center gap-2">
-        <span className="text-base font-medium text-fg">命令路径</span>
-        <span className="text-xs text-muted">PATH 找不到 claude/codex 时，填可执行文件的绝对路径</span>
+        <span className="text-base font-medium text-fg">{t("admin.bin.title")}</span>
+        <span className="text-xs text-muted">{t("admin.bin.desc")}</span>
       </div>
       {err && (
         <div className="mt-3 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>
@@ -1017,8 +1023,8 @@ export function LlmBinariesSection({ onSaved }: { onSaved: () => void }) {
             <span className="flex items-center gap-2">
               {r.label}
               {r.probe && (r.probe.ok
-                ? <span className="text-emerald-700">✓ 已就绪 {r.probe.version ? `(${r.probe.version})` : ""}</span>
-                : <span className="text-rose-700">✗ {r.probe.reason ?? "未就绪"}</span>)}
+                ? <span className="text-emerald-700">✓ {t("admin.ai.ready")} {r.probe.version ? `(${r.probe.version})` : ""}</span>
+                : <span className="text-rose-700">✗ {r.probe.reason ?? t("admin.ai.notReady")}</span>)}
             </span>
             <input
               value={draft[r.key]}
@@ -1037,9 +1043,9 @@ export function LlmBinariesSection({ onSaved }: { onSaved: () => void }) {
           onClick={() => void save()}
           className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-fg transition disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
         >
-          {saving ? "保存并探测中…" : "保存并探测"}
+          {saving ? t("admin.bin.saving") : t("admin.bin.save")}
         </button>
-        <span className="text-xs text-muted">留空 = 清除，回退到 .env / PATH</span>
+        <span className="text-xs text-muted">{t("admin.bin.clearHint")}</span>
       </div>
     </div>
   );
@@ -1051,6 +1057,7 @@ export function LlmBinariesSection({ onSaved }: { onSaved: () => void }) {
 const CLAUDE_MODEL_SUGGESTIONS = ["fable", "opus", "sonnet", "haiku"];
 
 export function LlmModelsSection() {
+  const t = useT();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<LlmModelSettings | null>(null);
@@ -1078,7 +1085,7 @@ export function LlmModelsSection() {
         claude: draft.claude.trim() || null,
         codex: draft.codex.trim() || null,
       }));
-      toast.success("已保存模型设置");
+      toast.success(t("admin.models.saved"));
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -1087,19 +1094,19 @@ export function LlmModelsSection() {
   }
 
   if (loading) {
-    return <div className="rounded-xl border border-line bg-white p-4 text-sm text-muted shadow-glass">加载中…</div>;
+    return <div className="rounded-xl border border-line bg-white p-4 text-sm text-muted shadow-glass">{t("common.loading")}</div>;
   }
 
   const rows = [
-    { key: "claude" as const, label: "Claude Code 模型", ph: "如 opus、sonnet 或完整模型 ID", list: "llm-model-claude" },
-    { key: "codex" as const, label: "Codex 模型", ph: "如 gpt-6.1-sol", list: undefined },
+    { key: "claude" as const, label: t("admin.models.claude"), ph: t("admin.models.claudePh"), list: "llm-model-claude" },
+    { key: "codex" as const, label: t("admin.models.codex"), ph: t("admin.models.codexPh"), list: undefined },
   ];
 
   return (
     <div data-testid="llm-models-section" className="rounded-xl border border-line bg-white p-4 shadow-glass">
       <div className="flex items-center gap-2">
-        <span className="text-base font-medium text-fg">模型</span>
-        <span className="text-xs text-muted">为每个引擎选择使用的模型，保存后对新发起的对话立即生效</span>
+        <span className="text-base font-medium text-fg">{t("admin.models.title")}</span>
+        <span className="text-xs text-muted">{t("admin.models.desc")}</span>
       </div>
       {err && (
         <div className="mt-3 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>
@@ -1112,12 +1119,12 @@ export function LlmModelsSection() {
             <label key={r.key} className="text-xs text-muted">
               <span className="flex items-center gap-2">
                 {r.label}
-                <span>当前生效：<span className="text-fg">{active ?? "命令行默认模型"}</span></span>
+                <span>{t("admin.models.active")}<span className="text-fg">{active ?? t("admin.models.cliDefault")}</span></span>
               </span>
               <input
                 value={draft[r.key]}
                 onChange={(e) => setDraft({ ...draft, [r.key]: e.target.value })}
-                placeholder={envDefault ? `留空使用 .env 中的 ${envDefault}` : r.ph}
+                placeholder={envDefault ? t("admin.models.envPh", { model: envDefault }) : r.ph}
                 list={r.list}
                 spellCheck={false}
                 className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-1.5 font-mono text-sm"
@@ -1136,9 +1143,9 @@ export function LlmModelsSection() {
           onClick={() => void save()}
           className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-fg transition disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
         >
-          {saving ? "保存中…" : "保存"}
+          {saving ? t("common.saving") : t("common.save")}
         </button>
-        <span className="text-xs text-muted">留空 = 回退到 .env 的 CLAUDE_MODEL / CODEX_MODEL，都没有时用命令行默认模型</span>
+        <span className="text-xs text-muted">{t("admin.models.clearHint")}</span>
       </div>
     </div>
   );
@@ -1146,6 +1153,7 @@ export function LlmModelsSection() {
 
 // ─── 火山 TTS credentials section ────────────────────────
 export function VolcTtsSection() {
+  const t = useT();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [creds, setCreds] = useState<{
@@ -1199,9 +1207,9 @@ export function VolcTtsSection() {
   }
 
   async function clear() {
-    const ok = await dialog.confirm("清除后将回退到 .env 或 stub。", {
-      title: "清除已存储的 TTS 凭证？",
-      confirmText: "清除",
+    const ok = await dialog.confirm(t("admin.volc.ttsClearMsg"), {
+      title: t("admin.volc.ttsClearTitle"),
+      confirmText: t("admin.volc.clear"),
       danger: true,
     });
     if (!ok) return;
@@ -1218,17 +1226,17 @@ export function VolcTtsSection() {
   }
 
   if (loading) {
-    return <div className="rounded-xl border border-line bg-white p-4 text-sm text-muted shadow-glass">加载中…</div>;
+    return <div className="rounded-xl border border-line bg-white p-4 text-sm text-muted shadow-glass">{t("common.loading")}</div>;
   }
 
   return (
     <div className="rounded-xl border border-line bg-white p-4 shadow-glass">
       <div className="flex items-center gap-3">
-        <span className="text-base font-medium text-fg">语音合成 (TTS)</span>
+        <span className="text-base font-medium text-fg">{t("admin.volc.ttsTitle")}</span>
         {creds?.configured ? (
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">✓ 已配置</span>
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">{t("admin.volc.configured")}</span>
         ) : (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">未配置 — 仅文字提示</span>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">{t("admin.volc.ttsNone")}</span>
         )}
       </div>
       {err && (
@@ -1236,20 +1244,20 @@ export function VolcTtsSection() {
       )}
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="text-xs text-muted sm:col-span-2">
-          API Key（新版控制台，只需填这一项）
+          {t("admin.volc.apiKey")}
           <input
             type="text"
             value={draft.apiKey}
             onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })}
-            placeholder="未设置。填写后优先使用，下面的 App ID / Access Token 可留空"
+            placeholder={t("admin.volc.apiKeyPh")}
             className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-1.5 text-sm"
           />
           <span className="mt-1 block text-[11px] leading-relaxed text-muted/80">
-            已保存的密钥只显示末 4 位；不修改就保持原样，清空则删除。
+            {t("admin.volc.keyHint")}
           </span>
         </label>
         <label className="text-xs text-muted">
-          App ID（旧版控制台）
+          {t("admin.volc.appId")}
           <input
             value={draft.appId}
             onChange={(e) => setDraft({ ...draft, appId: e.target.value })}
@@ -1257,26 +1265,26 @@ export function VolcTtsSection() {
           />
         </label>
         <label className="text-xs text-muted">
-          Access Token（旧版控制台）
+          {t("admin.volc.accessToken")}
           <input
             type="text"
             value={draft.accessToken}
             onChange={(e) => setDraft({ ...draft, accessToken: e.target.value })}
-            placeholder="未设置"
+            placeholder={t("admin.volc.unset")}
             className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-1.5 text-sm"
           />
         </label>
         <label className="text-xs text-muted">
-          Voice（可选）
+          {t("admin.volc.voice")}
           <input
             value={draft.voice}
             onChange={(e) => setDraft({ ...draft, voice: e.target.value })}
-            placeholder="例如 BV001_streaming"
+            placeholder={t("admin.volc.voicePh")}
             className="mt-1 w-full rounded-lg border border-line bg-white px-2 py-1.5 text-sm"
           />
         </label>
         <label className="text-xs text-muted">
-          Endpoint（可选）
+          {t("admin.volc.endpoint")}
           <input
             value={draft.endpoint}
             onChange={(e) => setDraft({ ...draft, endpoint: e.target.value })}
@@ -1291,7 +1299,7 @@ export function VolcTtsSection() {
           onClick={() => void save()}
           className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-fg transition disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
         >
-          {saving ? "保存中…" : "保存"}
+          {saving ? t("common.saving") : t("common.save")}
         </button>
         {creds?.configured && (
           <button
@@ -1300,7 +1308,7 @@ export function VolcTtsSection() {
             onClick={() => void clear()}
             className="rounded-lg border border-rose-300 px-3 py-1.5 text-sm text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
           >
-            清除
+            {t("admin.volc.clear")}
           </button>
         )}
       </div>
@@ -1312,6 +1320,7 @@ export function VolcTtsSection() {
 // 开启后,文档最后一次编辑静置 10 分钟会由 AI 校验单篇质量与跨文档一致性,有问题则
 // 提醒最后编辑者。被「助手内容过滤」排除的文档不参与。默认关闭。
 export function ArticleReviewToggle() {
+  const t = useT();
   const [settings, setSettings] = useState<ArticleReviewSettings | null>(null);
   const [intervalSec, setIntervalSec] = useState("");  // 扫描间隔(秒)输入草稿
   const [idleMin, setIdleMin] = useState("");          // 静置阈值(分钟)输入草稿
@@ -1337,9 +1346,9 @@ export function ArticleReviewToggle() {
         setIntervalSec(String(next.scanIntervalSec));
         setIdleMin(String(next.idleMinutes));
       }
-      toast.success("已保存");
+      toast.success(t("admin.saved"));
     } catch (e) {
-      toast.error((e as Error).message || "保存失败");
+      toast.error((e as Error).message || t("error.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -1349,10 +1358,9 @@ export function ArticleReviewToggle() {
 
   return (
     <section className="rounded-xl border border-line p-4">
-      <h3 className="mb-1 text-sm font-semibold text-fg">文档 AI 入库前置校验</h3>
+      <h3 className="mb-1 text-sm font-semibold text-fg">{t("admin.ar.title")}</h3>
       <p className="mb-3 text-xs text-muted">
-        开启后,文档最后一次编辑静置「静置阈值」后,由 AI 校验单篇质量与跨文档一致性,有问题则提醒最后编辑者。
-        被「{getAssistantName()} 内容过滤」排除的文档不参与。
+        {t("admin.ar.desc", { name: getAssistantName() })}
       </p>
 
       <label className="mb-3 inline-flex items-center gap-2 text-sm">
@@ -1362,26 +1370,26 @@ export function ArticleReviewToggle() {
           disabled={loading || saving}
           onChange={(e) => void save({ enabled: e.target.checked })}
         />
-        <span>{settings?.enabled ? "已开启" : "已关闭"}</span>
+        <span>{settings?.enabled ? t("admin.ar.on") : t("admin.ar.off")}</span>
       </label>
 
       <div className="mb-3 flex flex-col gap-1 text-xs text-muted">
-        提醒级别(低于此级别的问题不亮红色感叹号,减少吹毛求疵反复报)
+        {t("admin.ar.level")}
         <select
           value={settings?.minSeverity ?? "med"}
           disabled={loading || saving}
           onChange={(e) => void save({ minSeverity: e.target.value as ArticleReviewSettings["minSeverity"] })}
           className="w-56 rounded-lg border border-line px-2 py-1 text-sm text-fg"
         >
-          <option value="low">全部(含低级建议)</option>
-          <option value="med">中及以上(推荐,过滤低级)</option>
-          <option value="high">仅高级(只报最严重)</option>
+          <option value="low">{t("admin.ar.lvLow")}</option>
+          <option value="med">{t("admin.ar.lvMed")}</option>
+          <option value="high">{t("admin.ar.lvHigh")}</option>
         </select>
       </div>
 
       <div className="flex flex-wrap items-end gap-4">
         <label className="flex flex-col gap-1 text-xs text-muted">
-          扫描间隔(秒,30–3600)
+          {t("admin.ar.scan")}
           <input
             type="number" min={30} max={3600} value={intervalSec}
             disabled={loading || saving}
@@ -1390,7 +1398,7 @@ export function ArticleReviewToggle() {
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted">
-          静置阈值(分钟,1–1440)
+          {t("admin.ar.idle")}
           <input
             type="number" min={1} max={1440} value={idleMin}
             disabled={loading || saving}
@@ -1404,16 +1412,16 @@ export function ArticleReviewToggle() {
           onClick={() => void save({ scanIntervalSec: Number(intervalSec), idleMinutes: Number(idleMin) })}
           className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-fg hover:opacity-90 disabled:opacity-50"
         >
-          {saving ? "保存中…" : "保存间隔/阈值"}
+          {saving ? t("common.saving") : t("admin.ar.saveInterval")}
         </button>
       </div>
-      <p className="mt-2 text-[11px] text-muted">超出范围的数值会被自动夹到边界;扫描间隔改动在下一个扫描周期生效。</p>
+      <p className="mt-2 text-[11px] text-muted">{t("admin.ar.clampNote")}</p>
 
       {/* ─── 每日复检提醒 ─── */}
       <div className="mt-4 border-t border-line pt-4">
-        <h4 className="mb-1 text-sm font-semibold text-fg">每日复检提醒</h4>
+        <h4 className="mb-1 text-sm font-semibold text-fg">{t("admin.ar.reminderTitle")}</h4>
         <p className="mb-3 text-xs text-muted">
-          仍有未优化问题的文档,按下面的星期与时间(北京时间)给「最后编辑者」发一条聚合飞书提醒,直到问题被修复或忽略。
+          {t("admin.ar.reminderDesc")}
         </p>
         <label className="mb-3 inline-flex items-center gap-2 text-sm">
           <input
@@ -1422,11 +1430,11 @@ export function ArticleReviewToggle() {
             disabled={loading || saving}
             onChange={(e) => void save({ reminderEnabled: e.target.checked })}
           />
-          <span>{settings?.reminderEnabled ? "已开启" : "已关闭"}</span>
+          <span>{settings?.reminderEnabled ? t("admin.ar.on") : t("admin.ar.off")}</span>
         </label>
         <div className="flex flex-wrap items-end gap-6">
           <div className="flex flex-col gap-1.5 text-xs text-muted">
-            提醒星期
+            {t("admin.ar.reminderDays")}
             <div className="flex gap-1">
               {REMINDER_WD.map((d) => {
                 const on = settings?.reminderWeekdays?.includes(d.v) ?? false;
@@ -1442,13 +1450,13 @@ export function ArticleReviewToggle() {
                     }}
                     className={cn("h-8 w-8 rounded-md border text-sm transition disabled:opacity-50",
                       on ? "border-primary bg-accent-soft font-medium text-primary" : "border-line text-muted hover:bg-surface")}
-                  >{d.l}</button>
+                  >{t(WEEKDAY_KEYS[d.v - 1])}</button>
                 );
               })}
             </div>
           </div>
           <div className="flex flex-col gap-1.5 text-xs text-muted">
-            提醒时间
+            {t("admin.ar.reminderTime")}
             <TimePicker
               value={`${String(settings?.reminderHour ?? 10).padStart(2, "0")}:${String(settings?.reminderMinute ?? 0).padStart(2, "0")}`}
               onChange={(v) => { const [h, m] = v.split(":").map(Number); void save({ reminderHour: h, reminderMinute: m }); }}
@@ -1460,4 +1468,4 @@ export function ArticleReviewToggle() {
   );
 }
 
-const REMINDER_WD = [{ v: 1, l: "一" }, { v: 2, l: "二" }, { v: 3, l: "三" }, { v: 4, l: "四" }, { v: 5, l: "五" }, { v: 6, l: "六" }, { v: 7, l: "日" }];
+const REMINDER_WD = [1, 2, 3, 4, 5, 6, 7].map((v) => ({ v }));

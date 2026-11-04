@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, type WebNotifySettings } from "@/lib/api";
 import { toast } from "@/components/Toaster";
 import { getAssistantName } from "@/lib/assistantName";
+import { tr, useT } from "@/i18n";
 
 // 管理后台 → Web 通知。三类「事件完成」通知(自动化 / 会议纪要 /助手生图)的组织级
 // 全局开关:关掉即全员不再产生该类通知(连站内铃铛都不写)。每位成员还能在右上角「通知铃铛
@@ -13,17 +14,18 @@ export function AdminWebNotifyPage() {
 }
 
 const ROWS: { key: keyof Omit<WebNotifySettings, "enabled">; label: string; hint: string }[] = [
-  { key: "automation", label: "自动化任务完成", hint: "定时/手动运行的自动化任务跑完时提醒发起人" },
-  { key: "meeting", label: "会议纪要生成", hint: "会议结束、纪要生成完成时提醒主持人" },
-  { key: "image", get label() { return `${getAssistantName()} 生成图片`; }, get hint() { return `在对话里让 ${getAssistantName()} 画图,生成完成时提醒本人`; } },
+  { key: "automation", get label() { return tr("admin.webNotify.automation"); }, get hint() { return tr("admin.webNotify.automationHint"); } },
+  { key: "meeting", get label() { return tr("admin.webNotify.meeting"); }, get hint() { return tr("admin.webNotify.meetingHint"); } },
+  { key: "image", get label() { return tr("admin.webNotify.image", { name: getAssistantName() }); }, get hint() { return tr("admin.webNotify.imageHint", { name: getAssistantName() }); } },
 ];
 
 function Inner() {
+  const t = useT();
   const [settings, setSettings] = useState<WebNotifySettings | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    api.adminSettings.webNotify.get().then(setSettings).catch((e) => toast.error((e as Error).message || "加载失败"));
+    api.adminSettings.webNotify.get().then(setSettings).catch((e) => toast.error((e as Error).message || t("error.loadFailed")));
   }, []);
 
   async function save(patch: Partial<WebNotifySettings>) {
@@ -34,28 +36,26 @@ function Inner() {
       const next = await api.adminSettings.webNotify.set(patch);
       setSettings(next);
     } catch (e) {
-      toast.error((e as Error).message || "保存失败");
+      toast.error((e as Error).message || t("error.saveFailed"));
       api.adminSettings.webNotify.get().then(setSettings).catch(() => {});
     } finally {
       setSaving(false);
     }
   }
 
-  if (!settings) return <div className="w-full text-sm text-muted">加载中…</div>;
+  if (!settings) return <div className="w-full text-sm text-muted">{t("common.loading")}</div>;
 
   return (
     <div className="w-full">
       <p className="text-sm text-muted">
-        浏览器桌面通知:自动化、会议纪要、{getAssistantName()} 生图等异步任务完成时,给发起人弹一条系统通知,
-        并在站内「通知铃铛」留一条记录。此处为组织级总开关;成员可在「通知铃铛 → 通知设置」里
-        各自关闭某类或整个桌面弹窗。
+        {t("admin.webNotify.desc", { name: getAssistantName() })}
       </p>
 
       {/* 总开关 */}
       <label className="mt-6 flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-line bg-white p-4 shadow-glass">
         <span>
-          <span className="block text-sm font-medium text-fg">启用 Web 通知</span>
-          <span className="mt-0.5 block text-xs text-muted">关闭后,下面三类通知全部停止(站内铃铛也不再写入)。</span>
+          <span className="block text-sm font-medium text-fg">{t("admin.webNotify.enable")}</span>
+          <span className="mt-0.5 block text-xs text-muted">{t("admin.webNotify.enableHint")}</span>
         </span>
         <input
           type="checkbox"

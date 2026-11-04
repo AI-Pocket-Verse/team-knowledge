@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
+import { useI18n } from "@/i18n";
 
 // 自定义日期选择器(替代原生 <input type=date> 的原生日历弹层,无法美化)。
 // value/onChange 用 "YYYY-MM-DD"(北京墙钟日期,与表单其余逻辑一致);纯日历算术,不涉时区换算。
 // 菜单 portal 到 body(带 data-automation-menu),避免被弹窗滚动容器裁剪、且不触发 Dialog 外点关闭。
 const pad = (n: number) => String(n).padStart(2, "0");
-const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
+const WEEK = [7, 1, 2, 3, 4, 5, 6] as const; // 周日在前
 type YMD = { y: number; m: number; d: number };
 
 function beijingToday(): YMD {
@@ -18,12 +19,13 @@ function parseYMD(s: string): YMD | null {
   return Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d) ? { y, m, d } : null;
 }
 
-export function DatePicker({ value, onChange, placeholder = "选择日期", className }: {
+export function DatePicker({ value, onChange, placeholder, className }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   className?: string;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -84,20 +86,20 @@ export function DatePicker({ value, onChange, placeholder = "选择日期", clas
       <button ref={btnRef} type="button" onClick={() => setOpen((o) => !o)}
         className={cn("flex h-10 items-center gap-2 rounded-lg border border-line bg-white px-3 text-sm transition hover:border-primary/50 focus:border-primary focus:outline-none", value ? "text-fg" : "text-muted", className)}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-muted"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M8 2v4M16 2v4M3 10h18" /></svg>
-        <span className="truncate">{value || placeholder}</span>
+        <span className="truncate">{value || placeholder || t("automation.pickDate")}</span>
       </button>
       {open && pos && createPortal(
         <div ref={menuRef} data-automation-menu style={{ position: "fixed", left: pos.left, top: pos.top, bottom: pos.bottom, zIndex: 70, pointerEvents: "auto" }}
           className="w-[288px] rounded-xl border border-line bg-white p-3 shadow-glassLg">
           <div className="mb-2 flex items-center justify-between">
-            <div className="text-sm font-semibold text-fg">{view.y} 年 {view.m} 月</div>
+            <div className="text-sm font-semibold text-fg">{t("automation.monthTitle", { y: view.y, m: view.m, monthName: new Date(Date.UTC(view.y, view.m - 1, 1)).toLocaleString("en-US", { month: "long", timeZone: "UTC" }) })}</div>
             <div className="flex items-center gap-1">
-              <button type="button" onClick={() => shiftMonth(-1)} aria-label="上个月" className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition hover:bg-surface hover:text-fg">‹</button>
-              <button type="button" onClick={() => shiftMonth(1)} aria-label="下个月" className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition hover:bg-surface hover:text-fg">›</button>
+              <button type="button" onClick={() => shiftMonth(-1)} aria-label={t("automation.prevMonth")} className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition hover:bg-surface hover:text-fg">‹</button>
+              <button type="button" onClick={() => shiftMonth(1)} aria-label={t("automation.nextMonth")} className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition hover:bg-surface hover:text-fg">›</button>
             </div>
           </div>
           <div className="mb-1 grid grid-cols-7 text-center text-xs text-muted">
-            {WEEK.map((w) => <div key={w} className="py-1">{w}</div>)}
+            {WEEK.map((w) => <div key={w} className="py-1">{t(`automation.wd.${w}`)}</div>)}
           </div>
           <div className="grid grid-cols-7 gap-0.5">
             {cells.map((c, i) => (
@@ -112,8 +114,8 @@ export function DatePicker({ value, onChange, placeholder = "选择日期", clas
             ))}
           </div>
           <div className="mt-2 flex items-center justify-between border-t border-line pt-2 text-sm">
-            <button type="button" onClick={() => { onChange(""); setOpen(false); }} className="text-muted transition hover:text-fg">清除</button>
-            <button type="button" onClick={() => pick(today)} className="font-medium text-primary transition hover:opacity-80">今天</button>
+            <button type="button" onClick={() => { onChange(""); setOpen(false); }} className="text-muted transition hover:text-fg">{t("automation.clear")}</button>
+            <button type="button" onClick={() => pick(today)} className="font-medium text-primary transition hover:opacity-80">{t("automation.today")}</button>
           </div>
         </div>,
         document.body,

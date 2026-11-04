@@ -5,6 +5,7 @@ import { api, ApiError, type ModelDisplayAdmin } from "@/lib/api";
 import { useIsAdmin } from "@/stores/auth";
 import { LlmBinariesSection, LlmModelsSection } from "./adminSettingsSections";
 import { toast } from "@/components/Toaster";
+import { useT } from "@/i18n";
 
 type Status = LlmProviderStatus;
 
@@ -18,6 +19,7 @@ export function AdminAiProviderPage() {
 }
 
 function AdminAiProviderPageInner() {
+  const t = useT();
   const [status, setStatus] = useState<Status | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [errStatus, setErrStatus] = useState<number | null>(null);
@@ -84,11 +86,11 @@ function AdminAiProviderPageInner() {
             </svg>
           </div>
           <h2 className="text-base font-semibold text-fg">
-            {isOffline ? "服务暂不可用" : "无法加载设置"}
+            {isOffline ? t("admin.ai.unavailable") : t("admin.ai.loadFailed")}
           </h2>
           <p className="mt-2 text-sm text-muted">
             {isOffline
-              ? "无法连接到后端服务，请确认 API 正在运行后重试。"
+              ? t("admin.ai.offlineHint")
               : err}
           </p>
           <button
@@ -97,7 +99,7 @@ function AdminAiProviderPageInner() {
             disabled={loading}
             className="mt-5 rounded-lg bg-primary px-4 py-2 text-sm text-primary-fg transition disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
           >
-            {loading ? "重试中…" : "重试"}
+            {loading ? t("admin.ai.retrying") : t("common.retry")}
           </button>
         </div>
       </div>
@@ -107,7 +109,7 @@ function AdminAiProviderPageInner() {
   return (
     <div className="w-full">
       <p className="text-sm text-muted">
-        选择 问答 / 会议 / 群聊答疑 / 文档体检 使用的底层 AI 引擎和模型。切换会立即对新发起的对话生效;正在流式输出的旧对话不会被打断。
+        {t("admin.ai.desc")}
       </p>
 
       {err && (
@@ -129,14 +131,14 @@ function AdminAiProviderPageInner() {
               <div className="flex items-center gap-3">
                 <span className="text-base font-medium text-fg">{label}</span>
                 {isCurrent && (
-                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs text-primary">当前</span>
+                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs text-primary">{t("admin.ai.current")}</span>
                 )}
                 {probe.ok ? (
                   <span className="text-xs text-emerald-600">
-                    ✓ 已就绪 {probe.version ? `(${probe.version})` : ""}
+                    ✓ {t("admin.ai.ready")} {probe.version ? `(${probe.version})` : ""}
                   </span>
                 ) : (
-                  <span className="text-xs text-rose-600">✗ {probe.reason ?? "未就绪"}</span>
+                  <span className="text-xs text-rose-600">✗ {probe.reason ?? t("admin.ai.notReady")}</span>
                 )}
               </div>
               {!isCurrent && (
@@ -146,12 +148,12 @@ function AdminAiProviderPageInner() {
                   onClick={() => void switchTo(name)}
                   className="mt-3 rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-fg transition disabled:cursor-not-allowed disabled:bg-surface disabled:text-muted"
                 >
-                  切换为 {label}
+                  {t("admin.ai.switchTo", { label })}
                 </button>
               )}
               {blocked && (
                 <p className="mt-2 text-xs text-muted">
-                  已启用登录的多人部署只能使用 Claude Code：Codex 带 shell 工具，无法限制它读取服务器文件。
+                  {t("admin.ai.codexBlocked")}
                 </p>
               )}
             </div>
@@ -163,7 +165,7 @@ function AdminAiProviderPageInner() {
           disabled={busy}
           className="self-start text-xs text-muted underline hover:text-primary disabled:opacity-50"
         >
-          刷新探测
+          {t("admin.ai.reprobe")}
         </button>
 
         {/* 各引擎使用的模型(后台设置 > .env > CLI 默认)。 */}
@@ -183,11 +185,12 @@ function AdminAiProviderPageInner() {
 // 对外显示的「模型型号」:每 provider 手填 模型+版本+等级(飞书卡片/Skill 卡片都以它为准),
 // 旁边只读展示「实际检测到」的真实模型供核对;末尾一个「群答疑卡片是否显示模型」开关。
 function ModelDisplaySection() {
+  const t = useT();
   const [cfg, setCfg] = useState<ModelDisplayAdmin | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    api.adminSettings.getModelDisplay().then(setCfg).catch((e) => toast.error((e as Error).message || "加载失败"));
+    api.adminSettings.getModelDisplay().then(setCfg).catch((e) => toast.error((e as Error).message || t("error.loadFailed")));
   }, []);
 
   function setField(provider: "claude" | "codex", key: "model" | "version" | "level", v: string) {
@@ -200,15 +203,15 @@ function ModelDisplaySection() {
     try {
       const next = await api.adminSettings.setModelDisplay({ claude: cfg.claude, codex: cfg.codex, showInGroupCard: cfg.showInGroupCard });
       setCfg(next);
-      toast.success("已保存模型型号");
+      toast.success(t("admin.ai.modelSaved"));
     } catch (e) {
-      toast.error((e as Error).message || "保存失败");
+      toast.error((e as Error).message || t("error.saveFailed"));
     } finally {
       setSaving(false);
     }
   }
 
-  if (!cfg) return <div className="rounded-xl border border-line bg-white p-4 text-sm text-muted shadow-glass">加载模型型号设置…</div>;
+  if (!cfg) return <div className="rounded-xl border border-line bg-white p-4 text-sm text-muted shadow-glass">{t("admin.ai.modelLoading")}</div>;
 
   const providers: { key: "claude" | "codex"; label: string }[] = [
     { key: "claude", label: "Claude Code" },
@@ -224,8 +227,8 @@ function ModelDisplaySection() {
     <div className="rounded-xl border border-line bg-white p-4 shadow-glass">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-sm font-medium text-fg">对外显示的模型型号</div>
-          <div className="mt-0.5 text-xs text-muted">飞书群答疑卡片 / 角色 Skill 卡片对外展示的模型名,以这里手填的为准(格式:模型 · 版本 · 等级)。三段留空则显示上面的默认名。</div>
+          <div className="text-sm font-medium text-fg">{t("admin.ai.modelTitle")}</div>
+          <div className="mt-0.5 text-xs text-muted">{t("admin.ai.modelDesc")}</div>
         </div>
         <button
           type="button"
@@ -233,7 +236,7 @@ function ModelDisplaySection() {
           disabled={saving}
           className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-50"
         >
-          {saving ? "保存中…" : "保存"}
+          {saving ? t("common.saving") : t("common.save")}
         </button>
       </div>
 
@@ -243,13 +246,13 @@ function ModelDisplaySection() {
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium text-fg">{label}</span>
               {cfg.detected[key] ? (
-                <span className="text-[11px] text-muted" title="从 CLI 对话流探测到的真实模型,供核对手填是否一致">实际检测到:<span className="text-fg">{cfg.detected[key]}</span></span>
+                <span className="text-[11px] text-muted" title={t("admin.ai.detectedTip")}>{t("admin.ai.detected")}<span className="text-fg">{cfg.detected[key]}</span></span>
               ) : (
-                <span className="text-[11px] text-muted">实际检测到:—(尚无 / 该引擎不上报)</span>
+                <span className="text-[11px] text-muted">{t("admin.ai.detectedNone")}</span>
               )}
             </div>
             <div className="mt-2 grid grid-cols-3 gap-2">
-              {([["model", "模型"], ["version", "版本"], ["level", "等级"]] as const).map(([k, ph]) => (
+              {([["model", t("admin.ai.fModel")], ["version", t("admin.ai.fVersion")], ["level", t("admin.ai.fLevel")]] as const).map(([k, ph]) => (
                 <input
                   key={k}
                   value={cfg[key][k]}
@@ -260,15 +263,15 @@ function ModelDisplaySection() {
                 />
               ))}
             </div>
-            <div className="mt-2 text-[11px] text-muted">对外显示:<span className="text-fg">{preview(key)}</span></div>
+            <div className="mt-2 text-[11px] text-muted">{t("admin.ai.preview")}<span className="text-fg">{preview(key)}</span></div>
           </div>
         ))}
       </div>
 
       <div className="mt-3 flex items-center gap-2">
-        <span className="text-xs font-medium text-fg">群答疑卡片显示模型</span>
+        <span className="text-xs font-medium text-fg">{t("admin.ai.showInCard")}</span>
         <div className="flex gap-1.5">
-          {[{ v: true, label: "显示" }, { v: false, label: "不显示" }].map((o) => {
+          {[{ v: true, label: t("admin.ai.show") }, { v: false, label: t("admin.ai.hide") }].map((o) => {
             const on = cfg.showInGroupCard === o.v;
             return (
               <button
@@ -283,7 +286,7 @@ function ModelDisplaySection() {
             );
           })}
         </div>
-        <span className="text-[11px] text-muted">默认不显示,避免群里噪音;Skill 卡片始终显示。</span>
+        <span className="text-[11px] text-muted">{t("admin.ai.showHint")}</span>
       </div>
     </div>
   );
