@@ -13,12 +13,13 @@ A self-hosted team knowledge base with an AI assistant. Knowledge is organized a
 - **Role skills**: each role's documents are summarized into a `skill.md` you can copy or download, regenerated automatically when the content changes
 - **Automations**: scheduled AI tasks (a daily news digest, a weekly report, ...) whose results go to in-app notifications or a Feishu group
 - **Dashboard and notifications**: overview, trends, rankings and a live activity feed; in-app and desktop notifications; personal profile pages
+- **Chinese and English UI**: follows the browser language by default and can be switched from the avatar menu; answers come back in the language of whoever asked, and shared content (Feishu cards, scheduled reports, role skills, meeting minutes) uses the deployment language `APP_LANGUAGE`
 - **Switchable AI engine and model**: switch between the Claude Code and Codex CLIs and choose a model for each (for example `opus` or `sonnet`); changes apply immediately
 - **Optional Feishu (Lark) integration** through the companion open-source project [feishu-sso](https://github.com/AI-Pocket-Verse/feishu-sso): Feishu login, importing Feishu docs, chatting with the bot in private and group chats, answering questions it overhears in groups, and group notifications
 
 Stack: Fastify + Prisma (SQLite) backend, React + Vite + Tailwind + Milkdown frontend, managed as a pnpm workspace.
 
-> **The UI is in Chinese only**, with a light theme, built for desktop browsers (1024 px wide or more); narrow mobile screens and dark mode are not supported. The frontend loads no external fonts or other resources, so it also works on an intranet.
+> The UI is available in Chinese and English, with a light theme, built for desktop browsers (1024 px wide or more); narrow mobile screens and dark mode are not supported. The frontend loads no external fonts or other resources, so it also works on an intranet.
 
 ## Screenshots
 
@@ -131,8 +132,9 @@ The api loads its configuration with Node's built-in `--env-file`: `pnpm dev` re
 | `WEB_PUBLIC_URL` | `http://localhost:5030` | The URL users open (include the path prefix when served under a sub-path, and proxy `/api` under the same prefix). Used for links in notification cards and recording links in minutes saved as documents |
 | `CLAUDE_BIN` / `CODEX_BIN` | `claude` / `codex` | CLI paths; can also be changed in the admin console |
 | `CLAUDE_MODEL` / `CODEX_MODEL` | empty | Default model for each engine; empty means the CLI's default. The admin console can override it, see [Choosing the AI engine and model](#choosing-the-ai-engine-and-model) |
+| `APP_LANGUAGE` | `zh` | Deployment language, `zh` or `en`: Feishu cards and group notifications, scheduled audits and reports, role skills and meeting minutes are written in it, and so are answers to requests that carry no UI language (the Feishu bot, scripts). Each person's web UI follows their browser language or their choice in the avatar menu |
 | `ASSISTANT_NAME` | `AI` | Display name of the assistant in the UI, prompts and Feishu cards; the web app reads it from `/api/me` |
-| `WAKE_WORDS` | `小助手` | Comma-separated meeting wake words; any of them in the transcript makes the assistant answer |
+| `WAKE_WORDS` | `小助手` | Comma-separated meeting wake words; any of them in the transcript makes the assistant answer. For English meetings set something like `hey assistant` |
 | `WHOAMI_URL` | unset | Enables Feishu login and Feishu features when set, see below |
 | `ADMIN_OPEN_IDS` / `ADMIN_EMAILS` / `ADMIN_PHONES` | empty | With login enabled, users on these lists become admins on their first login |
 | `INTERNAL_API_TOKEN` | development placeholder | Shared secret between the api and feishu-sso; must match on both sides. When empty, all internal requests are rejected. With login enabled and the token empty or still the placeholder, the api refuses to start in production or when `HOST` is reachable from other machines, and logs a warning in development on loopback |
